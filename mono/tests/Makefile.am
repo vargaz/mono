@@ -652,7 +652,7 @@ assemblyresolve/test/asm.dll:
 TestDriver.dll:
 	$(MCS) -target:library -out:$@ $(srcdir)/../mini/TestDriver.cs
 
-test_cs: $(TEST_PROG) $(TESTSI_CS) libtest.la
+test_cs: $(TEST_PROG) $(TESTSI_CS) libtest.$(LA_SUFFIX)
 	@failed=0; \
 	passed=0; \
 	for i in $(TESTSI_CS); do	\
@@ -666,7 +666,7 @@ test_cs: $(TEST_PROG) $(TESTSI_CS) libtest.la
 	done; \
 	echo; echo ".cs: $${passed} test(s) passed. $${failed} test(s) did not pass."; echo
 
-test_il: $(TEST_PROG) $(TESTSI_IL) libtest.la
+test_il: $(TEST_PROG) $(TESTSI_IL) libtest.$(LA_SUFFIX)
 	@failed=0; \
 	passed=0; \
 	for i in $(TESTSI_IL); do	\

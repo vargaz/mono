@@ -2,8 +2,17 @@ count=100000
 mtest=for_loop
 monodir=$(top_builddir)
 
+if ENABLE_MK
+STATIC_LIB_SUFFIX=a
+else
+STATIC_LIB_SUFFIX=la
+endif
+
 # This is needed for automake dependency generation
 if INCLUDED_LIBGC
+if ENABLE_MK
+libgc_libs=$(monodir)/libgc/.libs/libmonogc.a
+else
 libgc_libs=$(monodir)/libgc/libmonogc.la
 libgc_static_libs=$(monodir)/libgc/libmonogc-static.la
 else
@@ -164,7 +173,7 @@ mono_sgen_CFLAGS = $(AM_CFLAGS)
 # We build this after libmono was built so it contains the date when the final
 # link was done
 if SUPPORT_BOEHM
-buildver.h: libmini-static.la
+buildver.h: libmini-static.$(STATIC_LIB_SUFFIX)
 	@echo "const char *build_date = \"`date`\";" > buildver.h
 mono-main.$(OBJEXT): buildver.h
 endif
@@ -224,11 +233,11 @@ mono_sgen_LDFLAGS = $(static_flags) -export-dynamic $(monobinldflags) $(monobin_
 
 if DTRACE_G_REQUIRED
 
-mono-dtrace.$(OBJEXT): $(top_srcdir)/data/mono.d mini.lo $(monodir)/mono/metadata/libmonoruntime-static.la
+mono-dtrace.$(OBJEXT): $(top_srcdir)/data/mono.d mini.lo $(monodir)/mono/metadata/libmonoruntime-static.$(STATIC_LIB_SUFFIX)
 	DTRACE="$(DTRACE)" DTRACEFLAGS="$(DTRACEFLAGS)" AR="$(AR)" $(SHELL) $(top_srcdir)/data/dtrace-prelink.sh \
 	$@ $(top_srcdir)/data/mono.d $(monodir)/mono/metadata/libmonoruntime-static.la mini.lo
 
-.libs/mono-dtrace.$(OBJEXT): $(top_srcdir)/data/mono.d mini.lo $(monodir)/mono/metadata/libmonoruntime.la
+.libs/mono-dtrace.$(OBJEXT): $(top_srcdir)/data/mono.d mini.lo $(monodir)/mono/metadata/libmonoruntime.$(STATIC_LIB_SUFFIX)
 	DTRACE="$(DTRACE)" DTRACEFLAGS="$(DTRACEFLAGS)" AR="$(AR)" $(SHELL) $(top_srcdir)/data/dtrace-prelink.sh \
 	--pic $@ $(top_srcdir)/data/mono.d $(monodir)/mono/metadata/libmonoruntime.la mini.lo
 
