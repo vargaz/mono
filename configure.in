@@ -3357,6 +3357,7 @@ mono/mini/Makefile
 mono/profiler/Makefile
 ikvm-native/Makefile
 scripts/Makefile
+support/Makefile
 man/Makefile
 web/Makefile
 docs/Makefile
