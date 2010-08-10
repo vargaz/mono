@@ -184,6 +184,23 @@ Makefile: Makefile.am
 	cd $(top_builddir) && ./config.status mk
 
 #
+# Regeneration of configure
+#
+ifeq ($(top_builddir),.)
+
+Makefile: $(top_builddir)/config.status
+
+$(top_builddir)/config.status: $(top_srcdir)/configure
+	./config.status --recheck
+
+$(top_srcdir)/configure: $(top_srcdir)/configure.in
+	cd $(top_srcdir) && autoconf
+
+all: $(top_srcdir)/configure
+
+endif
+
+#
 # dist
 #
 
