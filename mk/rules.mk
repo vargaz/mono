@@ -74,9 +74,9 @@ $(1)$(STATIC_LIB_SUFFIX): $$($(1)_OBJECTS) $$($(1)_LT_DIRS) $$($(1)_LT_DIRS_2)
 	$(if $(V),,@echo -e "LD\\t$$@";) $(RM) $$@ && $(AR) qc $$@ $$($(1)_OBJECTS) $$($(1)_LT_FILES) $$($(1)_LT_FILES_2)
 endef # add-ltlib-rules
 
-# Add rules for each entry in $(lib/noinst_LTLIBRARIES)
-$(foreach lib,$(noinst_LTLIBRARIES),$(eval $(call add-ltlib-rules,$(patsubst %.la,%,$(lib)),$(subst .,_,$(subst -,_,$(lib))))))
-$(foreach lib,$(lib_LTLIBRARIES),$(eval $(call add-ltlib-rules,$(patsubst %.la,%,$(lib)),$(subst .,_,$(subst -,_,$(lib))))))
+# Add rules for each library
+$(foreach lib,$(noinst_LTLIBRARIES) $(lib_LTLIBRARIES),$(eval $(call add-ltlib-rules,$(patsubst %.la,%,$(lib)),$(subst .,_,$(subst -,_,$(lib))))))
+$(foreach lib,$(noinst_LIBRARIES),$(eval $(call add-ltlib-rules,$(patsubst %.a,%,$(lib)),$(subst .,_,$(subst -,_,$(lib))))))
 
 #
 # Executables
@@ -87,7 +87,8 @@ define add-program-rules
 
 # Collect object files, filtering out headers and files in other directories
 # Object files will be named <libtool name>-<srcname>.o
-$(1)_OBJECTS := $(patsubst %.s,%.o,$(patsubst %.c,$(2)-%.o, $(notdir $(filter-out %.h, $($(2)_SOURCES)))))
+# If $(2)_SOURCES is not defined, use $(1).c
+$(1)_OBJECTS := $(patsubst %.s,%.o,$(patsubst %.c,$(2)-%.o, $(notdir $(filter-out %.h, $(if $($(2)_SOURCES),$($(2)_SOURCES),$(1).c)))))
 # Add a compilation rule for these files using the per target CFLAGS
 $(eval $(call add-cc-comp-rule,$(2)-%.o,$(srcdir)/%.c,$(2)_CFLAGS))
 
@@ -96,12 +97,15 @@ $(foreach srcfile,$(filter ../%, $(filter-out %.h, $($(2)_SOURCES))),$(eval $(ca
 
 $(1)_REAL_LDADD := $(patsubst %.lo,%.o, $(patsubst %.la,%$(STATIC_LIB_SUFFIX),$($(2)_LDADD)))
 
+# Collect dependend libraries
+$(1)_LIB_DEPS := $(patsubst %.a,%$(STATIC_LIB_SUFFIX),$(filter %.a,$($(2)_LDADD)))
+
 all-objects += $$($(1)_OBJECTS)
 
 all-am: $(1)
 
 # The rule linking the executable
-$(1): $$($(1)_OBJECTS)
+$(1): $$($(1)_OBJECTS) $$($(1)_LIB_DEPS)
 	$(if $(V),,@echo -e "LD\\t$$@";) $(CC) -o $$@ $$($(1)_OBJECTS) $($(2)_LDFLAGS) $$($(1)_REAL_LDADD) $(LIBS)
 endef # add-program-rules
 
