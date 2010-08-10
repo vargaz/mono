@@ -8,6 +8,33 @@
 #
 
 # FIXME: Add a namespace like in quagmire ?
+#
+# The code below uses complex variable substitutions, read the GNU Make manual
+# to understand it.
+# We can't define temporary variables inside a define, so have to duplicate a lot of stuff.
+#
+
+#
+# Compilation
+#
+
+DEFAULT_INCLUDES=-I. -I$(top_builddir)
+CFLAGS += $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CFLAGS) -DHAVE_CONFIG_H
+
+%.o: $(srcdir)/%.c
+	$(if $(V),,@echo -e "CC\\t$@";) $(CC) -c $(CPPFLAGS) $(CFLAGS) -o $@ $< -MD -MP -MF .deps/$(patsubst %.o,%.Po,$@)
+
+%.o: %.s
+	$(if $(V),,@echo -e "AS\\t$@";) $(AS) $(ASFLAGS) -o $@ $<
+
+# A macro for adding custom C compilation rules
+define add-cc-comp-rule
+# $(1) is the name of the target
+# $(2) is the name of the source
+# $(3) is the name of the CFLAGS var to use
+$(1): $(2)
+	$(if $(V),,@echo -e "CC\\t$$@";) $$(CC) -c $$(CPPFLAGS) $$(CFLAGS) $$($(3)) -o $$@ $$< -MD -MP -MF .deps/$(patsubst %.o,%.Po,$$@)
+endef # add-cc-comp-rule
 
 #
 # Static libs
@@ -15,12 +42,11 @@
 
 STATIC_LIB_SUFFIX = .a
 
-# $(1) is the library name, $(2) is the prefix used by the automake variables
 define add-ltlib-rules
+# $(1) is the library name, $(2) is the prefix used by the automake variables
 
-$(1)_OBJECTS := $(patsubst %.s,%.o,$(patsubst %.c,%.o, $(filter-out %.h, $($(2)_SOURCES))))
-
-# Can't define temporary variables inside a define, so have to duplicate a lot of stuff
+$(1)_OBJECTS := $(patsubst %.s,%.o,$(patsubst %.c,$(2)-%.o, $(filter-out %.h, $($(2)_SOURCES))))
+$(eval $(call add-cc-comp-rule,$(2)-%.o,$(srcdir)/%.c,$(2)_CFLAGS))
 
 # Collect dependend libraries
 all-lt-deps += $(patsubst %.la,%$(STATIC_LIB_SUFFIX),$(filter %.la,$($(2)_LIBADD)))
@@ -46,9 +72,9 @@ $(1): $(1)$(STATIC_LIB_SUFFIX)
 
 $(1)$(STATIC_LIB_SUFFIX): $$($(1)_OBJECTS) $$($(1)_LT_DIRS) $$($(1)_LT_DIRS_2)
 	$(if $(V),,@echo -e "LD\\t$$@";) $(RM) $$@ && $(AR) qc $$@ $$($(1)_OBJECTS) $$($(1)_LT_FILES) $$($(1)_LT_FILES_2)
+endef # add-ltlib-rules
 
-endef
-
+# Add rules for each entry in $(lib/noinst_LTLIBRARIES)
 $(foreach lib,$(noinst_LTLIBRARIES),$(eval $(call add-ltlib-rules,$(patsubst %.la,%,$(lib)),$(subst .,_,$(subst -,_,$(lib))))))
 $(foreach lib,$(lib_LTLIBRARIES),$(eval $(call add-ltlib-rules,$(patsubst %.la,%,$(lib)),$(subst .,_,$(subst -,_,$(lib))))))
 
@@ -57,34 +83,31 @@ $(foreach lib,$(lib_LTLIBRARIES),$(eval $(call add-ltlib-rules,$(patsubst %.la,%
 #
 
 define add-program-rules
+# $(1) is the executable name, $(2) is the prefix used by the automake variables
 
-$(1)_OBJECTS := $(patsubst %.c,%.o, $(filter-out %.h, $($(1)_SOURCES)))
+# Collect object files, filtering out headers and files in other directories
+# Object files will be named <libtool name>-<srcname>.o
+$(1)_OBJECTS := $(patsubst %.s,%.o,$(patsubst %.c,$(1)-%.o, $(notdir $(filter-out %.h, $($(2)_SOURCES)))))
+# Add a compilation rule for these files using the per target CFLAGS
+$(eval $(call add-cc-comp-rule,$(1)-%.o,$(srcdir)/%.c,$(2)_CFLAGS))
 
-$(1)_REAL_LDADD := $(patsubst %.lo,%.o, $(patsubst %.la,%$(STATIC_LIB_SUFFIX),$($(1)_LDADD)))
+# Add rules for source files in other directories
+$(foreach srcfile,$(filter ../%, $(filter-out %.h, $($(2)_SOURCES))),$(eval $(call add-cc-comp-rule,$(patsubst %.c,$(1)-%.o,$(notdir $(srcfile))),$(srcdir)/$(srcfile),$(2)_CFLAGS)))
+
+$(1)_REAL_LDADD := $(patsubst %.lo,%.o, $(patsubst %.la,%$(STATIC_LIB_SUFFIX),$($(2)_LDADD)))
 
 all-objects += $$($(1)_OBJECTS)
 
 all-am: $(1)
 
+# The rule linking the executable
 $(1): $$($(1)_OBJECTS)
-	$(if $(V),,@echo -e "LD\\t$$@";) $(CC) -o $$@ $$($(1)_OBJECTS) $($(1)_LDFLAGS) $$($(1)_REAL_LDADD) $(LIBS)
-endef
+	$(if $(V),,@echo -e "LD\\t$$@";) $(CC) -o $$@ $$($(1)_OBJECTS) $($(2)_LDFLAGS) $$($(1)_REAL_LDADD) $(LIBS)
+endef # add-program-rules
 
-$(foreach exe,$(bin_PROGRAMS),$(eval $(call add-program-rules,$(exe))))
-$(foreach exe,$(noinst_PROGRAMS),$(eval $(call add-program-rules,$(exe))))
-
-#
-# Compilation
-#
-
-DEFAULT_INCLUDES=-I. -I$(top_builddir)
-CFLAGS += $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CFLAGS) -DHAVE_CONFIG_H
-
-%.o: $(srcdir)/%.c
-	$(if $(V),,@echo -e "CC\\t$@";) $(CC) -c $(CPPFLAGS) $(CFLAGS) -o $@ $< -MD -MP -MF .deps/$(patsubst %.o,%.Po,$@)
-
-%.o: %.s
-	$(if $(V),,@echo -e "AS\\t$@";) $(AS) $(ASFLAGS) -o $@ $<
+# Add rules for each entry in $(bin/noinst_PROGRAMS)
+$(foreach exe,$(bin_PROGRAMS),$(eval $(call add-program-rules,$(exe),$(subst .,_,$(subst -,_,$(exe))))))
+$(foreach exe,$(noinst_PROGRAMS),$(eval $(call add-program-rules,$(exe),$(subst .,_,$(subst -,_,$(exe))))))
 
 #
 # Dependencies

@@ -660,7 +660,11 @@ ac_configure_args="$ac_configure_args \"CPPFLAGS_FOR_EGLIB=$EGLIB_CPPFLAGS\" \"C
 AC_CONFIG_SUBDIRS(eglib)
 
 GLIB_CFLAGS='-I$(top_srcdir)/eglib/src -I$(top_builddir)/eglib/src'
-GLIB_LIBS='-L$(top_builddir)/eglib/src -leglib -lm'
+  if test x$enable_mk = xyes; then
+    GLIB_LIBS='-L$(top_builddir)/eglib/src/.libs -leglib -lm'
+  else
+    GLIB_LIBS='-L$(top_builddir)/eglib/src -leglib -lm'
+  fi
 BUILD_GLIB_CFLAGS="$GLIB_CFLAGS"
 BUILD_GLIB_LIBS="$GLIB_LIBS"
 GMODULE_CFLAGS="$GLIB_CFLAGS"
