@@ -87,12 +87,12 @@ define add-program-rules
 
 # Collect object files, filtering out headers and files in other directories
 # Object files will be named <libtool name>-<srcname>.o
-$(1)_OBJECTS := $(patsubst %.s,%.o,$(patsubst %.c,$(1)-%.o, $(notdir $(filter-out %.h, $($(2)_SOURCES)))))
+$(1)_OBJECTS := $(patsubst %.s,%.o,$(patsubst %.c,$(2)-%.o, $(notdir $(filter-out %.h, $($(2)_SOURCES)))))
 # Add a compilation rule for these files using the per target CFLAGS
-$(eval $(call add-cc-comp-rule,$(1)-%.o,$(srcdir)/%.c,$(2)_CFLAGS))
+$(eval $(call add-cc-comp-rule,$(2)-%.o,$(srcdir)/%.c,$(2)_CFLAGS))
 
 # Add rules for source files in other directories
-$(foreach srcfile,$(filter ../%, $(filter-out %.h, $($(2)_SOURCES))),$(eval $(call add-cc-comp-rule,$(patsubst %.c,$(1)-%.o,$(notdir $(srcfile))),$(srcdir)/$(srcfile),$(2)_CFLAGS)))
+$(foreach srcfile,$(filter ../%, $(filter-out %.h, $($(2)_SOURCES))),$(eval $(call add-cc-comp-rule,$(patsubst %.c,$(2)-%.o,$(notdir $(srcfile))),$(srcdir)/$(srcfile),$(2)_CFLAGS)))
 
 $(1)_REAL_LDADD := $(patsubst %.lo,%.o, $(patsubst %.la,%$(STATIC_LIB_SUFFIX),$($(2)_LDADD)))
 
