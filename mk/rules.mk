@@ -33,7 +33,7 @@ define add-cc-comp-rule
 # $(2) is the name of the source
 # $(3) is the name of the CFLAGS var to use
 $(1): $(2)
-	$(if $(V),,@echo -e "CC\\t$$@";) $$(CC) -c $$(CPPFLAGS) $$(CFLAGS) $$($(3)) -o $$@ $$< -MD -MP -MF .deps/$(patsubst %.o,%.Po,$$@)
+	$(if $(V),,@echo -e "CC\\t$$@";) $$(CC) -c $$(CPPFLAGS) $$(CFLAGS) $$($(3)) -o $$@ $$< -MD -MP -MF .deps/$$(patsubst %.o,%.Po,$$@)
 endef # add-cc-comp-rule
 
 #
