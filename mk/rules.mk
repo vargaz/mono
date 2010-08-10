@@ -178,6 +178,12 @@ $(foreach dir,$(SUBDIRS),$(eval $(call add-makefile-rule,$(dir))))
 endif
 
 #
+# Regeneration of Makefiles
+#
+Makefile: Makefile.am
+	cd $(top_builddir) && ./config.status mk
+
+#
 # dist
 #
 
