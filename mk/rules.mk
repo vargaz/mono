@@ -21,6 +21,8 @@
 DEFAULT_INCLUDES=-I. -I$(top_builddir)
 CFLAGS += $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CFLAGS) -DHAVE_CONFIG_H
 
+PIC_CFLAGS=-fPIC -DPIC
+
 %.o: $(srcdir)/%.c
 	$(if $(V),,@echo -e "CC\\t$@";) $(CC) -c $(CPPFLAGS) $(CFLAGS) -o $@ $< -MD -MP -MF .deps/$(patsubst %.o,%.Po,$@)
 
@@ -34,18 +36,28 @@ define add-cc-comp-rule
 # $(3) is the name of the CFLAGS var to use
 $(1): $(2)
 	$(if $(V),,@echo -e "CC\\t$$@";) $$(CC) -c $$(CPPFLAGS) $$(CFLAGS) $$($(3)) -o $$@ $$< -MD -MP -MF .deps/$$(patsubst %.o,%.Po,$$@)
+
+$(patsubst %.o,%-pic.o,$(1)): $(2)
+	$(if $(V),,@echo -e "CC\\t$$@";) $$(CC) -c $$(CPPFLAGS) $$(CFLAGS) $(PIC_CFLAGS) $$($(3)) -o $$@ $$< -MD -MP -MF .deps/$$(patsubst %.o,%.Po,$$@)
 endef # add-cc-comp-rule
 
 #
-# Static libs
+# Libraries
 #
 
 STATIC_LIB_SUFFIX = .a
+SHARED_LIB_SUFFIX = .so
+PIC_LIB_SUFFIX = -pic.a
+PIC_OBJ_SUFFIX = -pic.o
 
 define add-ltlib-rules
 # $(1) is the library name, $(2) is the prefix used by the automake variables
+# $(3) is yes for installable libraries, '' otherwise
 
 $(1)_OBJECTS := $(patsubst %.s,%.o,$(patsubst %.c,$(2)-%.o, $(subst /,-,$(filter-out %.h, $($(2)_SOURCES)))))
+ifneq ($(3)$(enable_shared),)
+$(1)_PIC_OBJECTS := $(patsubst %.s,%.o,$(patsubst %.c,$(2)-%$(PIC_OBJ_SUFFIX), $(subst /,-,$(filter-out %.h, $($(2)_SOURCES)))))
+endif
 
 # Add a rule for normal source files
 $(eval $(call add-cc-comp-rule,$(2)-%.o,$(srcdir)/%.c,$(2)_CFLAGS))
@@ -64,24 +76,40 @@ $(1)_LT_DIRS_2 := $(patsubst %,.libs/%,$(notdir $(patsubst %.a,%$(STATIC_LIB_SUF
 # Contents of dependent libraries
 $(1)_LT_FILES := $(patsubst %,.libs/%/*.o,$(notdir $(patsubst %.la,%$(STATIC_LIB_SUFFIX),$(filter %.la,$($(2)_LIBADD)))))
 $(1)_LT_FILES_2 := $(patsubst %,.libs/%/*.o,$(notdir $(patsubst %.a,%$(STATIC_LIB_SUFFIX),$(filter %.a,$($(2)_LIBADD)))))
+$(1)_PIC_LIBS := $(foreach ltlib,$(filter %.la,$($(2)_LIBADD)),$(patsubst %.la,%$(PIC_LIB_SUFFIX),$(dir $(ltlib))/$(notdir $(ltlib))))
 
-all-objects += $$($(1)_OBJECTS)
+all-objects += $$($(1)_OBJECTS) $$($(1)_PIC_OBJECTS)
 
-all-static-libs += $(1)$(STATIC_LIB_SUFFIX)
+all-static-libs += $(1)$(STATIC_LIB_SUFFIX) $(1)$(PIC_LIB_SUFFIX)
+all-shared-libs += $(1)$(SHARED_LIB_SUFFIX)
 
 all-am: $(1)
 
 .PHONY: $(1)
 
+ifeq ($(3),yes)
+# Create a static lib + a shared lib
+$(1): $(1)$(STATIC_LIB_SUFFIX) $(1)$(SHARED_LIB_SUFFIX)
+else ifeq ($(enable_shared),yes)
+# Create a static lib + a pic lib
+$(1): $(1)$(STATIC_LIB_SUFFIX) $(1)$(PIC_LIB_SUFFIX)
+else
 $(1): $(1)$(STATIC_LIB_SUFFIX)
+endif
 
+# Rules for creating the library
 $(1)$(STATIC_LIB_SUFFIX): $$($(1)_OBJECTS) $$($(1)_LT_DIRS) $$($(1)_LT_DIRS_2)
 	$(if $(V),,@echo -e "LD\\t$$@";) $(RM) $$@ && $(AR) qc $$@ $$($(1)_OBJECTS) $$($(1)_LT_FILES) $$($(1)_LT_FILES_2)
+$(1)$(PIC_LIB_SUFFIX): $$($(1)_PIC_OBJECTS) $$($(1)_LT_DIRS) $$($(1)_LT_DIRS_2)
+	$(if $(V),,@echo -e "LD\\t$$@";) $(RM) $$@ && $(AR) qc $$@ $$($(1)_PIC_OBJECTS) $$($(1)_LT_FILES) $$($(1)_LT_FILES_2)
+$(1)$(SHARED_LIB_SUFFIX): $$($(1)_PIC_OBJECTS) $$($(1)_PIC_LIBS)
+	$(if $(V),,@echo -e "LD\\t$$@";) $(RM) $$@ && $(CC) --shared -o $$@ $$($(1)_PIC_OBJECTS) $$($(1)_PIC_LIBS)
 endef # add-ltlib-rules
 
 # Add rules for each library
-$(foreach lib,$(noinst_LTLIBRARIES) $(lib_LTLIBRARIES),$(eval $(call add-ltlib-rules,$(patsubst %.la,%,$(lib)),$(subst .,_,$(subst -,_,$(lib))))))
-$(foreach lib,$(noinst_LIBRARIES),$(eval $(call add-ltlib-rules,$(patsubst %.a,%,$(lib)),$(subst .,_,$(subst -,_,$(lib))))))
+$(foreach lib,$(lib_LTLIBRARIES),$(eval $(call add-ltlib-rules,$(patsubst %.la,%,$(lib)),$(subst .,_,$(subst -,_,$(lib))),yes)))
+$(foreach lib,$(noinst_LTLIBRARIES),$(eval $(call add-ltlib-rules,$(patsubst %.la,%,$(lib)),$(subst .,_,$(subst -,_,$(lib))),)))
+$(foreach lib,$(noinst_LIBRARIES),$(eval $(call add-ltlib-rules,$(patsubst %.a,%,$(lib)),$(subst .,_,$(subst -,_,$(lib)))),))
 
 #
 # Executables
@@ -252,7 +280,7 @@ all-am:
 clean: clean-default clean-local clean-recursive
 
 clean-default:
-	$(RM) -r .libs .deps $(all-objects) $(all-static-libs) $(CLEANFILES)
+	$(RM) -r .libs .deps $(all-objects) $(all-static-libs) $(all-shared-libs) $(CLEANFILES)
 
 check: check-local check-recursive
 
