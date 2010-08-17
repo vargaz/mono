@@ -6,8 +6,14 @@ AC_DEFUN([MK_INIT],
 [
 	# Collect automake conditionals, and add a make var for them
 	am_conditionals=
+	if test x$enable_shared = xyes; then
+	   am_conditionals="$am_conditionals enable_shared"
+	fi
+	if test x$enable_static = xyes; then
+	   am_conditionals="$am_conditionals enable_static"
+	fi
 	for var in $ac_subst_vars; do
-		# Each automake conditional is mapped to two autoconf var named <cond>_TRUE and
+		# Each automake conditional is mapped to two autoconf vars named <cond>_TRUE and
 		# <cond>_FALSE.
 		if echo $var | grep -q '_TRUE$'; then
 			cond=`echo $var | sed -e 's/_TRUE//g'`
