@@ -45,8 +45,13 @@ STATIC_LIB_SUFFIX = .a
 define add-ltlib-rules
 # $(1) is the library name, $(2) is the prefix used by the automake variables
 
-$(1)_OBJECTS := $(patsubst %.s,%.o,$(patsubst %.c,$(2)-%.o, $(filter-out %.h, $($(2)_SOURCES))))
+$(1)_OBJECTS := $(patsubst %.s,%.o,$(patsubst %.c,$(2)-%.o, $(subst /,-,$(filter-out %.h, $($(2)_SOURCES)))))
+
+# Add a rule for normal source files
 $(eval $(call add-cc-comp-rule,$(2)-%.o,$(srcdir)/%.c,$(2)_CFLAGS))
+
+# Add rules for source files in subdirectories
+$(foreach adir,$(patsubst %/,%,$(filter-out ./, $(sort $(dir $($(2)_SOURCES))))),$(eval $(call add-cc-comp-rule,$(2)-$(adir)-%.o,$(srcdir)/$(adir)/%.c,$(2)_CFLAGS)))
 
 # Collect dependend libraries
 all-lt-deps += $(patsubst %.la,%$(STATIC_LIB_SUFFIX),$(filter %.la,$($(2)_LIBADD)))
