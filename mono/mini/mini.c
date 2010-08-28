@@ -5967,13 +5967,9 @@ mini_init (const char *filename, const char *runtime_version)
 	register_icall (mono_jit_thread_attach, "mono_jit_thread_attach", "void", TRUE);
 	register_icall (mono_domain_get, "mono_domain_get", "ptr", TRUE);
 
-#ifdef MONO_ARCH_NORMAL_THROW_TRAMPOLINES
-	/* Throw exceptions through the normal trampolines */
-	register_icall (mono_create_specific_trampoline (GUINT_TO_POINTER (FALSE), MONO_TRAMPOLINE_THROW, domain, NULL), "throw_exception_trampoline", "void ptr", TRUE);
-	register_icall (mono_create_specific_trampoline (GUINT_TO_POINTER (TRUE), MONO_TRAMPOLINE_THROW, domain, NULL), "rethrow_exception_trampoline", "void ptr", TRUE);
-#else
 	register_icall (mono_get_throw_exception (), "mono_arch_throw_exception", "void object", TRUE);
 	register_icall (mono_get_rethrow_exception (), "mono_arch_rethrow_exception", "void object", TRUE);
+#ifndef MONO_ARCH_NORMAL_THROW_TRAMPOLINES
 	register_icall (mono_get_throw_corlib_exception (), "mono_arch_throw_corlib_exception", 
 				 "void ptr", TRUE);
 #endif

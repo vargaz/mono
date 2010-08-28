@@ -950,8 +950,6 @@ mono_arch_init (void)
 	bp_trigger_page = mono_valloc (NULL, mono_pagesize (), flags);
 	mono_mprotect (bp_trigger_page, mono_pagesize (), 0);
 
-	mono_aot_register_jit_icall ("mono_amd64_throw_exception", mono_amd64_throw_exception);
-	mono_aot_register_jit_icall ("mono_amd64_throw_corlib_exception", mono_amd64_throw_corlib_exception);
 	mono_aot_register_jit_icall ("mono_amd64_get_original_ip", mono_amd64_get_original_ip);
 }
 
@@ -4323,13 +4321,13 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 		case OP_THROW: {
 			amd64_mov_reg_reg (code, AMD64_ARG_REG1, ins->sreg1, 8);
 			code = emit_call (cfg, code, MONO_PATCH_INFO_INTERNAL_METHOD, 
-					     (gpointer)"throw_exception_trampoline", FALSE);
+					     (gpointer)"mono_arch_throw_exception", FALSE);
 			break;
 		}
 		case OP_RETHROW: {
 			amd64_mov_reg_reg (code, AMD64_ARG_REG1, ins->sreg1, 8);
 			code = emit_call (cfg, code, MONO_PATCH_INFO_INTERNAL_METHOD, 
-					     (gpointer)"rethrow_exception_trampoline", FALSE);
+					     (gpointer)"mono_arch_rethrow_exception", FALSE);
 			break;
 		}
 		case OP_CALL_HANDLER: 
@@ -5581,8 +5579,6 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 void
 mono_arch_register_lowlevel_calls (void)
 {
-	/* The signature doesn't matter */
-	mono_register_jit_icall (mono_amd64_throw_exception, "mono_amd64_throw_exception", mono_create_icall_signature ("void"), TRUE);
 }
 
 void
