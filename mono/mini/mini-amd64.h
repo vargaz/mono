@@ -390,6 +390,8 @@ typedef struct {
 #define MONO_ARCH_LLVM_SUPPORTED 1
 #define MONO_ARCH_THIS_AS_FIRST_ARG 1
 
+#define MONO_ARCH_NORMAL_THROW_TRAMPOLINES 1
+
 #define MONO_ARCH_USE_OP_TAIL_CALL(caller_sig, callee_sig) mono_metadata_signature_equal ((caller_sig), (callee_sig))
 
 /* Used for optimization, not complete */

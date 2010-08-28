@@ -404,6 +404,11 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 			/* RAX is already saved */
 			amd64_mov_reg_membase (code, AMD64_RAX, AMD64_RBP, rbp_offset, 8);
 			amd64_mov_membase_reg (code, AMD64_RBP, saved_regs_offset + (i * 8), AMD64_RAX, 8);
+		} else if (i == AMD64_RSP) {
+			/* RAX is already saved */
+			/* 2 * 8 == return address + saved rbp */
+			amd64_lea_membase (code, AMD64_RAX, AMD64_RBP, 2 * 8);
+			amd64_mov_membase_reg (code, AMD64_RBP, saved_regs_offset + (i * 8), AMD64_RAX, 8);
 		} else if (i != AMD64_R11) {
 			amd64_mov_membase_reg (code, AMD64_RBP, saved_regs_offset + (i * 8), i, 8);
 		} else {
@@ -489,23 +494,25 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	amd64_mov_membase_reg (code, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, r14), AMD64_R14, 8);
 	amd64_mov_membase_reg (code, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, r15), AMD64_R15, 8);
 
-	if (aot) {
-		code = mono_arch_emit_load_aotconst (buf, code, &ji, MONO_PATCH_INFO_JIT_ICALL_ADDR, "mono_get_lmf_addr");
-	} else {
-		amd64_mov_reg_imm (code, AMD64_R11, mono_get_lmf_addr);
-	}
-	amd64_call_reg (code, AMD64_R11);
+	if (tramp_type != MONO_TRAMPOLINE_THROW) {
+		if (aot) {
+			code = mono_arch_emit_load_aotconst (buf, code, &ji, MONO_PATCH_INFO_JIT_ICALL_ADDR, "mono_get_lmf_addr");
+		} else {
+			amd64_mov_reg_imm (code, AMD64_R11, mono_get_lmf_addr);
+		}
+		amd64_call_reg (code, AMD64_R11);
 
-	/* Save lmf_addr */
-	amd64_mov_membase_reg (code, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, lmf_addr), AMD64_RAX, 8);
-	/* Save previous_lmf */
-	/* Set the lowest bit to 1 to signal that this LMF has the ip field set */
-	amd64_mov_reg_membase (code, AMD64_R11, AMD64_RAX, 0, 8);
-	amd64_alu_reg_imm_size (code, X86_ADD, AMD64_R11, 1, 8);
-	amd64_mov_membase_reg (code, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, previous_lmf), AMD64_R11, 8);
-	/* Set new lmf */
-	amd64_lea_membase (code, AMD64_R11, AMD64_RBP, lmf_offset);
-	amd64_mov_membase_reg (code, AMD64_RAX, 0, AMD64_R11, 8);
+		/* Save lmf_addr */
+		amd64_mov_membase_reg (code, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, lmf_addr), AMD64_RAX, 8);
+		/* Save previous_lmf */
+		/* Set the lowest bit to 1 to signal that this LMF has the ip field set */
+		amd64_mov_reg_membase (code, AMD64_R11, AMD64_RAX, 0, 8);
+		amd64_alu_reg_imm_size (code, X86_ADD, AMD64_R11, 1, 8);
+		amd64_mov_membase_reg (code, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, previous_lmf), AMD64_R11, 8);
+		/* Set new lmf */
+		amd64_lea_membase (code, AMD64_R11, AMD64_RBP, lmf_offset);
+		amd64_mov_membase_reg (code, AMD64_RAX, 0, AMD64_R11, 8);
+	}
 
 	/* Save LMF end */
 

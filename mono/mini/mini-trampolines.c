@@ -967,6 +967,37 @@ mono_delegate_trampoline (mgreg_t *regs, guint8 *code, gpointer *tramp_data, gui
 
 #endif
 
+static gpointer
+mono_throw_trampoline (mgreg_t *regs, guint8 *code, gboolean rethrow, guint8 *tramp)
+{
+#ifdef MONO_ARCH_NORMAL_THROW_TRAMPOLINES
+	mono_arch_throw_exception (regs, code, rethrow);
+	g_assert_not_reached ();
+	return NULL;
+#else
+	g_assert_not_reached ();
+	return NULL;
+#endif
+}
+
+static gpointer
+mono_throw_corlib_trampoline (mgreg_t *regs, guint8 *code, guint32 ex_token_index, guint8 *tramp)
+{
+#ifdef MONO_ARCH_NORMAL_THROW_TRAMPOLINES
+	guint32 ex_token = MONO_TOKEN_TYPE_DEF | ex_token_index;
+	MonoException *ex;
+
+	ex = mono_exception_from_token (mono_defaults.exception_class->image, ex_token);
+
+	mono_arch_throw_corlib_exception (regs, code, ex);
+	g_assert_not_reached ();
+	return NULL;
+#else
+	g_assert_not_reached ();
+	return NULL;
+#endif
+}
+
 #ifdef MONO_ARCH_HAVE_HANDLER_BLOCK_GUARD
 static gpointer
 mono_handler_block_guard_trampoline (mgreg_t *regs, guint8 *code, gpointer *tramp_data, guint8* tramp)
@@ -1064,6 +1095,10 @@ mono_get_trampoline_func (MonoTrampolineType tramp_type)
 	case MONO_TRAMPOLINE_HANDLER_BLOCK_GUARD:
 		return mono_handler_block_guard_trampoline;
 #endif
+	case MONO_TRAMPOLINE_THROW:
+		return mono_throw_trampoline;
+	case MONO_TRAMPOLINE_THROW_CORLIB:
+		return mono_throw_corlib_trampoline;
 	default:
 		g_assert_not_reached ();
 		return NULL;
@@ -1114,6 +1149,8 @@ mono_trampolines_init (void)
 	mono_trampoline_code [MONO_TRAMPOLINE_HANDLER_BLOCK_GUARD] = create_trampoline_code (MONO_TRAMPOLINE_HANDLER_BLOCK_GUARD);
 	mono_create_handler_block_trampoline ();
 #endif
+	mono_trampoline_code [MONO_TRAMPOLINE_THROW] = create_trampoline_code (MONO_TRAMPOLINE_THROW);
+	mono_trampoline_code [MONO_TRAMPOLINE_THROW_CORLIB] = create_trampoline_code (MONO_TRAMPOLINE_THROW_CORLIB);
 
 	mono_counters_register ("Calls to trampolines", MONO_COUNTER_JIT | MONO_COUNTER_INT, &trampoline_calls);
 	mono_counters_register ("JIT trampolines", MONO_COUNTER_JIT | MONO_COUNTER_INT, &jit_trampolines);
@@ -1539,8 +1576,9 @@ static const char*tramp_names [MONO_TRAMPOLINE_NUM] = {
 	"monitor_exit",
 	"vcall",
 #ifdef MONO_ARCH_HAVE_HANDLER_BLOCK_GUARD
-	"handler_block_guard"
+	"handler_block_guard",
 #endif
+	"throw"
 };
 
 /*

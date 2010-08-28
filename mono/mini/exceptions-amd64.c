@@ -366,6 +366,26 @@ mono_amd64_throw_corlib_exception (guint64 dummy1, guint64 dummy2, guint64 dummy
 	mono_amd64_throw_exception (dummy1, dummy2, dummy3, dummy4, dummy5, dummy6, regs, rip, (MonoObject*)ex, FALSE);
 }
 
+void
+mono_arch_throw_exception (mgreg_t *regs, guint8 *code, gboolean rethrow)
+{
+	mono_amd64_throw_exception (0, 0, 0, 0, 0, 0, regs, (mgreg_t)code, (MonoObject*)regs [AMD64_ARG_REG1], rethrow);
+}
+
+void
+mono_arch_throw_corlib_exception (mgreg_t *regs, guint8 *code, MonoException *ex)
+{
+	mgreg_t rip = (mgreg_t)code;
+	gint64 pc_offset = regs [AMD64_ARG_REG1];
+
+	rip -= pc_offset;
+
+	/* Negate the ip adjustment done in mono_amd64_throw_exception () */
+	rip += 1;
+
+	mono_amd64_throw_exception (0, 0, 0, 0, 0, 0, regs, rip, (MonoObject*)ex, FALSE);
+}
+
 static void
 mono_amd64_resume_unwind (guint64 dummy1, guint64 dummy2, guint64 dummy3, guint64 dummy4,
 						  guint64 dummy5, guint64 dummy6,
