@@ -6500,25 +6500,26 @@ mono_arch_emit_exceptions (MonoCompile *cfg)
 				if (exc_classes [i] == exc_class)
 					break;
 			if (i < nthrows) {
-				amd64_mov_reg_imm (code, AMD64_ARG_REG1, (exc_throw_end [i] - cfg->native_code) - throw_ip);
+				amd64_mov_reg_imm (code, AMD64_ARG_REG2, (exc_throw_end [i] - cfg->native_code) - throw_ip);
 				x86_jump_code (code, exc_throw_start [i]);
 				patch_info->type = MONO_PATCH_INFO_NONE;
 			}
 			else {
 				buf = code;
-				amd64_mov_reg_imm_size (code, AMD64_ARG_REG1, 0xf0f0f0f0, 4);
+				amd64_mov_reg_imm_size (code, AMD64_ARG_REG2, 0xf0f0f0f0, 4);
 				buf2 = code;
 
 				if (nthrows < 16) {
 					exc_classes [nthrows] = exc_class;
 					exc_throw_start [nthrows] = code;
 				}
+				amd64_mov_reg_imm (code, AMD64_ARG_REG1, exc_class->type_token - MONO_TOKEN_TYPE_DEF);
 
 				patch_info->type = MONO_PATCH_INFO_NONE;
 
-				code = emit_call_body (cfg, code, MONO_PATCH_INFO_THROW_CORLIB_EXCEPTION_TRAMPOLINE, exc_class);
+				code = emit_call_body (cfg, code, MONO_PATCH_INFO_INTERNAL_METHOD, "mono_arch_throw_corlib_exception");
 
-				amd64_mov_reg_imm (buf, AMD64_ARG_REG1, (code - cfg->native_code) - throw_ip);
+				amd64_mov_reg_imm (buf, AMD64_ARG_REG2, (code - cfg->native_code) - throw_ip);
 				while (buf < buf2)
 					x86_nop (buf);
 

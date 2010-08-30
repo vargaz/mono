@@ -963,6 +963,7 @@ typedef enum {
 #endif
 	MONO_TRAMPOLINE_THROW,
 	MONO_TRAMPOLINE_THROW_CORLIB,
+	MONO_TRAMPOLINE_RESUME_UNWIND,
 	MONO_TRAMPOLINE_NUM
 } MonoTrampolineType;
 
@@ -973,6 +974,19 @@ typedef enum {
 	 (t) == MONO_TRAMPOLINE_RGCTX_LAZY_FETCH ||	\
 	 (t) == MONO_TRAMPOLINE_MONITOR_ENTER ||	\
 	 (t) == MONO_TRAMPOLINE_MONITOR_EXIT)
+
+#define MONO_TRAMPOLINE_TYPE_SAVE_LMF(t)        \
+	(!((t) == MONO_TRAMPOLINE_THROW) ||			\
+	 ((t) == MONO_TRAMPOLINE_THROW_CORLIB) ||	\
+	 ((t) == MONO_TRAMPOLINE_RESUME_UNWIND))
+
+/* Flags passed to mono_throw_trampoline () */
+#define THROW_FLAG_RETHROW 1
+#define THROW_FLAG_LLVM 2
+
+/* Flags passed to mono_throw_corlib_trampoline () */
+#define THROW_CORLIB_FLAG_LLVM 1
+#define THROW_CORLIB_FLAG_LLVM_ABS 2
 
 /* optimization flags */
 #define OPTFLAG(id,shift,name,descr) MONO_OPT_ ## id = 1 << shift,
@@ -1885,8 +1899,9 @@ void    mono_arch_notify_pending_exc            (void) MONO_INTERNAL;
 guint8* mono_arch_get_call_target               (guint8 *code) MONO_INTERNAL;
 guint32 mono_arch_get_plt_info_offset           (guint8 *plt_entry, mgreg_t *regs, guint8 *code) MONO_INTERNAL;
 GSList *mono_arch_get_trampolines               (gboolean aot) MONO_INTERNAL;
-void    mono_arch_throw_exception               (mgreg_t *regs, guint8 *code, gboolean rethrow) MONO_INTERNAL;
-void    mono_arch_throw_corlib_exception        (mgreg_t *regs, guint8 *code, MonoException *ex) MONO_INTERNAL;
+void    mono_arch_throw_exception               (mgreg_t *regs, guint8 *code, guint32 flags) MONO_INTERNAL;
+void    mono_arch_throw_corlib_exception        (mgreg_t *regs, guint8 *code, guint32 flags) MONO_INTERNAL;
+void    mono_arch_resume_unwind                 (mgreg_t *regs, guint8 *code) MONO_INTERNAL;
 
 /* Handle block guard */
 gpointer mono_arch_install_handler_block_guard (MonoJitInfo *ji, MonoJitExceptionInfo *clause, MonoContext *ctx, gpointer new_value) MONO_INTERNAL;

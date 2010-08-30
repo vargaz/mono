@@ -342,18 +342,26 @@ mono_amd64_throw_exception (mgreg_t *regs, mgreg_t rip,
 }
 
 void
-mono_arch_throw_exception (mgreg_t *regs, guint8 *code, gboolean rethrow)
+mono_arch_throw_exception (mgreg_t *regs, guint8 *code, guint32 flags)
 {
-	mono_amd64_throw_exception (regs, (mgreg_t)code, (MonoObject*)regs [AMD64_ARG_REG1], rethrow);
+	mono_amd64_throw_exception (regs, (mgreg_t)code, (MonoObject*)regs [AMD64_ARG_REG1], flags & THROW_FLAG_RETHROW);
 }
 
 void
-mono_arch_throw_corlib_exception (mgreg_t *regs, guint8 *code, MonoException *ex)
+mono_arch_throw_corlib_exception (mgreg_t *regs, guint8 *code, guint32 flags)
 {
 	mgreg_t rip = (mgreg_t)code;
-	gint64 pc_offset = regs [AMD64_ARG_REG1];
+	guint32 ex_token_index = regs [AMD64_ARG_REG1];
+	gint64 pc_offset = regs [AMD64_ARG_REG2];
+	guint32 ex_token = MONO_TOKEN_TYPE_DEF | ex_token_index;
+	MonoException *ex;
 
-	rip -= pc_offset;
+	ex = mono_exception_from_token (mono_defaults.exception_class->image, ex_token);
+
+	if (flags & THROW_CORLIB_FLAG_LLVM_ABS)
+		rip = pc_offset;
+	else
+		rip -= pc_offset;
 
 	/* Negate the ip adjustment done in mono_amd64_throw_exception () */
 	rip += 1;
@@ -361,14 +369,11 @@ mono_arch_throw_corlib_exception (mgreg_t *regs, guint8 *code, MonoException *ex
 	mono_amd64_throw_exception (regs, rip, (MonoObject*)ex, FALSE);
 }
 
-static void
-mono_amd64_resume_unwind (guint64 dummy1, guint64 dummy2, guint64 dummy3, guint64 dummy4,
-						  guint64 dummy5, guint64 dummy6,
-						  mgreg_t *regs, mgreg_t rip,
-						  guint32 dummy7, gint64 dummy8)
+void
+mono_arch_resume_unwind (mgreg_t *regs, guint8 *code)
 {
-	/* Only the register parameters are valid */
 	MonoContext ctx;
+	mgreg_t rip = (mgreg_t)code;
 
 	ctx.rsp = regs [AMD64_RSP];
 	ctx.rip = rip;
@@ -1017,17 +1022,17 @@ mono_arch_exceptions_init (void)
 		/* Call this to avoid initialization races */
 		throw_pending_exception = mono_arch_get_throw_pending_exception (NULL, FALSE);
 
-#if 0
-		// FIXME:
-		/* LLVM needs different throw trampolines */
-		tramp = get_throw_trampoline (NULL, FALSE, TRUE, FALSE, FALSE, "llvm_throw_corlib_exception_trampoline", FALSE);
-		mono_register_jit_icall (tramp, "llvm_throw_corlib_exception_trampoline", NULL, TRUE);
+#if ENABLE_LLVM
+		{
+			gpointer tramp;
 
-		tramp = get_throw_trampoline (NULL, FALSE, TRUE, TRUE, FALSE, "llvm_throw_corlib_exception_abs_trampoline", FALSE);
-		mono_register_jit_icall (tramp, "llvm_throw_corlib_exception_abs_trampoline", NULL, TRUE);
-
-		tramp = get_throw_trampoline (NULL, FALSE, TRUE, TRUE, TRUE, "llvm_resume_unwind_trampoline", FALSE);
-		mono_register_jit_icall (tramp, "llvm_resume_unwind_trampoline", NULL, TRUE);
+			tramp = mono_create_specific_trampoline (GUINT_TO_POINTER (THROW_CORLIB_FLAG_LLVM), MONO_TRAMPOLINE_THROW_CORLIB, mono_get_root_domain (), NULL);
+			mono_register_jit_icall (tramp, "llvm_throw_corlib_exception_trampoline", NULL, TRUE);
+			tramp = mono_create_specific_trampoline (GUINT_TO_POINTER (THROW_CORLIB_FLAG_LLVM_ABS), MONO_TRAMPOLINE_THROW_CORLIB, mono_get_root_domain (), NULL);
+			mono_register_jit_icall (tramp, "llvm_throw_corlib_exception_abs_trampoline", NULL, TRUE);
+			tramp = mono_create_specific_trampoline (NULL, MONO_TRAMPOLINE_RESUME_UNWIND, mono_get_root_domain (), NULL);
+			mono_register_jit_icall (tramp, "llvm_resume_unwind_trampoline", NULL, TRUE);
+		}
 #endif
 	}
 }

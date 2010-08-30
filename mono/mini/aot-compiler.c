@@ -1960,7 +1960,6 @@ is_plt_patch (MonoJumpInfo *patch_info)
 	case MONO_PATCH_INFO_MONITOR_ENTER:
 	case MONO_PATCH_INFO_MONITOR_EXIT:
 	case MONO_PATCH_INFO_LLVM_IMT_TRAMPOLINE:
-	case MONO_PATCH_INFO_THROW_CORLIB_EXCEPTION_TRAMPOLINE:
 		return TRUE;
 	default:
 		return FALSE;
@@ -3264,7 +3263,6 @@ encode_patch (MonoAotCompile *acfg, MonoJumpInfo *patch_info, guint8 *buf, guint
 	case MONO_PATCH_INFO_CLASS:
 	case MONO_PATCH_INFO_IID:
 	case MONO_PATCH_INFO_ADJUSTED_IID:
-	case MONO_PATCH_INFO_THROW_CORLIB_EXCEPTION_TRAMPOLINE:
 		encode_klass_ref (acfg, patch_info->data.klass, p, &p);
 		break;
 	case MONO_PATCH_INFO_CLASS_INIT:

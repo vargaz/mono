@@ -107,8 +107,8 @@ mono_exceptions_init (void)
 #endif
 
 #ifdef MONO_ARCH_NORMAL_THROW_TRAMPOLINES
-	throw_exception_func = mono_create_specific_trampoline (GUINT_TO_POINTER (FALSE), MONO_TRAMPOLINE_THROW, mono_get_root_domain (), NULL);
-	rethrow_exception_func = mono_create_specific_trampoline (GUINT_TO_POINTER (TRUE), MONO_TRAMPOLINE_THROW, mono_get_root_domain (), NULL);
+	throw_exception_func = mono_create_specific_trampoline (GUINT_TO_POINTER (0), MONO_TRAMPOLINE_THROW, mono_get_root_domain (), NULL);
+	rethrow_exception_func = mono_create_specific_trampoline (GUINT_TO_POINTER (THROW_FLAG_RETHROW), MONO_TRAMPOLINE_THROW, mono_get_root_domain (), NULL);
 #endif
 
 #ifdef MONO_ARCH_HAVE_EXCEPTIONS_INIT
@@ -148,20 +148,25 @@ gpointer
 mono_get_throw_corlib_exception (void)
 {
 	gpointer code = NULL;
-	MonoTrampInfo *info;
+	MonoTrampInfo *info = NULL;
 
 	/* This depends on corlib classes so cannot be inited in mono_exceptions_init () */
 	if (throw_corlib_exception_func)
 		return throw_corlib_exception_func;
 
+#ifdef MONO_ARCH_NORMAL_THROW_TRAMPOLINES
+	code = mono_create_specific_trampoline (GUINT_TO_POINTER (0), MONO_TRAMPOLINE_THROW_CORLIB, mono_get_root_domain (), NULL);
+#else
 	if (mono_aot_only)
 		code = mono_aot_get_trampoline ("throw_corlib_exception");
 	else {
 		code = mono_arch_get_throw_corlib_exception (&info, FALSE);
-		if (info) {
-			mono_save_trampoline_xdebug_info (info);
-			mono_tramp_info_free (info);
-		}
+	}
+#endif
+
+	if (info) {
+		mono_save_trampoline_xdebug_info (info);
+		mono_tramp_info_free (info);
 	}
 
 	mono_memory_barrier ();

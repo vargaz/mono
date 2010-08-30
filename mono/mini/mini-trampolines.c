@@ -968,10 +968,10 @@ mono_delegate_trampoline (mgreg_t *regs, guint8 *code, gpointer *tramp_data, gui
 #endif
 
 static gpointer
-mono_throw_trampoline (mgreg_t *regs, guint8 *code, gboolean rethrow, guint8 *tramp)
+mono_throw_trampoline (mgreg_t *regs, guint8 *code, guint32 flags, guint8 *tramp)
 {
 #ifdef MONO_ARCH_NORMAL_THROW_TRAMPOLINES
-	mono_arch_throw_exception (regs, code, rethrow);
+	mono_arch_throw_exception (regs, code, flags);
 	g_assert_not_reached ();
 	return NULL;
 #else
@@ -981,20 +981,26 @@ mono_throw_trampoline (mgreg_t *regs, guint8 *code, gboolean rethrow, guint8 *tr
 }
 
 static gpointer
-mono_throw_corlib_trampoline (mgreg_t *regs, guint8 *code, guint32 ex_token_index, guint8 *tramp)
+mono_throw_corlib_trampoline (mgreg_t *regs, guint8 *code, guint32 flags, guint8 *tramp)
 {
 #ifdef MONO_ARCH_NORMAL_THROW_TRAMPOLINES
-	guint32 ex_token = MONO_TOKEN_TYPE_DEF | ex_token_index;
-	MonoException *ex;
-
-	ex = mono_exception_from_token (mono_defaults.exception_class->image, ex_token);
-
-	mono_arch_throw_corlib_exception (regs, code, ex);
+	mono_arch_throw_corlib_exception (regs, code, flags);
 	g_assert_not_reached ();
 	return NULL;
 #else
 	g_assert_not_reached ();
 	return NULL;
+#endif
+}
+
+static gpointer
+mono_resume_unwind_trampoline (mgreg_t *regs, guint8 *code, gpointer arg, guint8 *tramp)
+{
+#if ENABLE_LLVM
+	mono_arch_resume_unwind (regs, code);
+	g_assert_not_reached ();
+#else
+	g_assert_not_reached ();
 #endif
 }
 
@@ -1099,6 +1105,8 @@ mono_get_trampoline_func (MonoTrampolineType tramp_type)
 		return mono_throw_trampoline;
 	case MONO_TRAMPOLINE_THROW_CORLIB:
 		return mono_throw_corlib_trampoline;
+	case MONO_TRAMPOLINE_RESUME_UNWIND:
+		return mono_resume_unwind_trampoline;
 	default:
 		g_assert_not_reached ();
 		return NULL;
@@ -1151,6 +1159,10 @@ mono_trampolines_init (void)
 #endif
 	mono_trampoline_code [MONO_TRAMPOLINE_THROW] = create_trampoline_code (MONO_TRAMPOLINE_THROW);
 	mono_trampoline_code [MONO_TRAMPOLINE_THROW_CORLIB] = create_trampoline_code (MONO_TRAMPOLINE_THROW_CORLIB);
+
+#if ENABLE_LLVM
+	mono_trampoline_code [MONO_TRAMPOLINE_RESUME_UNWIND] = create_trampoline_code (MONO_TRAMPOLINE_RESUME_UNWIND);
+#endif
 
 	mono_counters_register ("Calls to trampolines", MONO_COUNTER_JIT | MONO_COUNTER_INT, &trampoline_calls);
 	mono_counters_register ("JIT trampolines", MONO_COUNTER_JIT | MONO_COUNTER_INT, &jit_trampolines);

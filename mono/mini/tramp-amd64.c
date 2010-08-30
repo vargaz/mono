@@ -323,7 +323,7 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	int i, lmf_offset, offset, res_offset, arg_offset, rax_offset, tramp_offset;
 	int buf_len, saved_regs_offset;
 	int saved_fpregs_offset, rbp_offset, framesize, orig_rsp_to_rbp_offset, cfa_offset;
-	gboolean has_caller;
+	gboolean has_caller, save_lmf;
 	GSList *unwind_ops = NULL;
 	MonoJumpInfo *ji = NULL;
 
@@ -331,6 +331,8 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 		has_caller = FALSE;
 	else
 		has_caller = TRUE;
+
+	save_lmf = MONO_TRAMPOLINE_TYPE_SAVE_LMF (tramp_type);
 
 	buf_len = 548;
 	code = buf = mono_global_codeman_reserve (buf_len);
@@ -494,7 +496,7 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	amd64_mov_membase_reg (code, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, r14), AMD64_R14, 8);
 	amd64_mov_membase_reg (code, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, r15), AMD64_R15, 8);
 
-	if (tramp_type != MONO_TRAMPOLINE_THROW) {
+	if (save_lmf) {
 		if (aot) {
 			code = mono_arch_emit_load_aotconst (buf, code, &ji, MONO_PATCH_INFO_JIT_ICALL_ADDR, "mono_get_lmf_addr");
 		} else {
@@ -557,10 +559,15 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 
 	/* Restore LMF */
 
-	amd64_mov_reg_membase (code, AMD64_RCX, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, previous_lmf), 8);
-	amd64_alu_reg_imm_size (code, X86_SUB, AMD64_RCX, 1, 8);
-	amd64_mov_reg_membase (code, AMD64_R11, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, lmf_addr), 8);
-	amd64_mov_membase_reg (code, AMD64_R11, 0, AMD64_RCX, 8);
+	if (save_lmf) {
+		amd64_mov_reg_membase (code, AMD64_RCX, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, previous_lmf), 8);
+		amd64_alu_reg_imm_size (code, X86_SUB, AMD64_RCX, 1, 8);
+		amd64_mov_reg_membase (code, AMD64_R11, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, lmf_addr), 8);
+		amd64_mov_membase_reg (code, AMD64_R11, 0, AMD64_RCX, 8);
+	} else {
+		/* These trampolines shouldn't return */
+		amd64_breakpoint (code);
+	}
 
 	/* 
 	 * Save rax to the stack, after the leave instruction, this will become part of
