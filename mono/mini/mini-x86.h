@@ -308,6 +308,8 @@ typedef struct {
 #define MONO_ARCH_LLVM_SUPPORTED 1
 #define MONO_ARCH_THIS_AS_FIRST_ARG 1
 
+#define MONO_ARCH_NORMAL_THROW_TRAMPOLINES 1
+
 #if defined(MONO_ARCH_USE_SIGACTION) || defined(TARGET_WIN32)
 #define MONO_ARCH_SOFT_DEBUG_SUPPORTED 1
 #endif
@@ -346,14 +348,6 @@ mono_x86_get_this_arg_offset (MonoGenericSharingContext *gsctx, MonoMethodSignat
 
 gboolean
 mono_x86_have_tls_get (void) MONO_INTERNAL;
-
-void
-mono_x86_throw_exception (mgreg_t *regs, MonoObject *exc, 
-						  mgreg_t eip, gboolean rethrow) MONO_INTERNAL;
-
-void
-mono_x86_throw_corlib_exception (mgreg_t *regs, guint32 ex_token_index, 
-								 mgreg_t eip, gint32 pc_offset) MONO_INTERNAL;
 
 void 
 mono_x86_patch (unsigned char* code, gpointer target) MONO_INTERNAL;

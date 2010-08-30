@@ -282,6 +282,9 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	int pushed_args, pushed_args_caller_saved;
 	GSList *unwind_ops = NULL;
 	MonoJumpInfo *ji = NULL;
+	gboolean save_lmf;
+
+	save_lmf = MONO_TRAMPOLINE_TYPE_SAVE_LMF (tramp_type);
 
 	unwind_ops = mono_arch_get_cie_program ();
 
@@ -306,6 +309,10 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	x86_push_reg (code, X86_EAX);
 
 	pushed_args_caller_saved = pushed_args = 8;
+
+	/* Adjust saved ESP */
+	x86_lea_membase (code, X86_EAX, X86_ESP, (pushed_args + 1) * sizeof (gpointer));
+	x86_mov_membase_reg (code, X86_ESP, X86_ESP * sizeof (gpointer), X86_EAX, 4);
 
 	/* Align stack on apple */
 	x86_alu_reg_imm (code, X86_SUB, X86_ESP, 4);
@@ -364,8 +371,10 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	x86_push_membase (code, X86_EAX, 0);
 	/* Signal to mono_arch_find_jit_info () that this is a trampoline frame */
 	x86_alu_membase_imm (code, X86_ADD, X86_ESP, 0, 1);
-	/* *(lmf) = ESP */
-	x86_mov_membase_reg (code, X86_EAX, 0, X86_ESP, 4);
+	if (save_lmf) {
+		/* *(lmf) = ESP */
+		x86_mov_membase_reg (code, X86_EAX, 0, X86_ESP, 4);
+	}
 	/* save LFM end */
 
 	pushed_args += 2;
@@ -444,7 +453,11 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	pushed_args--;
 
 	/* *(lmf) = previous_lmf */
-	x86_mov_membase_reg (code, X86_EDI, 0, X86_EBX, 4);
+	if (save_lmf)
+		x86_mov_membase_reg (code, X86_EDI, 0, X86_EBX, 4);
+	else
+		/* These trampolines shouldn't return */
+		x86_breakpoint (code);
 
 	/* discard method info */
 	x86_pop_reg (code, X86_ESI);
