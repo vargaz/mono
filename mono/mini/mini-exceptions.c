@@ -61,6 +61,7 @@ static gpointer throw_corlib_exception_func;
 
 static gpointer try_more_restore_tramp = NULL;
 static gpointer restore_stack_protection_tramp = NULL;
+static gpointer resume_unwind_tramp = NULL;
 
 static void try_more_restore (void);
 static void restore_stack_protection (void);
@@ -74,6 +75,9 @@ mono_exceptions_init (void)
 		call_filter_func = mono_aot_get_trampoline ("call_filter");
 		throw_exception_func = mono_aot_get_trampoline ("throw_exception");
 		rethrow_exception_func = mono_aot_get_trampoline ("rethrow_exception");
+#ifdef MONO_ARCH_HAVE_RESUME_UNWIND
+		resume_unwind_tramp = mono_aot_get_trampoline ("resume_unwind_trampoline");
+#endif
 	} else {
 		MonoTrampInfo *info;
 
@@ -97,6 +101,14 @@ mono_exceptions_init (void)
 			mono_save_trampoline_xdebug_info (info);
 			mono_tramp_info_free (info);
 		}
+
+#ifdef MONO_ARCH_HAVE_RESUME_UNWIND
+		resume_unwind_tramp = mono_arch_get_resume_unwind_trampoline (&info, FALSE);
+		if (info) {
+			mono_save_trampoline_xdebug_info (info);
+			mono_tramp_info_free (info);
+		}
+#endif
 	}
 #ifdef MONO_ARCH_HAVE_RESTORE_STACK_SUPPORT
 	try_more_restore_tramp = mono_create_specific_trampoline (try_more_restore, MONO_TRAMPOLINE_RESTORE_STACK_PROT, mono_domain_get (), NULL);
@@ -161,6 +173,13 @@ mono_get_throw_corlib_exception (void)
 	throw_corlib_exception_func = code;
 
 	return throw_corlib_exception_func;
+}
+
+gpointer
+mono_get_resume_unwind_trampoline (void)
+{
+	g_assert (resume_unwind_tramp);
+	return resume_unwind_tramp;
 }
 
 static gboolean
@@ -1530,28 +1549,32 @@ mono_handle_exception_internal (MonoContext *ctx, gpointer obj, gpointer origina
 							mono_debugger_call_exception_handler (ei->handler_start, MONO_CONTEXT_GET_SP (ctx), ex_obj);
 							mono_perfcounters->exceptions_finallys++;
 							*(mono_get_lmf_addr ()) = lmf;
-							if (ji->from_llvm) {
-								/* 
-								 * LLVM compiled finally handlers follow the design
-								 * of the c++ ehabi, i.e. they call a resume function
-								 * at the end instead of returning to the caller.
-								 * So save the exception handling state,
-								 * mono_resume_unwind () will call us again to continue
-								 * the unwinding.
-								 */
-								jit_tls->resume_state.ex_obj = obj;
-								jit_tls->resume_state.ji = ji;
-								jit_tls->resume_state.clause_index = i + 1;
-								jit_tls->resume_state.ctx = *ctx;
-								jit_tls->resume_state.new_ctx = new_ctx;
-								jit_tls->resume_state.lmf = lmf;
-								jit_tls->resume_state.first_filter_idx = first_filter_idx;
-								jit_tls->resume_state.filter_idx = filter_idx;
-								MONO_CONTEXT_SET_IP (ctx, ei->handler_start);
-								return 0;
-							} else {
-								call_filter (ctx, ei->handler_start);
-							}
+#ifdef MONO_ARCH_HAVE_RESUME_UNWIND
+							/* 
+							 * Our finally handlers follow the design of the c++ ehabi
+							 * i.e. they call a resume function
+							 * at the end instead of returning to the caller.
+							 * So save the exception handling state,
+							 * mono_resume_unwind () will call us again to continue
+							 * the unwinding.
+							 * This has the following advantages relative to OP_CALL_HANDLER/OP_ENDFINALLY:
+							 * - it works with LLVM
+							 * - it works with stack unwinding, since the return address pushed by
+							 *   OP_CALL_HANDLER confuses the unwinding code.
+							 */
+							jit_tls->resume_state.ex_obj = obj;
+							jit_tls->resume_state.ji = ji;
+							jit_tls->resume_state.clause_index = i + 1;
+							jit_tls->resume_state.ctx = *ctx;
+							jit_tls->resume_state.new_ctx = new_ctx;
+							jit_tls->resume_state.lmf = lmf;
+							jit_tls->resume_state.first_filter_idx = first_filter_idx;
+							jit_tls->resume_state.filter_idx = filter_idx;
+							MONO_CONTEXT_SET_IP (ctx, ei->handler_start);
+							return 0;
+#else
+							call_filter (ctx, ei->handler_start);
+#endif
 						}
 						
 					}
@@ -2135,7 +2158,7 @@ mono_print_thread_dump_from_ctx (MonoContext *ctx)
 /*
  * mono_resume_unwind:
  *
- *   This is called by a trampoline from LLVM compiled finally clauses to continue
+ *   This is called by a trampoline from finally clauses to continue
  * unwinding.
  */
 void

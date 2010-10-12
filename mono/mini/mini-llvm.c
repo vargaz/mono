@@ -4415,7 +4415,11 @@ add_intrinsics (LLVMModuleRef module)
 
 		LLVMAddFunction (module, "mono_personality", LLVMFunctionType (LLVMVoidType (), NULL, 0, FALSE));
 
-		LLVMAddFunction (module, "llvm_resume_unwind_trampoline", LLVMFunctionType (LLVMVoidType (), NULL, 0, FALSE));
+#ifndef MONO_ARCH_HAVE_RESUME_UNWIND
+		g_assert_not_reached ();
+#endif
+
+		LLVMAddFunction (module, "resume_unwind_trampoline", LLVMFunctionType (LLVMVoidType (), NULL, 0, FALSE));
 	}
 
 	/* SSE intrinsics */
@@ -4515,9 +4519,9 @@ init_jit_module (void)
 
 	jit_module.llvm_types = g_hash_table_new (NULL, NULL);
 
-	info = mono_find_jit_icall_by_name ("llvm_resume_unwind_trampoline");
+	info = mono_find_jit_icall_by_name ("resume_unwind_trampoline");
 	g_assert (info);
-	LLVMAddGlobalMapping (ee, LLVMGetNamedFunction (jit_module.module, "llvm_resume_unwind_trampoline"), (void*)info->func);
+	LLVMAddGlobalMapping (ee, LLVMGetNamedFunction (jit_module.module, "resume_unwind_trampoline"), (void*)info->func);
 
 	jit_module_inited = TRUE;
 

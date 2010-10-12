@@ -366,7 +366,7 @@ mono_amd64_throw_corlib_exception (guint64 dummy1, guint64 dummy2, guint64 dummy
 	mono_amd64_throw_exception (dummy1, dummy2, dummy3, dummy4, dummy5, dummy6, regs, rip, (MonoObject*)ex, FALSE);
 }
 
-static void
+void
 mono_amd64_resume_unwind (guint64 dummy1, guint64 dummy2, guint64 dummy3, guint64 dummy4,
 						  guint64 dummy5, guint64 dummy6,
 						  mgreg_t *regs, mgreg_t rip,
@@ -472,7 +472,7 @@ get_throw_trampoline (MonoTrampInfo **info, gboolean rethrow, gboolean corlib, g
 	}
 
 	if (aot) {
-		ji = mono_patch_info_list_prepend (ji, code - start, MONO_PATCH_INFO_JIT_ICALL_ADDR, corlib ? (llvm_abs ? "mono_amd64_throw_corlib_exception_abs" : "mono_amd64_throw_corlib_exception") : "mono_amd64_throw_exception");
+		ji = mono_patch_info_list_prepend (ji, code - start, MONO_PATCH_INFO_JIT_ICALL_ADDR, resume_unwind ? ("mono_amd64_resume_unwind") : (corlib ? (llvm_abs ? "mono_amd64_throw_corlib_exception_abs" : "mono_amd64_throw_corlib_exception") : "mono_amd64_throw_exception"));
 		amd64_mov_reg_membase (code, AMD64_R11, AMD64_RIP, 0, 8);
 	} else {
 		amd64_mov_reg_imm (code, AMD64_R11, resume_unwind ? (mono_amd64_resume_unwind) : (corlib ? (gpointer)mono_amd64_throw_corlib_exception : (gpointer)mono_amd64_throw_exception));
@@ -524,6 +524,12 @@ gpointer
 mono_arch_get_throw_corlib_exception (MonoTrampInfo **info, gboolean aot)
 {
 	return get_throw_trampoline (info, FALSE, TRUE, FALSE, FALSE, "throw_corlib_exception", aot);
+}
+
+gpointer
+mono_arch_get_resume_unwind_trampoline (MonoTrampInfo **info, gboolean aot)
+{
+	return get_throw_trampoline (info, FALSE, TRUE, FALSE, TRUE, "resume_unwind_trampoline", aot);
 }
 
 /*
@@ -1124,9 +1130,6 @@ mono_arch_exceptions_init (void)
 
 		tramp = get_throw_trampoline (NULL, FALSE, TRUE, TRUE, FALSE, "llvm_throw_corlib_exception_abs_trampoline", FALSE);
 		mono_register_jit_icall (tramp, "llvm_throw_corlib_exception_abs_trampoline", NULL, TRUE);
-
-		tramp = get_throw_trampoline (NULL, FALSE, TRUE, TRUE, TRUE, "llvm_resume_unwind_trampoline", FALSE);
-		mono_register_jit_icall (tramp, "llvm_resume_unwind_trampoline", NULL, TRUE);
 	}
 }
 

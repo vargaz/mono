@@ -2274,6 +2274,8 @@ mono_destroy_compile (MonoCompile *cfg)
 		g_hash_table_destroy (cfg->spvars);
 	if (cfg->exvars)
 		g_hash_table_destroy (cfg->exvars);
+	if (cfg->finally_info)
+		g_hash_table_destroy (cfg->finally_info);
 	for (l = cfg->headers_to_free; l; l = l->next)
 		mono_metadata_free_mh (l->data);
 	g_list_free (cfg->ldstr_list);
@@ -5981,6 +5983,9 @@ mini_init (const char *filename, const char *runtime_version)
 	register_icall (mono_thread_force_interruption_checkpoint, "mono_thread_force_interruption_checkpoint", "void", FALSE);
 	register_icall (mono_load_remote_field_new, "mono_load_remote_field_new", "object object ptr ptr", FALSE);
 	register_icall (mono_store_remote_field_new, "mono_store_remote_field_new", "void object ptr ptr object", FALSE);
+#ifdef MONO_ARCH_HAVE_RESUME_UNWIND
+	register_icall (mono_get_resume_unwind_trampoline (), "resume_unwind_trampoline", "void", TRUE);
+#endif
 
 	/* 
 	 * NOTE, NOTE, NOTE, NOTE:

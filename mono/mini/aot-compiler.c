@@ -4003,6 +4003,10 @@ emit_trampolines (MonoAotCompile *acfg)
 		emit_trampoline (acfg, acfg->got_offset, info);
 		code = mono_arch_get_throw_corlib_exception (&info, TRUE);
 		emit_trampoline (acfg, acfg->got_offset, info);
+#ifdef MONO_ARCH_HAVE_RESUME_UNWIND
+		code = mono_arch_get_resume_unwind_trampoline (&info, TRUE);
+		emit_trampoline (acfg, acfg->got_offset, info);
+#endif
 
 #if defined(MONO_ARCH_HAVE_GET_TRAMPOLINES)
 		{

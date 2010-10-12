@@ -944,6 +944,12 @@ struct MonoJumpInfoRgctxEntry {
 	int info_type;
 };
 
+typedef struct {
+	MonoInst *finally_ind;
+	/* The list of bblocks ENDFINALLY needs to branch to */
+	GSList *call_handler_return_bbs;
+} FinallyInfo;
+
 typedef enum {
 	MONO_TRAMPOLINE_JIT,
 	MONO_TRAMPOLINE_JUMP,
@@ -1197,6 +1203,9 @@ typedef struct {
 
 	/* Method headers which need to be freed after compilation */
 	GSList *headers_to_free;
+
+	/* Maps the IL offset of the handler blocks of finally clauses to a FinallyInfo structure */
+	GHashTable *finally_info;
 
 	/* Used by AOT */
 	guint32 got_offset, ex_info_offset, method_info_offset;
@@ -1850,6 +1859,7 @@ gpointer  mono_arch_get_throw_exception         (MonoTrampInfo **info, gboolean 
 gpointer  mono_arch_get_rethrow_exception       (MonoTrampInfo **info, gboolean aot) MONO_INTERNAL;
 gpointer  mono_arch_get_throw_corlib_exception  (MonoTrampInfo **info, gboolean aot) MONO_INTERNAL;
 gpointer  mono_arch_get_throw_pending_exception (MonoTrampInfo **info, gboolean aot) MONO_INTERNAL;
+gpointer  mono_arch_get_resume_unwind_trampoline(MonoTrampInfo **info, gboolean aot) MONO_INTERNAL;
 gboolean mono_arch_handle_exception             (void *sigctx, gpointer obj, gboolean test_only) MONO_INTERNAL;
 void     mono_arch_handle_altstack_exception    (void *sigctx, gpointer fault_addr, gboolean stack_ovf) MONO_INTERNAL;
 gboolean mono_handle_soft_stack_ovf             (MonoJitTlsData *jit_tls, MonoJitInfo *ji, void *ctx, guint8* fault_addr) MONO_INTERNAL;
@@ -1927,6 +1937,7 @@ gpointer mono_get_call_filter                   (void) MONO_INTERNAL;
 gpointer mono_get_restore_context               (void) MONO_INTERNAL;
 gpointer mono_get_throw_exception_by_name       (void) MONO_INTERNAL;
 gpointer mono_get_throw_corlib_exception        (void) MONO_INTERNAL;
+gpointer mono_get_resume_unwind_trampoline      (void) MONO_INTERNAL;
 
 /* the new function to do stack walks */
 typedef gboolean (*MonoStackFrameWalk)          (MonoDomain *domain, MonoContext *ctx, MonoJitInfo *ji, gpointer data);
