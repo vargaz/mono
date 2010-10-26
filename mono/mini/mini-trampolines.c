@@ -11,6 +11,7 @@
 
 #include "mini.h"
 #include "debug-mini.h"
+#include "interp.h"
 
 /*
  * Address of the trampoline code.  This is used by the debugger to check
@@ -474,8 +475,12 @@ common_call_trampoline (mgreg_t *regs, guint8 *code, MonoMethod *m, guint8* tram
 	if (!code && mono_method_needs_static_rgctx_invoke (m, FALSE))
 		need_rgctx_tramp = TRUE;
 
-	addr = compiled_method = mono_compile_method (m);
-	g_assert (addr);
+	if (!strcmp (m->name, "add1")) {
+		addr = compiled_method = mono_create_specific_trampoline (m, MONO_TRAMPOLINE_INTERP_ENTER, mono_domain_get (), NULL);
+	} else {
+		addr = compiled_method = mono_compile_method (m);
+		g_assert (addr);
+	}
 
 	mono_debugger_trampoline_compiled (code, m, addr);
 
@@ -1017,6 +1022,17 @@ mono_create_handler_block_trampoline (void)
 #endif
 
 /*
+ * mono_interp_enter_trampoline:
+ *
+ *   This trampoline handles transitions from JITted to interpreted code.
+ */
+static gpointer
+mono_interp_enter_trampoline (mgreg_t *regs, guint8 *code, MonoMethod *m, guint8 *tramp)
+{
+	return (gpointer)mono_interp_enter (m, regs);
+}
+
+/*
  * mono_get_trampoline_func:
  *
  *   Return the C function which needs to be called by the generic trampoline of type
@@ -1055,6 +1071,8 @@ mono_get_trampoline_func (MonoTrampolineType tramp_type)
 		return mono_monitor_exit_trampoline;
 	case MONO_TRAMPOLINE_VCALL:
 		return mono_vcall_trampoline;
+	case MONO_TRAMPOLINE_INTERP_ENTER:
+		return mono_interp_enter_trampoline;
 #ifdef MONO_ARCH_HAVE_HANDLER_BLOCK_GUARD
 	case MONO_TRAMPOLINE_HANDLER_BLOCK_GUARD:
 		return mono_handler_block_guard_trampoline;
@@ -1107,6 +1125,7 @@ mono_trampolines_init (void)
 	mono_trampoline_code [MONO_TRAMPOLINE_MONITOR_ENTER] = create_trampoline_code (MONO_TRAMPOLINE_MONITOR_ENTER);
 	mono_trampoline_code [MONO_TRAMPOLINE_MONITOR_EXIT] = create_trampoline_code (MONO_TRAMPOLINE_MONITOR_EXIT);
 	mono_trampoline_code [MONO_TRAMPOLINE_VCALL] = create_trampoline_code (MONO_TRAMPOLINE_VCALL);
+	mono_trampoline_code [MONO_TRAMPOLINE_INTERP_ENTER] = create_trampoline_code (MONO_TRAMPOLINE_INTERP_ENTER);
 #ifdef MONO_ARCH_HAVE_HANDLER_BLOCK_GUARD
 	mono_trampoline_code [MONO_TRAMPOLINE_HANDLER_BLOCK_GUARD] = create_trampoline_code (MONO_TRAMPOLINE_HANDLER_BLOCK_GUARD);
 	mono_create_handler_block_trampoline ();
@@ -1543,6 +1562,7 @@ static const char*tramp_names [MONO_TRAMPOLINE_NUM] = {
 	"monitor_enter",
 	"monitor_exit",
 	"vcall",
+	"interp_enter",
 #ifdef MONO_ARCH_HAVE_HANDLER_BLOCK_GUARD
 	"handler_block_guard"
 #endif

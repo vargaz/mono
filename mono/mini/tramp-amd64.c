@@ -574,7 +574,11 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	/* Restore stack */
 	amd64_leave (code);
 
-	if (MONO_TRAMPOLINE_TYPE_MUST_RETURN (tramp_type)) {
+	if (tramp_type == MONO_TRAMPOLINE_INTERP_ENTER) {
+		/* Load result */
+		amd64_mov_reg_membase (code, AMD64_RAX, AMD64_RSP, rax_offset - 0x8, 8);
+		amd64_ret (code);
+	} else if (MONO_TRAMPOLINE_TYPE_MUST_RETURN (tramp_type)) {
 		/* Load result */
 		amd64_mov_reg_membase (code, AMD64_RAX, AMD64_RSP, rax_offset - 0x8, 8);
 		amd64_ret (code);

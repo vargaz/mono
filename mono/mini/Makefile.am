@@ -360,7 +360,12 @@ common_sources = \
 	debug-debugger.h	\
 	xdebug.c			\
 	mini-llvm.h			\
-	mini-llvm-cpp.h
+	mini-llvm-cpp.h		\
+	interp.h			\
+	interp.c			\
+	transform.c			\
+	mintops.h			\
+	mintops.c
 
 test_sources = 			\
 	basic-calls.cs 		\
