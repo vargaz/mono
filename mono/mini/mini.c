@@ -68,6 +68,7 @@
 #include "debug-mini.h"
 #include "mini-gc.h"
 #include "debugger-agent.h"
+#include "interp.h"
 
 static gpointer mono_jit_compile_method_with_opt (MonoMethod *method, guint32 opt, MonoException **ex);
 
@@ -4742,6 +4743,16 @@ mono_jit_compile_method_inner (MonoMethod *method, MonoDomain *target_domain, in
 		}
 	}
 #endif
+
+	if (!strcmp (method->name, "overflow_registers")) {
+		InterpMethod *imethod = mono_interp_get_runtime_method (method);
+
+		/* Check whenever the interpreter supports this method */
+		if (!imethod->transformed)
+			mono_interp_transform_method (imethod, NULL);
+		if (!imethod->transform_failed)
+			return mono_create_specific_trampoline (imethod, MONO_TRAMPOLINE_INTERP_ENTER, mono_domain_get (), NULL);
+	}
 
 	if ((method->iflags & METHOD_IMPL_ATTRIBUTE_INTERNAL_CALL) ||
 	    (method->flags & METHOD_ATTRIBUTE_PINVOKE_IMPL)) {

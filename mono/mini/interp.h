@@ -54,8 +54,7 @@ typedef struct {
  * Structure representing a method transformed for the interpreter 
  * This is domain specific
  */
-typedef struct _RuntimeMethod
-{
+typedef struct {
 	MonoMethod *method;
 	guint32 locals_size;
 	guint32 args_size;
@@ -75,14 +74,14 @@ typedef struct _RuntimeMethod
 	unsigned int param_count;
 	unsigned int hasthis;
 	unsigned int valuetype;
-} RuntimeMethod;
+} InterpMethod;
 
 /*
  * Represents an interpred method frame
  */
-typedef struct MonoInvocation {
-	struct MonoInvocation *parent; /* parent */
-	RuntimeMethod  *runtime_method; /* parent */
+typedef struct InterpFrame {
+	struct InterpFrame *parent; /* parent */
+	InterpMethod  *runtime_method; /* parent */
 	MonoMethod     *method; /* parent */
 	stackval       *retval; /* parent */
 	void           *obj;    /* this - parent */
@@ -95,18 +94,18 @@ typedef struct MonoInvocation {
 	const unsigned short  *ip;
 	MonoException     *ex;
 	MonoExceptionClause *ex_handler;
-} MonoInvocation;
+} InterpFrame;
 
 /* Stores thread-specific information used by the interpreter */
 typedef struct {
 	MonoDomain *domain;
-	MonoInvocation *base_frame;
-	MonoInvocation *current_frame;
-	MonoInvocation *env_frame;
+	InterpFrame *base_frame;
+	InterpFrame *current_frame;
+	InterpFrame *env_frame;
 	jmp_buf *current_env;
 	unsigned char search_for_handler;
 	unsigned char managed_code;
-} ThreadContext;
+} InterpThreadContext;
 
 /*
  * A buffer which is used to pass return values from mono_interp_enter to the INTERP_ENTER
@@ -119,7 +118,7 @@ typedef struct {
 } InterpResultBuf;
 
 MonoException *
-mono_interp_transform_method (RuntimeMethod *runtime_method, ThreadContext *context);
+mono_interp_transform_method (InterpMethod *runtime_method, InterpThreadContext *context);
 
 MonoDelegate*
 mono_interp_ftnptr_to_delegate (MonoClass *klass, gpointer ftn);
@@ -129,12 +128,12 @@ mono_interp_transform_init (void);
 
 void inline stackval_from_data (MonoType *type, stackval *result, char *data, gboolean pinvoke);
 void inline stackval_to_data (MonoType *type, stackval *val, char *data, gboolean pinvoke);
-void ves_exec_method (MonoInvocation *frame);
+void ves_exec_method (InterpFrame *frame);
 
-RuntimeMethod *
+InterpMethod *
 mono_interp_get_runtime_method (MonoMethod *method);
 
-void mono_interp_enter (RuntimeMethod *rmethod, mgreg_t *regs, mgreg_t *fpregs, InterpResultBuf *res_buf);
+void mono_interp_enter (InterpMethod *imethod, mgreg_t *regs, mgreg_t *fpregs, InterpResultBuf *res_buf);
 
 extern int mono_interp_traceopt;
 

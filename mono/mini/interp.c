@@ -101,14 +101,14 @@ static int debug_indent_level = 0;
 		(frame)->invoke_trap = 0;	\
 	} while (0)
 
-void ves_exec_method (MonoInvocation *frame);
+void ves_exec_method (InterpFrame *frame);
 
 static char* dump_stack (stackval *stack, stackval *sp);
-static char* dump_frame (MonoInvocation *inv);
-static MonoArray *get_trace_ips (MonoDomain *domain, MonoInvocation *top);
-static void ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context);
+static char* dump_frame (InterpFrame *inv);
+static MonoArray *get_trace_ips (MonoDomain *domain, InterpFrame *top);
+static void ves_exec_method_with_context (InterpFrame *frame, InterpThreadContext *context);
 
-typedef void (*ICallMethod) (MonoInvocation *frame);
+typedef void (*ICallMethod) (InterpFrame *frame);
 
 static guint32 die_on_exception = 0;
 static guint32 thread_context_id = 0;
@@ -185,7 +185,7 @@ db_match_method (gpointer data, gpointer user_data)
 
 static void
 interp_ex_handler (MonoException *ex) {
-	ThreadContext *context = TlsGetValue (thread_context_id);
+	InterpThreadContext *context = TlsGetValue (thread_context_id);
 	char *stack_trace;
 	if (context == NULL)
 		return;
@@ -256,11 +256,11 @@ interp_create_remoting_trampoline (MonoMethod *method, MonoRemotingTarget target
 
 static CRITICAL_SECTION runtime_method_lookup_section;
 
-RuntimeMethod*
+InterpMethod*
 mono_interp_get_runtime_method (MonoMethod *method)
 {
 	MonoDomain *domain = mono_domain_get ();
-	RuntimeMethod *rtm;
+	InterpMethod *rtm;
 
 	EnterCriticalSection (&runtime_method_lookup_section);
 	// FIXME:
@@ -270,7 +270,7 @@ mono_interp_get_runtime_method (MonoMethod *method)
 		return rtm;
 	}
 	*/
-	rtm = mono_mempool_alloc (domain->mp, sizeof (RuntimeMethod));
+	rtm = mono_mempool_alloc (domain->mp, sizeof (InterpMethod));
 	memset (rtm, 0, sizeof (*rtm));
 	rtm->method = method;
 	rtm->param_count = mono_method_signature (method)->param_count;
@@ -291,8 +291,8 @@ interp_create_trampoline (MonoMethod *method)
 	return mono_interp_get_runtime_method (method);
 }
 
-static inline RuntimeMethod*
-get_virtual_method (RuntimeMethod *runtime_method, MonoObject *obj)
+static inline InterpMethod*
+get_virtual_method (InterpMethod *runtime_method, MonoObject *obj)
 {
 	MonoMethod *m = runtime_method->method;
 
@@ -307,10 +307,10 @@ get_virtual_method (RuntimeMethod *runtime_method, MonoObject *obj)
 
 	if (m->klass->flags & TYPE_ATTRIBUTE_INTERFACE) {
 		NOT_IMPLEMENTED;
-		//return ((RuntimeMethod **)obj->vtable->interface_offsets [m->klass->interface_id]) [m->slot];
+		//return ((InterpMethod **)obj->vtable->interface_offsets [m->klass->interface_id]) [m->slot];
 		return NULL;
 	} else {
-		return ((RuntimeMethod **)obj->vtable->vtable) [m->slot];
+		return ((InterpMethod **)obj->vtable->vtable) [m->slot];
 	}
 }
 
@@ -495,7 +495,7 @@ stackval_to_data (MonoType *type, stackval *val, char *data, gboolean pinvoke)
 }
 
 static void
-fill_in_trace (MonoException *exception, MonoInvocation *frame)
+fill_in_trace (MonoException *exception, InterpFrame *frame)
 {
 	char *stack_trace = dump_frame (frame);
 	MonoDomain *domain = mono_domain_get();
@@ -538,7 +538,7 @@ ves_array_create (MonoDomain *domain, MonoClass *klass, MonoMethodSignature *sig
 }
 
 static void 
-ves_array_set (MonoInvocation *frame)
+ves_array_set (InterpFrame *frame)
 {
 	stackval *sp = frame->stack_args;
 	MonoObject *o;
@@ -589,7 +589,7 @@ ves_array_set (MonoInvocation *frame)
 }
 
 static void 
-ves_array_get (MonoInvocation *frame)
+ves_array_get (InterpFrame *frame)
 {
 	stackval *sp = frame->stack_args;
 	MonoObject *o;
@@ -633,7 +633,7 @@ ves_array_get (MonoInvocation *frame)
 }
 
 static void
-ves_array_element_address (MonoInvocation *frame)
+ves_array_element_address (InterpFrame *frame)
 {
 	stackval *sp = frame->stack_args;
 	MonoObject *o;
@@ -676,8 +676,8 @@ ves_array_element_address (MonoInvocation *frame)
 static void
 interp_walk_stack (MonoStackWalk func, gboolean do_il_offset, gpointer user_data)
 {
-	ThreadContext *context = TlsGetValue (thread_context_id);
-	MonoInvocation *frame;
+	InterpThreadContext *context = TlsGetValue (thread_context_id);
+	InterpFrame *frame;
 	int il_offset;
 	MonoMethodHeader *hd;
 
@@ -706,12 +706,12 @@ interp_walk_stack (MonoStackWalk func, gboolean do_il_offset, gpointer user_data
 #if 0
 
 static void 
-ves_pinvoke_method (MonoInvocation *frame, MonoMethodSignature *sig, MonoFunc addr, gboolean string_ctor, ThreadContext *context)
+ves_pinvoke_method (InterpFrame *frame, MonoMethodSignature *sig, MonoFunc addr, gboolean string_ctor, InterpThreadContext *context)
 {
 	jmp_buf env;
 	MonoPIFunc func;
-	MonoInvocation *old_frame = context->current_frame;
-	MonoInvocation *old_env_frame = context->env_frame;
+	InterpFrame *old_frame = context->current_frame;
+	InterpFrame *old_env_frame = context->env_frame;
 	jmp_buf *old_env = context->current_env;
 
 	if (setjmp (env)) {
@@ -758,7 +758,7 @@ ves_pinvoke_method (MonoInvocation *frame, MonoMethodSignature *sig, MonoFunc ad
 #endif
 
 static void
-interp_delegate_ctor (MonoDomain *domain, MonoObject *this, MonoObject *target, RuntimeMethod *runtime_method)
+interp_delegate_ctor (MonoDomain *domain, MonoObject *this, MonoObject *target, InterpMethod *runtime_method)
 {
 	MonoDelegate *delegate = (MonoDelegate *)this;
 
@@ -798,7 +798,7 @@ mono_interp_ftnptr_to_delegate (MonoClass *klass, gpointer ftn)
  * provided by the runtime and is primarily used for the methods of delegates.
  */
 static void
-ves_runtime_method (MonoInvocation *frame, ThreadContext *context)
+ves_runtime_method (InterpFrame *frame, InterpThreadContext *context)
 {
 	MonoMethod *method = frame->runtime_method->method;
 	const char *name = method->name;
@@ -892,7 +892,7 @@ dump_stackval (GString *str, stackval *s, MonoType *type)
 }
 
 static char*
-dump_args (MonoInvocation *inv)
+dump_args (InterpFrame *inv)
 {
 	GString *str = g_string_new ("");
 	int i;
@@ -911,7 +911,7 @@ dump_args (MonoInvocation *inv)
 }
 
 static char*
-dump_retval (MonoInvocation *inv)
+dump_retval (InterpFrame *inv)
 {
 	GString *str = g_string_new ("");
 	MonoType *ret = mono_method_signature (inv->runtime_method->method)->ret;
@@ -923,7 +923,7 @@ dump_retval (MonoInvocation *inv)
 }
  
 static char*
-dump_frame (MonoInvocation *inv)
+dump_frame (InterpFrame *inv)
 {
 	GString *str = g_string_new ("");
 	int i;
@@ -974,11 +974,11 @@ dump_frame (MonoInvocation *inv)
 }
 
 static MonoArray *
-get_trace_ips (MonoDomain *domain, MonoInvocation *top)
+get_trace_ips (MonoDomain *domain, InterpFrame *top)
 {
 	int i;
 	MonoArray *res;
-	MonoInvocation *inv;
+	InterpFrame *inv;
 
 	for (i = 0, inv = top; inv; inv = inv->parent)
 		if (inv->runtime_method != NULL)
@@ -1080,10 +1080,10 @@ get_trace_ips (MonoDomain *domain, MonoInvocation *top)
 #if 0
 
 static stackval * 
-do_icall (ThreadContext *context, int op, stackval *sp, gpointer ptr)
+do_icall (InterpThreadContext *context, int op, stackval *sp, gpointer ptr)
 {
-	MonoInvocation *old_frame = context->current_frame;
-	MonoInvocation *old_env_frame = context->env_frame;
+	InterpFrame *old_frame = context->current_frame;
+	InterpFrame *old_env_frame = context->env_frame;
 	jmp_buf *old_env = context->current_env;
 	jmp_buf env;
 
@@ -1264,9 +1264,9 @@ static int opcode_counts[512];
 /* #define MINT_USE_DEDICATED_IP_REG */
 
 static void 
-ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context)
+ves_exec_method_with_context (InterpFrame *frame, InterpThreadContext *context)
 {
-	MonoInvocation child_frame;
+	InterpFrame child_frame;
 	GSList *finally_ips = NULL;
 	const unsigned short *endfinally_ip = NULL;
 #if defined(__GNUC__) && defined (i386) && defined (MINT_USE_DEDICATED_IP_REG)
@@ -1275,7 +1275,7 @@ ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context)
 	register const unsigned short *ip;
 #endif
 	register stackval *sp;
-	RuntimeMethod *rtm;
+	InterpMethod *rtm;
 #if DEBUG_INTERP
 	gint tracing = global_tracing;
 	unsigned char *vtalloc;
@@ -1446,7 +1446,7 @@ ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context)
 			--sp;
 			MINT_IN_BREAK;
 		MINT_IN_CASE(MINT_JMP) {
-			RuntimeMethod *new_method = rtm->data_items [* (guint16 *)(ip + 1)];
+			InterpMethod *new_method = rtm->data_items [* (guint16 *)(ip + 1)];
 			if (!new_method->transformed) {
 				frame->ip = ip;
 				frame->ex = mono_interp_transform_method (new_method, context);
@@ -3506,7 +3506,7 @@ array_constructed:
 			MINT_IN_BREAK;
 		}
 		MINT_IN_CASE(MINT_LDVIRTFTN) {
-			RuntimeMethod *m = rtm->data_items [* (guint16 *)(ip + 1)];
+			InterpMethod *m = rtm->data_items [* (guint16 *)(ip + 1)];
 			ip += 2;
 			--sp;
 			if (!sp->data.p)
@@ -3752,7 +3752,7 @@ array_constructed:
 	{
 		int i;
 		guint32 ip_offset;
-		MonoInvocation *inv;
+		InterpFrame *inv;
 		MonoExceptionClause *clause;
 		/*char *message;*/
 		MonoObject *ex_obj;
@@ -3919,10 +3919,10 @@ exit_frame:
 }
 
 void
-ves_exec_method (MonoInvocation *frame)
+ves_exec_method (InterpFrame *frame)
 {
-	ThreadContext *context = TlsGetValue (thread_context_id);
-	ThreadContext context_struct;
+	InterpThreadContext *context = TlsGetValue (thread_context_id);
+	InterpThreadContext context_struct;
 	jmp_buf env;
 
 	frame->ex = NULL;
@@ -3969,8 +3969,8 @@ ves_icall_get_frame_info (gint32 skip, MonoBoolean need_file_info,
 			  gint32 *iloffset, gint32 *native_offset,
 			  MonoString **file, gint32 *line, gint32 *column)
 {
-	ThreadContext *context = TlsGetValue (thread_context_id);
-	MonoInvocation *inv = context->current_frame;
+	InterpThreadContext *context = TlsGetValue (thread_context_id);
+	InterpFrame *inv = context->current_frame;
 	int i;
 
 	for (i = 0; inv && i < skip; inv = inv->parent)
@@ -4015,7 +4015,7 @@ ves_icall_get_trace (MonoException *exc, gint32 skip, MonoBoolean need_file_info
 	for (i = skip; i < len / 2; i++) {
 		MonoStackFrame *sf = (MonoStackFrame *)mono_object_new (domain, mono_defaults.stack_frame_class);
 		gushort *ip = mono_array_get (ta, gpointer, 2 * i + 1);
-		RuntimeMethod *rtm = mono_array_get (ta, gpointer, 2 * i);
+		InterpMethod *rtm = mono_array_get (ta, gpointer, 2 * i);
 
 		if (rtm != NULL) {
 			sf->method = mono_method_get_object (domain, rtm->method, NULL);
@@ -4063,22 +4063,22 @@ ves_icall_System_Delegate_CreateDelegate_internal (MonoReflectionType *type, Mon
 /*
  * mono_interp_enter:
  *
- *   Execute the method identified by RMETHOD using the interpreter, using the arguments in
+ *   Execute the method identified by IMETHOD using the interpreter, using the arguments in
  * REGS and FPREGS. Store the result into RES_BUF.
  */
 void
-mono_interp_enter (RuntimeMethod *rmethod, mgreg_t *regs, mgreg_t *fpregs, InterpResultBuf *res_buf)
+mono_interp_enter (InterpMethod *imethod, mgreg_t *regs, mgreg_t *fpregs, InterpResultBuf *res_buf)
 {
 	void *params [16];
 	MonoInterpCallInfo *info;
-	MonoMethod *m = rmethod->method;
+	MonoMethod *m = imethod->method;
 	MonoType *rtype = mini_type_get_underlying_type (NULL, mono_method_signature (m)->ret);
 	MonoMethod *method = m;
 	void *obj = NULL;
 	MonoObject **exc = NULL;
 
-	MonoInvocation frame;
-	ThreadContext * volatile context = TlsGetValue (thread_context_id);
+	InterpFrame frame;
+	InterpThreadContext * volatile context = TlsGetValue (thread_context_id);
 	MonoObject *retval = NULL;
 	MonoMethodSignature *sig = mono_method_signature (method);
 	MonoClass *klass = mono_class_from_mono_type (sig->ret);
@@ -4086,8 +4086,8 @@ mono_interp_enter (RuntimeMethod *rmethod, mgreg_t *regs, mgreg_t *fpregs, Inter
 	void *ret = NULL;
 	stackval result;
 	stackval *args = alloca (sizeof (stackval) * sig->param_count);
-	ThreadContext context_struct;
-	MonoInvocation *old_frame = NULL;
+	InterpThreadContext context_struct;
+	InterpFrame *old_frame = NULL;
 	jmp_buf env;
 
 	printf ("CALL: %s\n", mono_method_full_name (m, TRUE));
@@ -4215,7 +4215,7 @@ handle_enum:
 		NOT_IMPLEMENTED;
 		//method = mono_marshal_get_native_wrapper (method);
 	}
-	INIT_FRAME(&frame,context->current_frame,obj,args,&result,method,rmethod);
+	INIT_FRAME(&frame,context->current_frame,obj,args,&result,method,imethod);
 	if (exc)
 		frame.invoke_trap = 1;
 	context->managed_code = 1;

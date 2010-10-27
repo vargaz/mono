@@ -34,7 +34,7 @@ typedef struct
 {
 	MonoMethod *method;
 	MonoMethodHeader *header;
-	RuntimeMethod *rtm;
+	InterpMethod *rtm;
 	const unsigned char *il_code;
 	const unsigned char *ip;
 	const unsigned char *last_ip;
@@ -603,7 +603,7 @@ get_data_item_index (TransformData *td, void *ptr)
 }
 
 static MonoException*
-generate(MonoMethod *method, RuntimeMethod *rtm, unsigned char *is_bb_start)
+generate(MonoMethod *method, InterpMethod *rtm, unsigned char *is_bb_start)
 {
 	MonoMethodHeader *header = mono_method_get_header (method);
 	MonoMethodSignature *signature = mono_method_signature (method);
@@ -2808,7 +2808,7 @@ mono_interp_transform_init (void)
 }
 
 MonoException *
-mono_interp_transform_method (RuntimeMethod *runtime_method, ThreadContext *context)
+mono_interp_transform_method (InterpMethod *runtime_method, InterpThreadContext *context)
 {
 	int i, align, size, offset;
 	MonoMethod *method = runtime_method->method;
