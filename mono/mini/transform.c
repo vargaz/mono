@@ -602,7 +602,7 @@ get_data_item_index (TransformData *td, void *ptr)
 	return index;
 }
 
-static MonoException*
+static gboolean
 generate(MonoMethod *method, InterpMethod *rtm, unsigned char *is_bb_start)
 {
 	MonoMethodHeader *header = mono_method_get_header (method);
@@ -1025,8 +1025,8 @@ generate(MonoMethod *method, InterpMethod *rtm, unsigned char *is_bb_start)
 				}
 			}
 			if (method->wrapper_type == MONO_WRAPPER_NONE && m != NULL) {
-				// FIXME: Use MonoError
-				return mono_get_exception_not_implemented ("Calls not yet supported.");
+				// FIXME:
+				return FALSE;
 #if 0
 				if (m->flags & METHOD_ATTRIBUTE_PINVOKE_IMPL)
 					m = mono_marshal_get_native_wrapper (m);
@@ -1078,7 +1078,8 @@ generate(MonoMethod *method, InterpMethod *rtm, unsigned char *is_bb_start)
 					ADD_CODE(&td, is_void ? MINT_VCALLVIRT : MINT_CALLVIRT);
 				else
 					ADD_CODE(&td, is_void ? MINT_VCALL : MINT_CALL);
-				NOT_IMPLEMENTED;
+				// FIXME:
+				return FALSE;
 				//ADD_CODE(&td, get_data_item_index (&td,  calli? (void *)csignature : (void *)mono_interp_get_runtime_method (m)));
 			}
 			td.ip += 5;
@@ -1722,7 +1723,8 @@ generate(MonoMethod *method, InterpMethod *rtm, unsigned char *is_bb_start)
 			klass = m->klass;
 			td.sp -= csignature->param_count;
 			ADD_CODE(&td, MINT_NEWOBJ);
-			NOT_IMPLEMENTED;
+			// FIXME:
+			return FALSE;
 			//ADD_CODE(&td, get_data_item_index (&td, mono_interp_get_runtime_method (m)));
 			if (klass->byval_arg.type == MONO_TYPE_VALUETYPE) {
 				vt_res_size = mono_class_value_size (klass, NULL);
@@ -1746,6 +1748,8 @@ generate(MonoMethod *method, InterpMethod *rtm, unsigned char *is_bb_start)
 			break;
 		}
 		case CEE_CASTCLASS:
+			// FIXME: This can throw exceptions
+			return FALSE;
 			CHECK_STACK (&td, 1);
 			token = read32 (td.ip + 1);
 			klass = mono_class_get_full (image, token, generic_context);
@@ -1755,6 +1759,8 @@ generate(MonoMethod *method, InterpMethod *rtm, unsigned char *is_bb_start)
 			td.ip += 5;
 			break;
 		case CEE_ISINST:
+			// FIXME: This can throw exceptions
+			return FALSE;
 			CHECK_STACK (&td, 1);
 			token = read32 (td.ip + 1);
 			klass = mono_class_get_full (image, token, generic_context);
@@ -2434,7 +2440,8 @@ generate(MonoMethod *method, InterpMethod *rtm, unsigned char *is_bb_start)
 					default:
 						g_assert_not_reached ();
 					}
-					NOT_IMPLEMENTED;
+					// FIXME:
+					return FALSE;
 #if 0
 					if (func == mono_ftnptr_to_delegate)
 						func = mono_interp_ftnptr_to_delegate;
@@ -2514,7 +2521,9 @@ generate(MonoMethod *method, InterpMethod *rtm, unsigned char *is_bb_start)
 				++td.ip;
 				break;
 			default:
-				g_error ("transform.c: Unimplemented opcode: 0xF0 %02x at 0x%x\n", *td.ip, td.ip-header->code);
+				// FIXME:
+				return FALSE;
+				//g_error ("transform.c: Unimplemented opcode: 0xF0 %02x at 0x%x\n", *td.ip, td.ip-header->code);
 			}
 			break;
 #if 0
@@ -2604,7 +2613,8 @@ generate(MonoMethod *method, InterpMethod *rtm, unsigned char *is_bb_start)
 					m = mono_marshal_get_synchronized_wrapper (m);
 
 				ADD_CODE(&td, *td.ip == CEE_LDFTN ? MINT_LDFTN : MINT_LDVIRTFTN);
-				NOT_IMPLEMENTED;
+				// FIXME:
+				return FALSE;
 				//ADD_CODE(&td, get_data_item_index (&td, mono_interp_get_runtime_method (m)));
 				td.ip += 5;
 				PUSH_SIMPLE_TYPE (&td, STACK_TYPE_F);
@@ -2745,7 +2755,9 @@ generate(MonoMethod *method, InterpMethod *rtm, unsigned char *is_bb_start)
 			}
 			break;
 		default:
-			g_error ("transform.c: Unimplemented opcode: %02x at 0x%x\n", *td.ip, td.ip-header->code);
+			// FIXME:
+			return FALSE;
+			//g_error ("transform.c: Unimplemented opcode: %02x at 0x%x\n", *td.ip, td.ip-header->code);
 		}
 
 		if (td.new_ip - td.new_code != new_in_start_offset) 
@@ -2796,7 +2808,7 @@ generate(MonoMethod *method, InterpMethod *rtm, unsigned char *is_bb_start)
 	g_free (td.data_items);
 	g_hash_table_destroy (td.data_hash);
 
-	return NULL;
+	return TRUE;
 }
 
 static CRITICAL_SECTION calc_section;
@@ -2807,8 +2819,8 @@ mono_interp_transform_init (void)
 	InitializeCriticalSection(&calc_section);
 }
 
-MonoException *
-mono_interp_transform_method (InterpMethod *runtime_method, InterpThreadContext *context)
+static gboolean
+transform_method (InterpMethod *runtime_method, InterpThreadContext *context)
 {
 	int i, align, size, offset;
 	MonoMethod *method = runtime_method->method;
@@ -2825,7 +2837,7 @@ mono_interp_transform_method (InterpMethod *runtime_method, InterpThreadContext 
 	MonoVTable *method_class_vt;
 	int backwards;
 	MonoGenericContext *generic_context = NULL;
-	MonoException *ex;
+	gboolean gen_res;
 
 	method_class_vt = mono_class_vtable (domain, runtime_method->method->klass);
 #if 0
@@ -2855,15 +2867,8 @@ mono_interp_transform_method (InterpMethod *runtime_method, InterpThreadContext 
 		generic_context = &((MonoMethodInflated *) method)->context;
 
 	if (method->iflags & (METHOD_IMPL_ATTRIBUTE_INTERNAL_CALL | METHOD_IMPL_ATTRIBUTE_RUNTIME)) {
-		//MonoMethod *nm = NULL;
-		EnterCriticalSection(&calc_section);
-		if (runtime_method->transformed) {
-			LeaveCriticalSection(&calc_section);
-			//mono_profiler_method_end_jit (method, MONO_PROFILE_OK);
-			return NULL;
-		}
-
-		NOT_IMPLEMENTED;
+		// FIXME:
+		return FALSE;
 #if 0
 		/* assumes all internal calls with an array this are built in... */
 		if (method->iflags & METHOD_IMPL_ATTRIBUTE_INTERNAL_CALL &&
@@ -2892,14 +2897,10 @@ mono_interp_transform_method (InterpMethod *runtime_method, InterpThreadContext 
 		if (nm == NULL) {
 			runtime_method->stack_size = sizeof (stackval); /* for tracing */
 			runtime_method->alloca_size = runtime_method->stack_size;
-			runtime_method->transformed = TRUE;
-			LeaveCriticalSection(&calc_section);
-			mono_profiler_method_end_jit (method, MONO_PROFILE_OK);
-			return NULL;
+			return TRUE;
 		}
 		method = nm;
 		header = mono_method_get_header (nm);
-		LeaveCriticalSection(&calc_section);
 #endif
 	}
 	g_assert ((signature->param_count + signature->hasthis) < 1000);
@@ -3013,15 +3014,6 @@ mono_interp_transform_method (InterpMethod *runtime_method, InterpThreadContext 
 		}
 	}
 
-	/* the rest needs to be locked so it is only done once */
-	EnterCriticalSection(&calc_section);
-	if (runtime_method->transformed) {
-		LeaveCriticalSection(&calc_section);
-		g_free (is_bb_start);
-		//mono_profiler_method_end_jit (method, MONO_PROFILE_OK);
-		return NULL;
-	}
-
 	runtime_method->local_offsets = g_malloc (header->num_locals * sizeof(guint32));
 	runtime_method->stack_size = (sizeof (stackval) + 2) * header->max_stack; /* + 1 for returns of called functions  + 1 for 0-ing in trace*/
 	runtime_method->stack_size = (runtime_method->stack_size + 7) & ~7;
@@ -3035,7 +3027,6 @@ mono_interp_transform_method (InterpMethod *runtime_method, InterpThreadContext 
 	}
 	offset = (offset + 7) & ~7;
 	runtime_method->locals_size = offset;
-	g_assert (runtime_method->locals_size < 65536);
 	offset = 0;
 	runtime_method->arg_offsets = g_malloc(signature->param_count * sizeof(guint32));
 	for (i = 0; i < signature->param_count; ++i) {
@@ -3056,18 +3047,70 @@ mono_interp_transform_method (InterpMethod *runtime_method, InterpThreadContext 
 	}
 	offset = (offset + 7) & ~7;
 	runtime_method->args_size = offset;
-	g_assert (runtime_method->args_size < 10000);
 
-	ex = generate (method, runtime_method, is_bb_start);
+	gen_res = generate (method, runtime_method, is_bb_start);
 
 	g_free (is_bb_start);
 
-	//mono_profiler_method_end_jit (method, MONO_PROFILE_OK);
-	runtime_method->transformed = TRUE;
-	if (ex)
-		runtime_method->transform_failed = TRUE;
-	LeaveCriticalSection(&calc_section);
+	if (runtime_method->locals_size >= 65536 || runtime_method->args_size >= 10000)
+		gen_res = FALSE;
 
-	return ex;
+	//mono_profiler_method_end_jit (method, MONO_PROFILE_OK);
+	return gen_res;
 }
 
+static gboolean
+method_supported (MonoMethod *m)
+{
+	MonoMethodSignature *sig = mono_method_signature (m);
+	int i;
+
+	// FIXME: the interp enter code can't handle this
+	if (MONO_TYPE_ISSTRUCT (sig->ret))
+		return FALSE;
+	for (i = 0; i < sig->param_count; ++i)
+		if (MONO_TYPE_ISSTRUCT (sig->params [i]))
+			return FALSE;
+	if (m->klass->marshalbyref)
+		// This doesn't seem to work
+		return FALSE;
+
+	return TRUE;
+}
+
+MonoException *
+mono_interp_transform_method (InterpMethod *imethod, InterpThreadContext *context)
+{
+	gboolean res, skip;
+	static int count;
+
+	if (!method_supported (imethod->method)) {
+		imethod->transform_failed = TRUE;
+		return NULL;
+	}
+
+	EnterCriticalSection(&calc_section);
+	if (imethod->transformed) {
+		LeaveCriticalSection(&calc_section);
+		return NULL;
+	}
+
+	skip = FALSE;
+	count ++;
+	if (getenv ("INTERP_COUNT")) {
+		if (count == atoi (getenv ("INTERP_COUNT")))
+			printf ("LAST: %s\n", mono_method_full_name (imethod->method, TRUE));
+		if (count > atoi (getenv ("INTERP_COUNT")))
+			skip = TRUE;
+	}
+
+	if (!skip)
+		res = transform_method (imethod, context);
+	else
+		res = FALSE;
+	imethod->transformed = TRUE;
+	imethod->transform_failed = !res;
+	LeaveCriticalSection(&calc_section);
+
+	return NULL;
+}

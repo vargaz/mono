@@ -4744,7 +4744,7 @@ mono_jit_compile_method_inner (MonoMethod *method, MonoDomain *target_domain, in
 	}
 #endif
 
-	if (!strcmp (method->name, "overflow_registers")) {
+	if (TRUE) {//!strcmp (method->klass->name, "Tests")) {
 		InterpMethod *imethod = mono_interp_get_runtime_method (method);
 
 		/* Check whenever the interpreter supports this method */
@@ -4752,6 +4752,8 @@ mono_jit_compile_method_inner (MonoMethod *method, MonoDomain *target_domain, in
 			mono_interp_transform_method (imethod, NULL);
 		if (!imethod->transform_failed)
 			return mono_create_specific_trampoline (imethod, MONO_TRAMPOLINE_INTERP_ENTER, mono_domain_get (), NULL);
+		//else
+		//	printf ("INTERP TRANSFORM FAILED FOR: %s\n", mono_method_full_name (method, TRUE));
 	}
 
 	if ((method->iflags & METHOD_IMPL_ATTRIBUTE_INTERNAL_CALL) ||

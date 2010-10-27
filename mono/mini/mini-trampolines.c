@@ -1021,6 +1021,8 @@ mono_create_handler_block_trampoline (void)
  * mono_interp_enter_trampoline:
  *
  *   This trampoline handles transitions from JITted to interpreted code.
+ * NOTE: This has a different signature than the other trampoline functions, instead of
+ * 'code' and 'tramp', we get passed 'res_buf', and 'fpregs'.
  */
 static gpointer
 mono_interp_enter_trampoline (mgreg_t *regs, InterpResultBuf *res_buf, InterpMethod *m, mgreg_t *fpregs)

@@ -508,6 +508,7 @@ fill_in_trace (MonoException *exception, InterpFrame *frame)
 
 #define THROW_EX(exception,ex_ip)	\
 	do {\
+		NOT_IMPLEMENTED;			\
 		frame->ip = (ex_ip);		\
 		frame->ex = (MonoException*)(exception);	\
 		FILL_IN_TRACE(frame->ex, frame); \
@@ -4079,10 +4080,9 @@ mono_interp_enter (InterpMethod *imethod, mgreg_t *regs, mgreg_t *fpregs, Interp
 
 	InterpFrame frame;
 	InterpThreadContext * volatile context = TlsGetValue (thread_context_id);
-	MonoObject *retval = NULL;
 	MonoMethodSignature *sig = mono_method_signature (method);
 	MonoClass *klass = mono_class_from_mono_type (sig->ret);
-	int i, type, isobject = 0;
+	int i, type, pindex;
 	void *ret = NULL;
 	stackval result;
 	stackval *args = alloca (sizeof (stackval) * sig->param_count);
@@ -4136,24 +4136,30 @@ mono_interp_enter (InterpMethod *imethod, mgreg_t *regs, mgreg_t *fpregs, Interp
 	case MONO_TYPE_CLASS:
 	case MONO_TYPE_ARRAY:
 	case MONO_TYPE_SZARRAY:
-		isobject = 1;
+		ret = g_malloc (sizeof (gpointer));
 		break;
 	case MONO_TYPE_VALUETYPE:
-		retval = g_malloc (klass->instance_size);
-		ret = ((char*)retval) + sizeof (MonoObject);
+		ret = g_malloc (mono_class_instance_size (klass));
 		if (!sig->ret->data.klass->enumtype)
 			result.data.vt = ret;
 		break;
 	default:
-		// FIXME: Avoid the allocation
-		retval = g_malloc (klass->instance_size);
-		ret = ((char*)retval) + sizeof (MonoObject);
+		ret = g_malloc (mono_class_instance_size (klass));
 		break;
+	}
+
+	if (sig->hasthis + sig->param_count >= 16)
+		NOT_IMPLEMENTED;
+
+	pindex = 0;
+	if (sig->hasthis) {
+		obj = *(void**)params [pindex];
+		pindex ++;
 	}
 
 	for (i = 0; i < sig->param_count; ++i) {
 		if (sig->params [i]->byref) {
-			args [i].data.p = *(gpointer**)params [i];
+			args [i].data.p = *(gpointer**)params [pindex];
 			continue;
 		}
 		type = sig->params [i]->type;
@@ -4162,12 +4168,12 @@ handle_enum:
 		case MONO_TYPE_U1:
 		case MONO_TYPE_I1:
 		case MONO_TYPE_BOOLEAN:
-			args [i].data.i = *(MonoBoolean*)params [i];
+			args [i].data.i = *(MonoBoolean*)params [pindex];
 			break;
 		case MONO_TYPE_U2:
 		case MONO_TYPE_I2:
 		case MONO_TYPE_CHAR:
-			args [i].data.i = *(gint16*)params [i];
+			args [i].data.i = *(gint16*)params [pindex];
 			break;
 #if SIZEOF_VOID_P == 4
 		case MONO_TYPE_U: /* use VAL_POINTER? */
@@ -4175,7 +4181,7 @@ handle_enum:
 #endif
 		case MONO_TYPE_U4:
 		case MONO_TYPE_I4:
-			args [i].data.i = *(gint32*)params [i];
+			args [i].data.i = *(gint32*)params [pindex];
 			break;
 #if SIZEOF_VOID_P == 8
 		case MONO_TYPE_U:
@@ -4183,20 +4189,23 @@ handle_enum:
 #endif
 		case MONO_TYPE_U8:
 		case MONO_TYPE_I8:
-			args [i].data.l = *(gint64*)params [i];
+			args [i].data.l = *(gint64*)params [pindex];
 			break;
 		case MONO_TYPE_R4:
-			args [i].data.f = (double)*(float*)params [i];
+			args [i].data.f = (double)*(float*)params [pindex];
+			break;
+		case MONO_TYPE_R8:
+			args [i].data.f = *(double*)params [pindex];
 			break;
 		case MONO_TYPE_PTR:
-			args [i].data.p = *(gpointer*)params [i];
+			args [i].data.p = *(gpointer*)params [pindex];
 			break;
 		case MONO_TYPE_VALUETYPE:
 			if (sig->params [i]->data.klass->enumtype) {
 				type = mono_class_enum_basetype (sig->params [i]->data.klass)->type;
 				goto handle_enum;
 			} else {
-				args [i].data.p = params [i];
+				args [i].data.p = params [pindex];
 			}
 			break;
 		case MONO_TYPE_STRING:
@@ -4204,11 +4213,13 @@ handle_enum:
 		case MONO_TYPE_ARRAY:
 		case MONO_TYPE_SZARRAY:
 		case MONO_TYPE_OBJECT:
-			args [i].data.p = *(gpointer*)params [i];
+			args [i].data.p = *(gpointer*)params [pindex];
 			break;
 		default:
-			g_error ("type 0x%x not handled in  runtime invoke", sig->params [i]->type);
+			g_error ("type 0x%x not handled in interp enter", sig->params [i]->type);
 		}
+
+		pindex ++;
 	}
 
 	if (method->flags & METHOD_ATTRIBUTE_PINVOKE_IMPL)  {
@@ -4240,34 +4251,77 @@ handle_enum:
 
 	if (sig->ret->type == MONO_TYPE_VOID && !method->string_ctor) {
 		return;
-	} else if (isobject || method->string_ctor) {
+	} else if (method->string_ctor) {
 		NOT_IMPLEMENTED;
 	} else {
 		stackval_to_data (sig->ret, &result, ret, sig->pinvoke);
 
 		switch (rtype->type) {
+		case MONO_TYPE_I1:
+			res_buf->gregs [0] = *(gint8*)ret;
+			break;
+		case MONO_TYPE_I2:
+			res_buf->gregs [0] = *(gint16*)ret;
+			break;
 		case MONO_TYPE_I4:
 			res_buf->gregs [0] = *(gint32*)ret;
 			break;
+		case MONO_TYPE_U1:
+		case MONO_TYPE_BOOLEAN:
+			res_buf->gregs [0] = *(guint8*)ret;
+			break;
+		case MONO_TYPE_U2:
+		case MONO_TYPE_CHAR:
+			res_buf->gregs [0] = *(guint16*)ret;
+			break;
+		case MONO_TYPE_U4:
+			res_buf->gregs [0] = *(guint32*)ret;
+			break;
+		case MONO_TYPE_STRING:
+		case MONO_TYPE_CLASS:  
+		case MONO_TYPE_ARRAY:
+		case MONO_TYPE_SZARRAY:
+		case MONO_TYPE_OBJECT:
+		case MONO_TYPE_I:
+		case MONO_TYPE_U:
+		case MONO_TYPE_PTR:
+			res_buf->gregs [0] = (mgreg_t)*(gpointer*)ret;
+			break;
 		case MONO_TYPE_R4: {
 			float f [2];
-			
-			// FIXME: Endianness
-			f [0] = *(float*)ret;
-			res_buf->fregs [0] = *(mgreg_t*)&f;
+
+			if (SIZEOF_VOID_P == 8) {
+				// FIXME: Endianness
+				f [0] = *(float*)ret;
+				res_buf->fregs [0] = *(mgreg_t*)&f;
+			} else {
+				NOT_IMPLEMENTED;
+			}
 			break;
 		}
+		case MONO_TYPE_I8:
+			if (SIZEOF_VOID_P == 8)
+				res_buf->gregs [0] = (mgreg_t)*(gint64*)ret;
+			else
+				NOT_IMPLEMENTED;
+			break;
+		case MONO_TYPE_U8:
+			if (SIZEOF_VOID_P == 8)
+				res_buf->gregs [0] = (mgreg_t)*(guint64*)ret;
+			else
+				NOT_IMPLEMENTED;
+			break;
 		default:
+			printf ("%s\n", mono_type_full_name (rtype));
 			NOT_IMPLEMENTED;
 		}
 	}
 
-	g_free (retval);
+	g_free (ret);
 }
 
 /*
  * FIXME:
  * - make mono_interp_enter () and the trampoline as fast as possible.
  * - use a separate specialized trampoline to call mono_interp_enter () ?
- * - implement passing/receiving arguments
  */

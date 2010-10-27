@@ -2557,8 +2557,8 @@ mono_arch_interp_call_prepare (MonoMethodSignature *sig)
 /*
  * mono_arch_interp_call_get_args:
  *
- *   Store the arguments received in the registers REGS into PARAMS, which has the same format
- * used by runtime invoke.
+ *   Store the arguments received in the registers REGS into PARAMS, each entry in PARAMS will
+ * point to an argument value.
  * This function should be as fast as possible, any work which does not depend
  * on the actual values of the arguments should be done in 
  * mono_arch_interp_call_prepare ().
@@ -2567,49 +2567,39 @@ void
 mono_arch_interp_call_get_args (MonoInterpCallInfo *info, mgreg_t *regs, mgreg_t *fregs, void **params)
 {
 	InterpCallInfo *dinfo = (InterpCallInfo*)info;
-	int i;
+	int i, pindex;
 	MonoMethodSignature *sig = dinfo->sig;
 
-	g_assert (!dinfo->sig->hasthis);
+	pindex = 0;
+	if (dinfo->sig->hasthis) {
+		params [pindex] = &regs [dinfo->cinfo->args [0].reg];
+		pindex ++;
+	}
+
 	for (i = 0; i < sig->param_count; i++) {
 		ArgInfo *ainfo = &dinfo->cinfo->args [i + sig->hasthis];
 		MonoType *t = mono_type_get_underlying_type (sig->params [i]);
 
 		switch (ainfo->storage) {
 		case ArgInIReg:
-			if (t->byref) {
-				NOT_IMPLEMENTED;
-			}
-
-			switch (t->type) {
-			case MONO_TYPE_I1:
-			case MONO_TYPE_I2:
-			case MONO_TYPE_I4:
-			case MONO_TYPE_U1:
-			case MONO_TYPE_U2:
-			case MONO_TYPE_U4:
-			case MONO_TYPE_I8:
-			case MONO_TYPE_U8:
-			case MONO_TYPE_PTR:
-				params [i] = &regs [ainfo->reg];
-				break;
-			default:
-				printf ("%s\n", mono_type_full_name (t));
-				NOT_IMPLEMENTED;
-			}
+			params [pindex] = &regs [ainfo->reg];
 			break;
 		case ArgInFloatSSEReg:
-			params [i] = &fregs [ainfo->reg];
+			params [pindex] = &fregs [ainfo->reg];
+			break;
+		case ArgInDoubleSSEReg:
+			params [pindex] = &fregs [ainfo->reg];
 			break;
 		case ArgOnStack:
 			if (MONO_TYPE_ISSTRUCT (t))
 				NOT_IMPLEMENTED;
 			/* The saved sp points to the the return address */
-			params [i] = (gpointer)(regs [AMD64_RSP] + ainfo->offset + 8);
+			params [pindex] = (gpointer)(regs [AMD64_RSP] + ainfo->offset + 8);
 			break;
 		default:
 			NOT_IMPLEMENTED;
 		}
+		pindex ++;
 	}
 }
 
