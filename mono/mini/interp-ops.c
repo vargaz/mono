@@ -7,12 +7,12 @@
  */
 #include <glib.h>
 #include <stdio.h>
-#include "mintops.h"
+#include "interp-ops.h"
 
 #define OPDEF(a,b,c,d) \
 	b,
 const char *mono_interp_opname[] = {
-#include "mintops.def"
+#include "interp-ops.def"
 	""
 };
 #undef OPDEF
@@ -20,7 +20,7 @@ const char *mono_interp_opname[] = {
 #define OPDEF(a,b,c,d) \
 	c,
 unsigned char mono_interp_oplen[] = {
-#include "mintops.def"
+#include "interp-ops.def"
 	0
 };
 #undef OPDEF
@@ -29,7 +29,7 @@ unsigned char mono_interp_oplen[] = {
 #define OPDEF(a,b,c,d) \
 	d,
 MintOpArgType mono_interp_opargtype[] = {
-#include "mintops.def"
+#include "interp-ops.def"
 	0
 };
 #undef OPDEF

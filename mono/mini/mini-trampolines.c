@@ -475,12 +475,22 @@ common_call_trampoline (mgreg_t *regs, guint8 *code, MonoMethod *m, guint8* tram
 	if (!code && mono_method_needs_static_rgctx_invoke (m, FALSE))
 		need_rgctx_tramp = TRUE;
 
-	if (!strcmp (m->name, "add1")) {
-		addr = compiled_method = mono_create_specific_trampoline (m, MONO_TRAMPOLINE_INTERP_ENTER, mono_domain_get (), NULL);
+	if (!strcmp (m->name, "overflow_registers")) {
+		RuntimeMethod *rmethod = mono_interp_get_runtime_method (m);
+
+		/* Check whenever the interpreter supports this method */
+		if (!rmethod->transformed)
+			mono_interp_transform_method (rmethod, NULL);
+		if (!rmethod->transform_failed)
+			addr = compiled_method = mono_create_specific_trampoline (rmethod, MONO_TRAMPOLINE_INTERP_ENTER, mono_domain_get (), NULL);
+		else {
+			printf ("INTERP FAILED: %s\n", mono_method_full_name (m, TRUE));
+			addr = compiled_method = mono_compile_method (m);
+		}
 	} else {
 		addr = compiled_method = mono_compile_method (m);
-		g_assert (addr);
 	}
+	g_assert (addr);
 
 	mono_debugger_trampoline_compiled (code, m, addr);
 
@@ -1027,9 +1037,10 @@ mono_create_handler_block_trampoline (void)
  *   This trampoline handles transitions from JITted to interpreted code.
  */
 static gpointer
-mono_interp_enter_trampoline (mgreg_t *regs, guint8 *code, MonoMethod *m, guint8 *tramp)
+mono_interp_enter_trampoline (mgreg_t *regs, InterpResultBuf *res_buf, RuntimeMethod *m, mgreg_t *fpregs)
 {
-	return (gpointer)mono_interp_enter (m, regs);
+	mono_interp_enter (m, regs, fpregs, res_buf);
+	return NULL;
 }
 
 /*

@@ -2527,6 +2527,92 @@ mono_arch_finish_dyn_call (MonoDynCallInfo *info, guint8 *buf)
 	}
 }
 
+/* Contains information about mapping arguments for a JIT->interpreter transition */
+typedef struct {
+	MonoMethodSignature *sig;
+	CallInfo *cinfo;
+} InterpCallInfo;
+
+/*
+ * mono_arch_interp_call_prepare:
+ *
+ *   Return a pointer to an arch-specific structure which contains information 
+ * needed by mono_arch_get_interp_call_args ().
+ */
+MonoInterpCallInfo*
+mono_arch_interp_call_prepare (MonoMethodSignature *sig)
+{
+	InterpCallInfo *info;
+	CallInfo *cinfo;
+
+	cinfo = get_call_info (NULL, NULL, sig, FALSE);
+
+	info = g_new0 (InterpCallInfo, 1);
+	info->sig = sig;
+	info->cinfo = cinfo;
+	
+	return (MonoInterpCallInfo*)info;
+}
+
+/*
+ * mono_arch_interp_call_get_args:
+ *
+ *   Store the arguments received in the registers REGS into PARAMS, which has the same format
+ * used by runtime invoke.
+ * This function should be as fast as possible, any work which does not depend
+ * on the actual values of the arguments should be done in 
+ * mono_arch_interp_call_prepare ().
+ */
+void
+mono_arch_interp_call_get_args (MonoInterpCallInfo *info, mgreg_t *regs, mgreg_t *fregs, void **params)
+{
+	InterpCallInfo *dinfo = (InterpCallInfo*)info;
+	int i;
+	MonoMethodSignature *sig = dinfo->sig;
+
+	g_assert (!dinfo->sig->hasthis);
+	for (i = 0; i < sig->param_count; i++) {
+		ArgInfo *ainfo = &dinfo->cinfo->args [i + sig->hasthis];
+		MonoType *t = mono_type_get_underlying_type (sig->params [i]);
+
+		switch (ainfo->storage) {
+		case ArgInIReg:
+			if (t->byref) {
+				NOT_IMPLEMENTED;
+			}
+
+			switch (t->type) {
+			case MONO_TYPE_I1:
+			case MONO_TYPE_I2:
+			case MONO_TYPE_I4:
+			case MONO_TYPE_U1:
+			case MONO_TYPE_U2:
+			case MONO_TYPE_U4:
+			case MONO_TYPE_I8:
+			case MONO_TYPE_U8:
+			case MONO_TYPE_PTR:
+				params [i] = &regs [ainfo->reg];
+				break;
+			default:
+				printf ("%s\n", mono_type_full_name (t));
+				NOT_IMPLEMENTED;
+			}
+			break;
+		case ArgInFloatSSEReg:
+			params [i] = &fregs [ainfo->reg];
+			break;
+		case ArgOnStack:
+			if (MONO_TYPE_ISSTRUCT (t))
+				NOT_IMPLEMENTED;
+			/* The saved sp points to the the return address */
+			params [i] = (gpointer)(regs [AMD64_RSP] + ainfo->offset + 8);
+			break;
+		default:
+			NOT_IMPLEMENTED;
+		}
+	}
+}
+
 /* emit an exception if condition is fail */
 #define EMIT_COND_SYSTEM_EXCEPTION(cond,signed,exc_name)            \
         do {                                                        \

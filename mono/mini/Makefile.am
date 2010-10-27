@@ -364,8 +364,8 @@ common_sources = \
 	interp.h			\
 	interp.c			\
 	transform.c			\
-	mintops.h			\
-	mintops.c
+	interp-ops.h		\
+	interp-ops.c
 
 test_sources = 			\
 	basic-calls.cs 		\

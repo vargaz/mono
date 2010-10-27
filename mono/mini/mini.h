@@ -201,6 +201,10 @@ typedef struct {
 	int dummy;
 } MonoDynCallInfo;
 
+typedef struct {
+	int dummy;
+} MonoInterpCallInfo;
+
 /*
  * Possible frame types returned by the stack walker.
  */
@@ -1808,6 +1812,10 @@ void      mono_arch_dyn_call_free               (MonoDynCallInfo *info) MONO_INT
 void      mono_arch_start_dyn_call              (MonoDynCallInfo *info, gpointer **args, guint8 *ret, guint8 *buf, int buf_len) MONO_INTERNAL;
 void      mono_arch_finish_dyn_call             (MonoDynCallInfo *info, guint8 *buf) MONO_INTERNAL;
 MonoInst *mono_arch_emit_inst_for_method        (MonoCompile *cfg, MonoMethod *cmethod, MonoMethodSignature *fsig, MonoInst **args) MONO_INTERNAL;
+
+MonoInterpCallInfo* mono_arch_interp_call_prepare (MonoMethodSignature *sig) MONO_INTERNAL;
+void      mono_arch_interp_call_get_args        (MonoInterpCallInfo *info, mgreg_t *regs, mgreg_t *fregs, void **params) MONO_INTERNAL;
+
 void      mono_arch_decompose_opts              (MonoCompile *cfg, MonoInst *ins) MONO_INTERNAL;
 void      mono_arch_decompose_long_opts         (MonoCompile *cfg, MonoInst *ins) MONO_INTERNAL;
 GSList*   mono_arch_get_delegate_invoke_impls   (void) MONO_INTERNAL;

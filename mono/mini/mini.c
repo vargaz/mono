@@ -4724,6 +4724,9 @@ mono_jit_compile_method_inner (MonoMethod *method, MonoDomain *target_domain, in
 	MonoException *ex = NULL;
 	guint32 prof_options;
 
+	if (jit_ex)
+		*jit_ex = NULL;
+
 #ifdef MONO_USE_AOT_COMPILER
 	if (opt & MONO_OPT_AOT) {
 		MonoDomain *domain = mono_domain_get ();

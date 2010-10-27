@@ -18,7 +18,7 @@
 #include <mono/metadata/profiler-private.h>
 #include <mono/metadata/tabledefs.h>
 
-#include "mintops.h"
+#include "interp-ops.h"
 #include "interp.h"
 
 #define DEBUG 0
@@ -602,7 +602,7 @@ get_data_item_index (TransformData *td, void *ptr)
 	return index;
 }
 
-static void
+static MonoException*
 generate(MonoMethod *method, RuntimeMethod *rtm, unsigned char *is_bb_start)
 {
 	MonoMethodHeader *header = mono_method_get_header (method);
@@ -1025,7 +1025,8 @@ generate(MonoMethod *method, RuntimeMethod *rtm, unsigned char *is_bb_start)
 				}
 			}
 			if (method->wrapper_type == MONO_WRAPPER_NONE && m != NULL) {
-				NOT_IMPLEMENTED;
+				// FIXME: Use MonoError
+				return mono_get_exception_not_implemented ("Calls not yet supported.");
 #if 0
 				if (m->flags & METHOD_ATTRIBUTE_PINVOKE_IMPL)
 					m = mono_marshal_get_native_wrapper (m);
@@ -2794,6 +2795,8 @@ generate(MonoMethod *method, RuntimeMethod *rtm, unsigned char *is_bb_start)
 	g_free (td.vt_stack_size);
 	g_free (td.data_items);
 	g_hash_table_destroy (td.data_hash);
+
+	return NULL;
 }
 
 static CRITICAL_SECTION calc_section;
@@ -2822,6 +2825,7 @@ mono_interp_transform_method (RuntimeMethod *runtime_method, ThreadContext *cont
 	MonoVTable *method_class_vt;
 	int backwards;
 	MonoGenericContext *generic_context = NULL;
+	MonoException *ex;
 
 	method_class_vt = mono_class_vtable (domain, runtime_method->method->klass);
 #if 0
@@ -3054,14 +3058,16 @@ mono_interp_transform_method (RuntimeMethod *runtime_method, ThreadContext *cont
 	runtime_method->args_size = offset;
 	g_assert (runtime_method->args_size < 10000);
 
-	generate(method, runtime_method, is_bb_start);
+	ex = generate (method, runtime_method, is_bb_start);
 
 	g_free (is_bb_start);
 
 	//mono_profiler_method_end_jit (method, MONO_PROFILE_OK);
 	runtime_method->transformed = TRUE;
+	if (ex)
+		runtime_method->transform_failed = TRUE;
 	LeaveCriticalSection(&calc_section);
 
-	return NULL;
+	return ex;
 }
 

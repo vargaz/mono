@@ -69,6 +69,7 @@ typedef struct _RuntimeMethod
 	MonoExceptionClause *clauses;
 	void **data_items;
 	int transformed;
+	int transform_failed;
 	guint32 *arg_offsets;
 	guint32 *local_offsets;
 	unsigned int param_count;
@@ -107,6 +108,16 @@ typedef struct {
 	unsigned char managed_code;
 } ThreadContext;
 
+/*
+ * A buffer which is used to pass return values from mono_interp_enter to the INTERP_ENTER
+ * trampoline. The mapping between the fields of this struct and hardware registers is arch
+ * specific.
+ */
+typedef struct {
+	mgreg_t gregs [2];
+	mgreg_t fregs [1];
+} InterpResultBuf;
+
 MonoException *
 mono_interp_transform_method (RuntimeMethod *runtime_method, ThreadContext *context);
 
@@ -123,7 +134,7 @@ void ves_exec_method (MonoInvocation *frame);
 RuntimeMethod *
 mono_interp_get_runtime_method (MonoMethod *method);
 
-mgreg_t mono_interp_enter (MonoMethod *m, mgreg_t *regs);
+void mono_interp_enter (RuntimeMethod *rmethod, mgreg_t *regs, mgreg_t *fpregs, InterpResultBuf *res_buf);
 
 extern int mono_interp_traceopt;
 

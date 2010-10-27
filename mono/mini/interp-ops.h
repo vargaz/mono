@@ -25,7 +25,7 @@ typedef enum
 #define OPDEF(a,b,c,d) \
 	a,
 enum {
-#include "mintops.def"
+#include "interp-ops.def"
 	MINT_LASTOP
 };
 #undef OPDEF

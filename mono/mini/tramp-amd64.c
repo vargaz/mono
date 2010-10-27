@@ -24,6 +24,7 @@
 
 #include "mini.h"
 #include "mini-amd64.h"
+#include "interp.h"
 
 #define IS_REX(inst) (((inst) >= 0x40) && ((inst) <= 0x4f))
 
@@ -324,6 +325,7 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	int i, lmf_offset, offset, res_offset, arg_offset, rax_offset, tramp_offset;
 	int buf_len, saved_regs_offset;
 	int saved_fpregs_offset, rbp_offset, framesize, orig_rsp_to_rbp_offset, cfa_offset;
+	int interp_res_buf_offset;
 	gboolean has_caller;
 	GSList *unwind_ops = NULL;
 	MonoJumpInfo *ji = NULL;
@@ -336,7 +338,7 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	buf_len = 548;
 	code = buf = mono_global_codeman_reserve (buf_len);
 
-	framesize = 538 + sizeof (MonoLMF);
+	framesize = 562 + sizeof (MonoLMF);
 	framesize = (framesize + (MONO_ARCH_FRAME_ALIGNMENT - 1)) & ~ (MONO_ARCH_FRAME_ALIGNMENT - 1);
 
 	orig_rsp_to_rbp_offset = 0;
@@ -405,6 +407,10 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 			/* RAX is already saved */
 			amd64_mov_reg_membase (code, AMD64_RAX, AMD64_RBP, rbp_offset, 8);
 			amd64_mov_membase_reg (code, AMD64_RBP, saved_regs_offset + (i * 8), AMD64_RAX, 8);
+		} else if (i == AMD64_RSP) {
+			/* The saved sp will point to the return address */
+			amd64_lea_membase (code, AMD64_RAX, AMD64_RBP, cfa_offset - 8);
+			amd64_mov_membase_reg (code, AMD64_RBP, saved_regs_offset + (i * 8), AMD64_RAX, 8);
 		} else if (i != AMD64_R11) {
 			amd64_mov_membase_reg (code, AMD64_RBP, saved_regs_offset + (i * 8), i, 8);
 		} else {
@@ -452,6 +458,13 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	} else {
 		amd64_mov_reg_membase (code, AMD64_R11, AMD64_RBP, saved_regs_offset + (MONO_AMD64_ARG_REG1 * 8), 8);
 		amd64_mov_membase_reg (code, AMD64_RBP, arg_offset, AMD64_R11, 8);
+	}
+
+	if (tramp_type == MONO_TRAMPOLINE_INTERP_ENTER) {
+		offset += sizeof (InterpResultBuf);
+		interp_res_buf_offset = offset;
+	} else {
+		interp_res_buf_offset = 0;
 	}
 
 	/* Save LMF begin */
@@ -513,17 +526,30 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	/* Arg1 is the pointer to the saved registers */
 	amd64_lea_membase (code, AMD64_ARG_REG1, AMD64_RBP, saved_regs_offset);
 
-	/* Arg2 is the address of the calling code */
-	if (has_caller)
-		amd64_mov_reg_membase (code, AMD64_ARG_REG2, AMD64_RBP, 8, 8);
-	else
-		amd64_mov_reg_imm (code, AMD64_ARG_REG2, 0);
+	if (tramp_type == MONO_TRAMPOLINE_INTERP_ENTER) {
+		/*
+		 * Arg3 points to the buffer where the result of the call will be stored by the
+		 * interpreter code.
+		 */
+		amd64_lea_membase (code, AMD64_ARG_REG2, AMD64_RBP, interp_res_buf_offset);
+	} else {
+		/* Arg2 is the address of the calling code */
+		if (has_caller)
+			amd64_mov_reg_membase (code, AMD64_ARG_REG2, AMD64_RBP, 8, 8);
+		else
+			amd64_mov_reg_imm (code, AMD64_ARG_REG2, 0);
+	}
 
 	/* Arg3 is the method/vtable ptr */
 	amd64_mov_reg_membase (code, AMD64_ARG_REG3, AMD64_RBP, arg_offset, 8);
 
-	/* Arg4 is the trampoline address */
-	amd64_mov_reg_membase (code, AMD64_ARG_REG4, AMD64_RBP, tramp_offset, 8);
+	if (tramp_type == MONO_TRAMPOLINE_INTERP_ENTER) {
+		/* Arg4 is the address of the fp reg save area */
+		amd64_lea_membase (code, AMD64_ARG_REG4, AMD64_RBP, saved_fpregs_offset);
+	} else {
+		/* Arg4 is the trampoline address */
+		amd64_mov_reg_membase (code, AMD64_ARG_REG4, AMD64_RBP, tramp_offset, 8);
+	}
 
 	if (aot) {
 		char *icall_name = g_strdup_printf ("trampoline_func_%d", tramp_type);
@@ -571,12 +597,19 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	for (i = 0; i < 8; ++i)
 		amd64_movsd_reg_membase (code, i, AMD64_RBP, saved_fpregs_offset + (i * 8));
 
+	if (tramp_type == MONO_TRAMPOLINE_INTERP_ENTER) {
+		/* Load result buffer */
+		amd64_lea_membase (code, AMD64_RAX, AMD64_RBP, interp_res_buf_offset);
+		/* Load results into different registers */
+		amd64_mov_reg_membase (code, AMD64_RDX, AMD64_RAX, 1 * 8, 8);
+		amd64_movsd_reg_membase (code, AMD64_XMM0, AMD64_RAX, 2 * 8);
+		amd64_mov_reg_membase (code, AMD64_RAX, AMD64_RAX, 0 * 8, 8);
+	}
+
 	/* Restore stack */
 	amd64_leave (code);
 
 	if (tramp_type == MONO_TRAMPOLINE_INTERP_ENTER) {
-		/* Load result */
-		amd64_mov_reg_membase (code, AMD64_RAX, AMD64_RSP, rax_offset - 0x8, 8);
 		amd64_ret (code);
 	} else if (MONO_TRAMPOLINE_TYPE_MUST_RETURN (tramp_type)) {
 		/* Load result */
