@@ -2,6 +2,8 @@ thisdir = class/System.Data.OracleClient
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.XML System.Data System.EnterpriseServices System.Drawing
+
 LIBRARY = System.Data.OracleClient.dll
 ifeq (net_1_1_java, $(PROFILE))
 LIB_MCS_FLAGS = \

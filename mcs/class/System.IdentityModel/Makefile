@@ -6,6 +6,8 @@ ifeq (4, $(FRAMEWORK_VERSION_MAJOR))
 OTHER_LIB_MCS_FLAGS = -r:System.Web.ApplicationServices.dll
 endif
 
+DEP_LIBS = System System.XML System.Security System.Web Mono.Security System.Runtime.Serialization
+
 LIBRARY = System.IdentityModel.dll
 LIB_MCS_FLAGS = \
 			/d:NET_3_0	\

@@ -2,6 +2,8 @@ thisdir = class/PEAPI
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System
+
 LIBRARY = PEAPI.dll
 LIB_MCS_FLAGS = /r:$(corlib) /r:System.dll
 NO_TEST = yes

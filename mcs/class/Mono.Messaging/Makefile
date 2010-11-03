@@ -2,6 +2,8 @@ thisdir = class/Mono.Messaging
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.Configuration
+
 LIBRARY = Mono.Messaging.dll
 
 ifeq (1, $(FRAMEWORK_VERSION_MAJOR))

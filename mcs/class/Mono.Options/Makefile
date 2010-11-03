@@ -7,6 +7,8 @@ LIBRARY_PACKAGE = none
 
 NO_INSTALL = yes
 
+DEP_LIBS = System
+
 LIB_MCS_FLAGS = /r:$(corlib) /r:System.dll
 TEST_MCS_FLAGS = /r:Mono.Posix.dll /r:System.dll
 

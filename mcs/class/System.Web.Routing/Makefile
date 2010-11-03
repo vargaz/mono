@@ -2,6 +2,8 @@ thisdir = class/System.Web.Routing
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.Core System.Web System.Web.Abstractions
+
 LIBRARY = System.Web.Routing.dll
 LIB_MCS_FLAGS = \
 	        /r:System.dll \

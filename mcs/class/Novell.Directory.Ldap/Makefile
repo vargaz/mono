@@ -2,6 +2,8 @@ thisdir = class/Novell.Directory.Ldap
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System Mono.Security
+
 LIBRARY = Novell.Directory.Ldap.dll
 
 ifeq (net_1_1_java, $(PROFILE))

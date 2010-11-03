@@ -2,6 +2,8 @@ thisdir = class/System.Xml.Linq
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.Core System.XML
+
 LIBRARY = System.Xml.Linq.dll
 LIB_MCS_FLAGS = \
 	        -r:System.dll \

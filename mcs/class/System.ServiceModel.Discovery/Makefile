@@ -2,6 +2,8 @@ thisdir = class/System.ServiceModel.Discovery
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.XML System.Runtime.Serialization System.ServiceModel System.Core System.Xml.Linq
+
 LIBRARY = System.ServiceModel.Discovery.dll
 LIB_MCS_FLAGS = -r:System.dll -r:System.Xml.dll -r:System.Runtime.Serialization.dll -r:System.ServiceModel.dll -r:System.Core.dll -r:System.Xml.Linq.dll
 

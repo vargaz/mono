@@ -1,5 +1,6 @@
 thisdir = class/I18N
-SUBDIRS = Common West MidEast Other Rare CJK
+SUBDIRS = Common
+PARALLEL_SUBDIRS = West MidEast Other Rare CJK
 include ../../build/rules.make
 
 DISTFILES = \

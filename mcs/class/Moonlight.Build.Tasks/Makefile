@@ -2,6 +2,8 @@ thisdir = class/Moonlight.Build.Tasks
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.XML Microsoft.Build.Engine Microsoft.Build.Framework Microsoft.Build.Utilities Microsoft.Build.Tasks ICSharpCode.SharpZipLib
+
 LIBRARY = Moonlight.Build.Tasks.dll
 LIBRARY_NAME = Moonlight.Build.Tasks.dll
 

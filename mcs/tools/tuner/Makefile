@@ -2,6 +2,8 @@ thisdir = tools/tuner
 SUBDIRS =
 include ../../build/rules.make
 
+DEP_DIRS = linker
+
 CECIL = $(topdir)/class/lib/$(PROFILE)/Mono.Cecil.dll
 LINKER = $(topdir)/class/lib/$(PROFILE)/monolinker.exe
 

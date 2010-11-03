@@ -2,6 +2,8 @@ thisdir = class/System.ServiceProcess
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.Configuration.Install Managed.Windows.Forms
+
 LIBRARY = System.ServiceProcess.dll
 LIB_MCS_FLAGS = /r:System.dll /r:System.Configuration.Install.dll \
 	/r:System.Windows.Forms.dll /nowarn:0618

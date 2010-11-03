@@ -2,6 +2,8 @@ thisdir = class/System.Runtime.Caching
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.Data System.Configuration System.Core
+
 LIBRARY = System.Runtime.Caching.dll
 LIB_MCS_FLAGS = -r:System.dll \
 	        -r:System.Data.dll \

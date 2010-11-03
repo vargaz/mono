@@ -2,6 +2,7 @@ thisdir = class/System.IdentityModel.Selectors
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.XML System.Security System.Runtime.Serialization System.IdentityModel
 LIBRARY = System.IdentityModel.Selectors.dll
 LIB_MCS_FLAGS = \
 		/d:NET_3_0	\

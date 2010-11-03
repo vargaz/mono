@@ -2,6 +2,8 @@ thisdir = class/System.Numerics
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System
+
 LIBRARY = System.Numerics.dll
 LIB_MCS_FLAGS = -r:System.dll
 TEST_MCS_FLAGS = $(LIB_MCS_FLAGS)

@@ -5,6 +5,8 @@ include ../../build/rules.make
 RESOURCE_FILES = \
 	resources/mstypes.schema
 
+DEP_LIBS = System System.XML System.Core
+
 LIBRARY = System.Runtime.Serialization.dll
 LIB_MCS_FLAGS = \
 			/nowarn:168,169,219,414 \

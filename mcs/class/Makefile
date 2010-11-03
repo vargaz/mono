@@ -38,7 +38,6 @@ common_dirs := \
 	System				\
 	System.XML			\
 	aot-compiler		\
-	I18N				\
 	System.Drawing			\
 	System.Transactions		\
 	System.EnterpriseServices	\
@@ -53,6 +52,13 @@ common_dirs := \
 	Mono.Web			\
 	System.Web.Services		\
 	System.Web			\
+	System.Design			\
+	System.Drawing.Design		\
+	System.Design			\
+
+# Directories which can be built in parallel
+common_parallel_dirs := \
+	I18N				\
 	System.Runtime.Serialization.Formatters.Soap \
 	System.Runtime.Remoting		\
 	System.Configuration.Install 	\
@@ -60,12 +66,10 @@ common_dirs := \
 	System.Data.OracleClient	\
 	Microsoft.VisualC		\
 	Cscompmgd			\
-	System.Design			\
 	PEAPI				\
 	Npgsql				\
 	Compat.ICSharpCode.SharpZipLib	\
 	ICSharpCode.SharpZipLib		\
-	Compat.ICSharpCode.SharpZipLib	\
 	Commons.Xml.Relaxng		\
 	Novell.Directory.Ldap		\
 	Mono.Security.Win32		\
@@ -75,8 +79,6 @@ common_dirs := \
 	System.Messaging	        \
 	Mono.Messaging.RabbitMQ		\
 	System.ServiceProcess           \
-	System.Drawing.Design		\
-	System.Design			\
 	Mono.Http			\
 	Mono.Cairo                      \
 	IBM.Data.DB2			\
@@ -87,6 +89,7 @@ common_dirs := \
 	Mono.Debugger.Soft		\
 	SystemWebTestShim
 
+# All of these can be built in parallel
 net_2_0_dirs := \
 	Microsoft.Build.Framework	\
 	Microsoft.Build.Utilities	\
@@ -121,6 +124,7 @@ net_2_0_dirs := \
 	System.Data.Services.Client \
 	System.Net
 
+# All of these can be built in parallel
 net_2_0_only_dirs := \
 	System.Web.Extensions_1.0	\
 	System.Web.Extensions.Design_1.0
@@ -164,13 +168,14 @@ mobile_dirs := \
 	System.Data	\
 	Mono.Cairo	\
 	Mono.Data.Sqlite
-	
+
 net_3_5_only_dirs := \
 	Microsoft.Build.Framework	\
 	Microsoft.Build.Utilities	\
 	Microsoft.Build.Engine		\
 	Microsoft.Build.Tasks
 
+# All of these can be built in parallel
 net_4_0_dirs := \
 	System.Dynamic		\
 	System.Numerics		\
@@ -185,7 +190,8 @@ net_4_0_dirs := \
 	Mono.CodeContracts
 
 net_2_0_bootstrap_SUBDIRS := $(bootstrap_dirs)
-net_2_0_SUBDIRS := $(common_dirs) $(net_2_0_dirs) $(net_2_0_only_dirs)
+net_2_0_SUBDIRS := $(common_dirs)
+net_2_0_PARALLEL_SUBDIRS := $(common_parallel_dirs) $(net_2_0_dirs) $(net_2_0_only_dirs)
 moonlight_bootstrap_SUBDIRS := $(net_2_1_bootstrap_dirs)
 moonlight_raw_SUBDIRS := $(moonlight_dirs)
 monodroid_bootstrap_SUBDIRS := $(net_2_1_bootstrap_dirs)
@@ -194,7 +200,8 @@ monotouch_bootstrap_SUBDIRS := $(net_2_1_bootstrap_dirs)
 monotouch_SUBDIRS := $(mobile_dirs)
 net_3_5_SUBDIRS := $(net_3_5_only_dirs)
 net_4_0_bootstrap_SUBDIRS := $(bootstrap_dirs) Mono.Posix System.Core
-net_4_0_SUBDIRS := $(common_dirs) $(net_2_0_dirs) $(net_4_0_dirs)
+net_4_0_SUBDIRS := $(common_dirs)
+net_4_0_PARALLEL_SUBDIRS := $(common_parallel_dirs) $(net_2_0_dirs) $(net_4_0_dirs)
 
 include ../build/rules.make
 
@@ -245,4 +252,3 @@ dist-default: $(monolite_files)
 dist-local: dist-default
 
 csproj-local:
-

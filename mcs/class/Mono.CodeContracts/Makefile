@@ -2,6 +2,8 @@ thisdir = class/Mono.CodeContracts
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.Core Mono.Cecil Mono.Cecil.Mdb
+
 LIBRARY = Mono.CodeContracts.dll
 
 LIB_MCS_FLAGS = -r:System -r:System.Core -r:Mono.Cecil.dll -r:Mono.Cecil.Mdb.dll 

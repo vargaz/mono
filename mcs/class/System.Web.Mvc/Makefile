@@ -8,6 +8,8 @@ LIBRARY_COMPAT = yes
 
 RESX_DIST =  System.Web.Mvc/Resources/MvcResources.resx
 
+DEP_LIBS = System System.Core System.Configuration System.Data System.XML System.Web System.Web.Abstractions System.Web.Routing System.Web.Extensions
+
 LIB_MCS_FLAGS = \
 	        /r:System.dll \
 	        /r:System.Core.dll \

@@ -2,6 +2,8 @@ thisdir = class/Mono.Data.Sqlite
 SUBDIRS =
 include ../../build/rules.make
 
+DEP_LIBS = System System.Transactions System.Data
+
 ifneq (1, $(FRAMEWORK_VERSION_MAJOR))
 OTHER_LIB_MCS_FLAGS = /r:System.Transactions.dll
 

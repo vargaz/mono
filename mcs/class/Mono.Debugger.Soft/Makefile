@@ -1,6 +1,8 @@
 thisdir = class/Mono.Debugger.Soft
 include ../../build/rules.make
 
+DEP_LIBS = System System.Core Mono.Cecil
+
 LIBRARY = Mono.Debugger.Soft.dll
 LIBRARY_SNK = ../mono.snk
 

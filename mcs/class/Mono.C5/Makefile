@@ -2,6 +2,8 @@ thisdir = class/Mono.C5
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System
+
 LIBRARY = Mono.C5.dll
 LIBRARY_SNK = c5.snk
 LIB_MCS_FLAGS = /r:$(corlib) /r:System.dll -nowarn:169

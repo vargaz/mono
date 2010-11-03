@@ -2,6 +2,8 @@ thisdir = class/System.Runtime.DurableInstancing
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.XML System.Runtime.Serialization System.Core System.Xml.Linq
+
 LIBRARY = System.Runtime.DurableInstancing.dll
 LIB_MCS_FLAGS = -r:System.dll -r:System.Xml.dll -r:System.Runtime.Serialization.dll -r:System.Core.dll -r:System.Xml.Linq.dll
 

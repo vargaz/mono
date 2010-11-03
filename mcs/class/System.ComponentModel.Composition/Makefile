@@ -2,6 +2,7 @@ thisdir = class/System.ComponentModel.Composition
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.Core
 LIBRARY = System.ComponentModel.Composition.dll
 LIB_MCS_FLAGS = -r:System.dll -r:System.Core.dll -d:CLR40 -resource:$(RESOURCE_FILES)
 

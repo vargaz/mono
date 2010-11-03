@@ -1,6 +1,8 @@
 thisdir = class/Mono.Cecil
 include ../../build/rules.make
 
+DEP_LIBS = System
+
 LIBRARY = Mono.Cecil.dll
 LIBRARY_SNK = ../mono.snk
 LIBRARY_PACKAGE = none

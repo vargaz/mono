@@ -2,6 +2,8 @@ thisdir = class/Mono.Management
 SUBDIRS =
 include ../../build/rules.make
 
+DEP_LIBS = System Mono.Posix
+
 LIBRARY = Mono.Management.dll
 LIBRARY_USE_INTERMEDIATE_FILE = yes
 

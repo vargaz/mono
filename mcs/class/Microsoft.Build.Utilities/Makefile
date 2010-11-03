@@ -14,6 +14,8 @@ LIBRARY_NAME = Microsoft.Build.Utilities.v4.0.dll
 endif
 endif
 
+DEP_LIBS = Microsoft.Build.Framework
+
 LIB_MCS_FLAGS = \
 	/r:$(corlib)				\
 	/r:System.dll				\

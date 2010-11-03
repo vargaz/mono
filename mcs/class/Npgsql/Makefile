@@ -3,6 +3,8 @@ SUBDIRS =
 
 include ../../build/rules.make
 
+DEP_LIBS = System System.XML System.Data Mono.Security
+
 LIBRARY = Npgsql.dll
 LIBRARY_SNK = Npgsql/Npgsql.snk
 

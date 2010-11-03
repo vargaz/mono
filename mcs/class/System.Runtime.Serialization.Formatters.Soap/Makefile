@@ -2,6 +2,8 @@ thisdir = class/System.Runtime.Serialization.Formatters.Soap
 SUBDIRS =
 include ../../build/rules.make
 
+DEP_LIBS = System.XML
+
 # bet you can't say this ten times fast
 
 LIBRARY = System.Runtime.Serialization.Formatters.Soap.dll

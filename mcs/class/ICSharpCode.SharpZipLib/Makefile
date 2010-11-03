@@ -2,6 +2,8 @@ thisdir = class/ICSharpCode.SharpZipLib
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.XML
+
 LIBRARY = ICSharpCode.SharpZipLib.dll
 LIBRARY_SNK = SharpZipLib.key
 

@@ -2,6 +2,8 @@ thisdir = class/System.Web.Abstractions
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.Core System.Web
+
 LIBRARY = System.Web.Abstractions.dll
 LIB_MCS_FLAGS = \
 	        /r:System.dll \

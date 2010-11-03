@@ -8,6 +8,8 @@ LIBRARY_USE_INTERMEDIATE_FILE = yes
 
 RESX_DIST =  System.Web.Mvc/Resources/MvcResources.resx
 
+DEP_LIBS = System System.Core System.Configuration System.Data System.Web System.Web.Abstractions System.Web.Routing System.Web.Extensions System.ComponentModel.DataAnnotations System.Data.Linq
+
 LIB_MCS_FLAGS = \
 		/warnaserror- \
 		/noconfig \

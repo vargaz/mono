@@ -1,6 +1,8 @@
 thisdir = class/Managed.Windows.Forms
 include ../../build/rules.make
 
+DEP_LIBS = System System.XML System.Drawing Accessibility System.Data Mono.Posix Mono.WebBrowser System.Configuration
+
 LIBRARY = System.Windows.Forms.dll
 
 LIB_MCS_FLAGS = /unsafe \

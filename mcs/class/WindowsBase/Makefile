@@ -3,6 +3,7 @@ include ../../build/rules.make
 
 LIBRARY = WindowsBase.dll
 
+DEP_LIBS = System System.XML
 LIB_MCS_FLAGS = -unsafe -r:System -r:System.Xml
 TEST_MCS_FLAGS = -unsafe -r:WindowsBase.dll
 

@@ -2,6 +2,8 @@ thisdir = class/System.Data.Services
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.Core System.ServiceModel System.ServiceModel.Web
+
 LIBRARY = System.Data.Services.dll
 
 LIB_MCS_FLAGS = \

@@ -2,6 +2,8 @@ thisdir = class/System.Data.DataSetExtensions
 SUBDIRS = Test
 include ../../build/rules.make
 
+DEP_LIBS = System System.Core System.Data System.XML System.Web
+
 LIBRARY = System.Data.DataSetExtensions.dll
 
 LIB_MCS_FLAGS = \

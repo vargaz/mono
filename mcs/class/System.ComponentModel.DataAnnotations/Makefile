@@ -2,6 +2,8 @@ thisdir = class/System.ComponentModel.DataAnnotations
 SUBDIRS = Test
 include ../../build/rules.make
 
+DEP_LIBS = System System.Core System.Data System.XML
+
 LIBRARY = System.ComponentModel.DataAnnotations.dll
 LIB_MCS_FLAGS = \
                 /r:System.dll \

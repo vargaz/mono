@@ -2,6 +2,8 @@ thisdir = tools/mdoc
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_DIRS = monodoc
+
 MDOC_COMMON_FLAGS = \
 	/resource:../monodoc/Resources/mdoc-html-format.xsl,mdoc-html-format.xsl    \
 	/resource:../monodoc/Resources/mdoc-html-utils.xsl,mdoc-html-utils.xsl      \

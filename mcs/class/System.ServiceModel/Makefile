@@ -6,6 +6,8 @@ RESOURCE_FILES = \
 	resources/WS-Addressing.schema	\
 	resources/ws-addr.xsd
 
+DEP_LIBS = System System.XML System.Core System.Runtime.Serialization System.Configuration System.Data System.Security System.IdentityModel System.IdentityModel.Selectors System.Transactions System.Messaging System.Web System.Web.Services Mono.Security
+
 LIBRARY = System.ServiceModel.dll
 LIB_MCS_FLAGS = \
 		/nowarn:414,169,67,3005,436,219,618 \

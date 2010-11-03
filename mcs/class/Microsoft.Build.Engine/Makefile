@@ -15,6 +15,8 @@ NAME_SUFFIX = .v4.0
 endif
 endif
 
+DEP_LIBS = Microsoft.Build.Framework Microsoft.Build.Utilities
+
 LIB_MCS_FLAGS = \
 	/r:$(corlib)				\
 	/r:System.dll				\

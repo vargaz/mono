@@ -16,6 +16,8 @@ NAME_SUFFIX = .v4.0
 endif
 endif
 
+DEP_LIBS = Managed.Windows.Forms Microsoft.Build.Utilities Microsoft.Build.Engine
+
 LIBRARY_NAME = Microsoft.Build.Tasks$(NAME_SUFFIX).dll
 
 LIB_MCS_FLAGS = \

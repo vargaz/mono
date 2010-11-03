@@ -2,6 +2,8 @@ thisdir = class/System.Messaging
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.Configuration.Install System.Drawing Managed.Windows.Forms System.XML Mono.Messaging
+
 LIBRARY = System.Messaging.dll
 LIB_MCS_FLAGS = /resource:System.Messaging/MessageQueue.resx \
 		/r:System.dll \

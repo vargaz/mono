@@ -2,6 +2,8 @@ thisdir = class/System.Runtime.Remoting
 SUBDIRS =
 include ../../build/rules.make
 
+DEP_LIBS = System System.Web System.XML System.Runtime.Serialization.Formatters.Soap
+
 LIBRARY = System.Runtime.Remoting.dll
 
 LIB_MCS_FLAGS = /r:$(corlib) /r:System.dll /r:System.Web.dll \

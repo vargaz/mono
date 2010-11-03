@@ -2,6 +2,8 @@ thisdir = class/Cscompmgd
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System
+
 LIBRARY = Cscompmgd.dll
 LIB_MCS_FLAGS = /r:$(corlib) /r:System.dll
 TEST_MCS_FLAGS = $(LIB_MCS_FLAGS) -nowarn:0618 -nowarn:219 -nowarn:169

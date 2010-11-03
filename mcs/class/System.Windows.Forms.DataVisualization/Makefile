@@ -2,6 +2,7 @@ thisdir = class/System.Windows.Forms.DataVisualization
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.Core System.Drawing Managed.Windows.Forms
 LIBRARY = System.Windows.Forms.DataVisualization.dll
 LIB_MCS_FLAGS = -r:System -r:System.Drawing -r:System.Windows.Forms -r:System.Core
 TEST_MCS_FLAGS = $(LIB_MCS_FLAGS)

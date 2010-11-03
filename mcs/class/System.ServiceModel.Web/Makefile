@@ -2,6 +2,8 @@ thisdir = class/System.ServiceModel.Web
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.XML System.Runtime.Serialization System.ServiceModel System.Core System.Configuration System.Web.Extensions
+
 LIBRARY = System.ServiceModel.Web.dll
 LIB_MCS_FLAGS = -r:System.dll -r:System.Xml.dll -r:System.Runtime.Serialization.dll -r:System.ServiceModel.dll -r:System.Core.dll
 

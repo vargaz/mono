@@ -2,6 +2,8 @@ thisdir = class/System.Data.Services.Client
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.Core System.Xml.Linq System.Data System.XML WindowsBase
+
 LIBRARY = System.Data.Services.Client.dll
 
 LIBRARY_SNK = ../mono.snk

@@ -2,6 +2,8 @@ thisdir = class/Mono.CSharp
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System.Core System.XML System
+
 LIBRARY = Mono.CSharp.dll
 
 LIB_MCS_FLAGS = -r:System.Core.dll -r:System.Xml -r:System

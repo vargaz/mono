@@ -52,6 +52,8 @@ ifeq (4, $(FRAMEWORK_VERSION_MAJOR))
 OTHER_LIB_MCS_FLAGS += -r:System.Web.ApplicationServices.dll
 endif
 
+DEP_LIBS = System System.Core System.Drawing System.Data System.Data.Linq System.XML System.Web System.Web.Services System.Configuration System.EnterpriseServices System.ServiceModel
+
 LIB_MCS_FLAGS = \
 	-unsafe \
 	-define:NET_3_5			\

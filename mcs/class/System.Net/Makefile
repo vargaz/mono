@@ -2,6 +2,8 @@ thisdir = class/System.Net
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.Core System.XML
+
 LIBRARY = System.Net.dll
 LIB_MCS_FLAGS =  -unsafe -r:System.dll -r:System.Core.dll -r:System.Xml.dll -d:NET_2_1 -d:NET_2_0 -d:NET_1_1
 

@@ -2,6 +2,8 @@ thisdir = class/System.Web.DynamicData
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.Core System.ComponentModel.DataAnnotations System.Data System.Data.Linq System.Drawing System.Web System.Web.Extensions System.Web.Abstractions System.Web.Routing
+
 LIBRARY = System.Web.DynamicData.dll
 LIB_MCS_FLAGS = \
 	        /r:System.dll \

@@ -2,6 +2,7 @@ thisdir = class/Mono.Simd
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System.Core
 LIBRARY = Mono.Simd.dll
 LIB_MCS_FLAGS = -r:$(corlib) -r:System.Core.dll /unsafe
 TEST_MCS_FLAGS = -r:Mono.Simd.dll

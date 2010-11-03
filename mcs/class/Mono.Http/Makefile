@@ -2,6 +2,8 @@ thisdir = class/Mono.Http
 SUBDIRS = 
 include ../../build/rules.make
 
+DEP_LIBS = System System.XML System.Web ICSharpCode.SharpZipLib Mono.Security
+
 LIBRARY = Mono.Http.dll
 LIB_MCS_FLAGS = -r:$(corlib) \
 		-r:System.dll \

@@ -300,4 +300,3 @@ doc-update-local: $(the_libdir)/.doc-stamp
 $(the_libdir)/.doc-stamp: $(the_lib)
 	$(MDOC_UP)
 	@echo "doc-stamp" > $@
-
