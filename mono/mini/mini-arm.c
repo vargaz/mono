@@ -24,7 +24,7 @@
 #include "mono/arch/arm/arm-vfp-codegen.h"
 #endif
 
-static gboolean use_thumb = FALSE;
+static gboolean use_thumb = TRUE;
 
 #include "mono/arch/arm/arm-thumb-codegen.h"
 
@@ -2796,6 +2796,24 @@ arm_patch_general (MonoDomain *domain, guchar *code, const guchar *target)
 	guint32 prim = (ins >> 25) & 7;
 	guint32 tval = GPOINTER_TO_UINT (target);
 
+	if (use_thumb) {
+		guint16 c1 = ((guint16*)code) [0];
+		guint16 c2 = ((guint16*)code) [1];
+		gint diff = target - code - 4;
+
+		if (c1 >> 11 == 0b11110 && ((c2 >> 14) & 3) == 0b10 && (((c2 >> 12) & 1) == 0b0)) {
+			/* B T3 encoding */
+			guint32 cond = (c1 >> 6) & 0xf;
+			ARM_B_COND (code, cond, diff);
+		} else if (c1 >> 11 == 0b11110 && ((c2 >> 14) & 3) == 0b11 && (((c2 >> 12) & 1) == 0b1)) {
+			/* BL T1 encoding */
+			ARM_BL (code, diff);
+		} else {
+			g_assert_not_reached ();
+		}
+		return;
+	}
+
 	//g_print ("patching 0x%08x (0x%08x) to point to 0x%08x\n", code, ins, target);
 	if (prim == 5) { /* 101b */
 		/* the diff starts 8 bytes from the branch opcode */
@@ -4555,11 +4573,6 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 	int tracing = 0;
 	int lmf_offset = 0;
 	int prev_sp_offset, reg_offset;
-
-	if (!strcmp (cfg->method->name, "test_0_return"))
-		use_thumb = TRUE;
-	else
-		use_thumb = FALSE;
 
 	if (mono_jit_trace_calls != NULL && mono_trace_eval (method))
 		tracing = 1;
