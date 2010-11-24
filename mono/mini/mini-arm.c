@@ -24,6 +24,10 @@
 #include "mono/arch/arm/arm-vfp-codegen.h"
 #endif
 
+static gboolean use_thumb = FALSE;
+
+#include "mono/arch/arm/arm-thumb-codegen.h"
+
 #if defined(__ARM_EABI__) && defined(__linux__) && !defined(PLATFORM_ANDROID)
 #define HAVE_AEABI_READ_TP 1
 #endif
@@ -4551,6 +4555,11 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 	int tracing = 0;
 	int lmf_offset = 0;
 	int prev_sp_offset, reg_offset;
+
+	if (!strcmp (cfg->method->name, "test_0_return"))
+		use_thumb = TRUE;
+	else
+		use_thumb = FALSE;
 
 	if (mono_jit_trace_calls != NULL && mono_trace_eval (method))
 		tracing = 1;

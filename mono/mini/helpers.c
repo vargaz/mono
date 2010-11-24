@@ -197,6 +197,8 @@ mono_disassemble_code (MonoCompile *cfg, guint8 *code, int size, char *id)
 #define DIS_CMD "dis"
 #elif defined(__i386__) || defined(__x86_64__)
 #define DIS_CMD "objdump -l -d"
+#elif defined(__arm__)
+#define DIS_CMD "objdump -d -Mforce-thumb"
 #else
 #define DIS_CMD "objdump -d"
 #endif
