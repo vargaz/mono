@@ -3675,7 +3675,7 @@ breakpoint_matches_assembly (MonoBreakpoint *bp, MonoAssembly *assembly)
 }
 
 static void
-process_breakpoint_inner (DebuggerTlsData *tls, MonoContext *ctx)
+process_breakpoint_inner (DebuggerTlsData *tls, MonoContext *ctx, gboolean from_tramp)
 {
 	MonoJitInfo *ji;
 	guint8 *orig_ip, *ip;
@@ -3697,15 +3697,17 @@ process_breakpoint_inner (DebuggerTlsData *tls, MonoContext *ctx)
 	/* Compute the native offset of the breakpoint from the ip */
 #ifdef MONO_ARCH_SOFT_DEBUG_SUPPORTED
 	ip = mono_arch_get_ip_for_breakpoint (ji, ctx);
-	native_offset = ip - (guint8*)ji->code_start;	
 #else
 	NOT_IMPLEMENTED;
 #endif
 
+	native_offset = ip - (guint8*)ji->code_start;	
+
 	/* 
 	 * Skip the instruction causing the breakpoint signal.
 	 */
-	mono_arch_skip_breakpoint (ctx);
+	if (!from_tramp)
+		mono_arch_skip_breakpoint (ctx);
 
 	if (ji->method->wrapper_type || tls->disable_breakpoints)
 		return;
@@ -3842,11 +3844,21 @@ process_breakpoint (void)
 	tls = TlsGetValue (debugger_tls_id);
 	memcpy (&ctx, &tls->handler_ctx, sizeof (MonoContext));
 
-	process_breakpoint_inner (tls, &ctx);
+	process_breakpoint_inner (tls, &ctx, FALSE);
 
 	/* This is called when resuming from a signal handler, so it shouldn't return */
 	restore_context (&ctx);
 	g_assert_not_reached ();
+}
+
+void
+mono_debugger_agent_breakpoint_trampoline (MonoContext *ctx)
+{
+	DebuggerTlsData *tls;
+
+	tls = TlsGetValue (debugger_tls_id);
+
+	process_breakpoint_inner (tls, ctx, TRUE);
 }
 
 static void
@@ -3907,7 +3919,7 @@ ss_depth_to_string (StepDepth depth)
 }
 
 static void
-process_single_step_inner (DebuggerTlsData *tls, MonoContext *ctx)
+process_single_step_inner (DebuggerTlsData *tls, MonoContext *ctx, gboolean from_tramp)
 {
 	MonoJitInfo *ji;
 	guint8 *ip;
@@ -3921,7 +3933,8 @@ process_single_step_inner (DebuggerTlsData *tls, MonoContext *ctx)
 	ip = MONO_CONTEXT_GET_IP (ctx);
 
 	/* Skip the instruction causing the single step */
-	mono_arch_skip_single_step (ctx);
+	if (!from_tramp)
+		mono_arch_skip_single_step (ctx);
 
 	if (suspend_count > 0) {
 		process_suspend (tls, ctx);
@@ -3979,7 +3992,10 @@ process_single_step_inner (DebuggerTlsData *tls, MonoContext *ctx)
 	 * to the offset stored in seq_points.
 	 */
 #ifdef MONO_ARCH_SOFT_DEBUG_SUPPORTED
-	ip = mono_arch_get_ip_for_single_step (ji, ctx);
+	if (from_tramp)
+		ip = MONO_CONTEXT_GET_IP (ctx);
+	else
+		ip = mono_arch_get_ip_for_single_step (ji, ctx);
 #else
 	g_assert_not_reached ();
 #endif
@@ -4053,7 +4069,7 @@ process_single_step (void)
 	tls = TlsGetValue (debugger_tls_id);
 	memcpy (&ctx, &tls->handler_ctx, sizeof (MonoContext));
 
-	process_single_step_inner (tls, &ctx);
+	process_single_step_inner (tls, &ctx, FALSE);
 
 	/* This is called when resuming from a signal handler, so it shouldn't return */
 	restore_context (&ctx);
@@ -4089,6 +4105,25 @@ mono_debugger_agent_single_step_event (void *sigctx)
 	}
 
 	resume_from_signal_handler (sigctx, process_single_step);
+}
+
+/*
+ * mono_debugger_agent_single_step_trampoline:
+ *
+ *   This function processes single step events implemented using a trampoline instead of
+ * through SIGSEGV handlng.
+ */
+void
+mono_debugger_agent_single_step_trampoline (MonoContext *ctx)
+{
+	DebuggerTlsData *tls;
+
+	if (GetCurrentThreadId () == debugger_thread_id)
+		return;
+
+	tls = TlsGetValue (debugger_tls_id);
+
+	process_single_step_inner (tls, ctx, TRUE);
 }
 
 /*
@@ -4318,14 +4353,15 @@ ss_create (MonoInternalThread *thread, StepSize size, StepDepth depth, EventRequ
 
 		compute_frame_info (thread, tls);
 
-		g_assert (tls->frame_count);
-		frame = tls->frames [0];
+		if (tls->frame_count) {
+			frame = tls->frames [0];
 
-		if (!method && frame->il_offset != -1) {
-			/* FIXME: Sort the table and use a binary search */
-			sp = find_prev_seq_point_for_native_offset (frame->domain, frame->method, frame->native_offset, &info);
-			g_assert (sp);
-			method = frame->method;
+			if (!method && frame->il_offset != -1) {
+				/* FIXME: Sort the table and use a binary search */
+				sp = find_prev_seq_point_for_native_offset (frame->domain, frame->method, frame->native_offset, &info);
+				g_assert (sp);
+				method = frame->method;
+			}
 		}
 	}
 

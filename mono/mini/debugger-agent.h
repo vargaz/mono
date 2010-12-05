@@ -33,4 +33,10 @@ mono_debugger_agent_begin_exception_filter (MonoException *exc, MonoContext *ctx
 void
 mono_debugger_agent_end_exception_filter (MonoException *exc, MonoContext *ctx, MonoContext *orig_ctx) MONO_INTERNAL;
 
+void
+mono_debugger_agent_single_step_trampoline (MonoContext *ctx) MONO_INTERNAL;
+
+void
+mono_debugger_agent_breakpoint_trampoline (MonoContext *ctx) MONO_INTERNAL;
+
 #endif

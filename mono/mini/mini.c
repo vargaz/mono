@@ -3213,6 +3213,9 @@ mono_resolve_patch_target (MonoMethod *method, MonoDomain *domain, guint8 *code,
 		target = mono_domain_alloc0 (domain, sizeof (gpointer));
 		break;
 	}
+	case MONO_PATCH_INFO_SINGLE_STEP_TRAMPOLINE:
+		target = mono_create_specific_trampoline (NULL, MONO_TRAMPOLINE_SINGLE_STEP, domain, NULL);
+		break;
 	default:
 		g_assert_not_reached ();
 	}
@@ -4167,6 +4170,7 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 	cfg->orig_method = method;
 	cfg->gen_seq_points = debug_options.gen_seq_points;
 	cfg->explicit_null_checks = debug_options.explicit_null_checks;
+	cfg->soft_breakpoints = debug_options.soft_breakpoints;
 	if (try_generic_shared)
 		cfg->generic_sharing_context = (MonoGenericSharingContext*)&cfg->generic_sharing_context;
 	cfg->compile_llvm = try_llvm;
@@ -5828,12 +5832,31 @@ SIG_HANDLER_SIGNATURE (mono_sigsegv_signal_handler)
 
 	if (jit_tls->stack_size && 
 		ABS ((guint8*)fault_addr - ((guint8*)jit_tls->end_of_stack - jit_tls->stack_size)) < 8192 * sizeof (gpointer)) {
+<<<<<<< HEAD
 		/*
 		 * The hard-guard page has been hit: there is not much we can do anymore
 		 * Print a hopefully clear message and abort.
 		 */
 		mono_handle_hard_stack_ovf (jit_tls, ji, ctx, (guint8*)info->si_addr);
 		g_assert_not_reached ();
+=======
+		const char *method;
+		/* we don't do much now, but we can warn the user with a useful message */
+		fprintf (stderr, "Stack overflow: IP: %p, fault addr: %p\n", mono_arch_ip_from_context (ctx), (gpointer)info->si_addr);
+		if (ji && ji->method)
+			method = mono_method_full_name (ji->method, TRUE);
+		else
+			method = "Unmanaged";
+		fprintf (stderr, "At %s\n", method);
+
+		if (mini_get_debug_options ()->suspend_on_sigsegv) {
+			fprintf (stderr, "Received SIGSEGV, suspending...");
+			while (1)
+				;
+		}
+
+		_exit (1);
+>>>>>>> Implement support (amd64 only) for handling breakpoints using trampolines instead of SIGSEGV signals.
 	} else {
 		/* The original handler might not like that it is executed on an altstack... */
 		if (!ji && mono_chain_signal (SIG_HANDLER_PARAMS))
@@ -5977,11 +6000,17 @@ mini_parse_debug_options (void)
 			debug_options.gen_seq_points = TRUE;
 		else if (!strcmp (arg, "init-stacks"))
 			debug_options.init_stacks = TRUE;
+		else if (!strcmp (arg, "soft-breakpoints"))
+			debug_options.soft_breakpoints = TRUE;
 		else if (!strcmp (arg, "casts"))
 			debug_options.better_cast_details = TRUE;
 		else {
 			fprintf (stderr, "Invalid option for the MONO_DEBUG env variable: %s\n", arg);
+<<<<<<< HEAD
 			fprintf (stderr, "Available options: 'handle-sigint', 'keep-delegates', 'reverse-pinvoke-exceptions', 'collect-pagefault-stats', 'break-on-unverified', 'no-gdb-backtrace', 'dont-free-domains', 'suspend-on-sigsegv', 'suspend-on-unhandled', 'dyn-runtime-invoke', 'gdb', 'explicit-null-checks', 'init-stacks'\n");
+=======
+			fprintf (stderr, "Available options: 'handle-sigint', 'keep-delegates', 'reverse-pinvoke-exceptions', 'collect-pagefault-stats', 'break-on-unverified', 'no-gdb-backtrace', 'dont-free-domains', 'suspend-on-sigsegv', 'dyn-runtime-invoke', 'gdb', 'explicit-null-checks', 'init-stacks', 'soft-breakpoints'.\n");
+>>>>>>> Implement support (amd64 only) for handling breakpoints using trampolines instead of SIGSEGV signals.
 			exit (1);
 		}
 	}

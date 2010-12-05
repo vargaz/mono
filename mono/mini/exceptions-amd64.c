@@ -294,6 +294,23 @@ mono_arch_get_call_filter (MonoTrampInfo **info, gboolean aot)
 	return start;
 }
 
+void
+mono_arch_regarr_to_ctx (mgreg_t *regs, MonoContext *ctx)
+{
+	ctx->rsp = regs [AMD64_RSP];
+	ctx->rbx = regs [AMD64_RBX];
+	ctx->rbp = regs [AMD64_RBP];
+	ctx->r12 = regs [AMD64_R12];
+	ctx->r13 = regs [AMD64_R13];
+	ctx->r14 = regs [AMD64_R14];
+	ctx->r15 = regs [AMD64_R15];
+	ctx->rdi = regs [AMD64_RDI];
+	ctx->rsi = regs [AMD64_RSI];
+	ctx->rax = regs [AMD64_RAX];
+	ctx->rcx = regs [AMD64_RCX];
+	ctx->rdx = regs [AMD64_RDX];
+}
+
 /* 
  * The first few arguments are dummy, to force the other arguments to be passed on
  * the stack, this avoids overwriting the argument registers in the throw trampoline.
@@ -310,19 +327,8 @@ mono_amd64_throw_exception (guint64 dummy1, guint64 dummy2, guint64 dummy3, guin
 	if (!restore_context)
 		restore_context = mono_get_restore_context ();
 
-	ctx.rsp = regs [AMD64_RSP];
-	ctx.rip = rip;
-	ctx.rbx = regs [AMD64_RBX];
-	ctx.rbp = regs [AMD64_RBP];
-	ctx.r12 = regs [AMD64_R12];
-	ctx.r13 = regs [AMD64_R13];
-	ctx.r14 = regs [AMD64_R14];
-	ctx.r15 = regs [AMD64_R15];
-	ctx.rdi = regs [AMD64_RDI];
-	ctx.rsi = regs [AMD64_RSI];
-	ctx.rax = regs [AMD64_RAX];
-	ctx.rcx = regs [AMD64_RCX];
-	ctx.rdx = regs [AMD64_RDX];
+	mono_arch_regarr_to_ctx (regs, &ctx);
+	MONO_CONTEXT_SET_IP (&ctx, rip);
 
 	if (mono_object_isinst (exc, mono_defaults.exception_class)) {
 		MonoException *mono_ex = (MonoException*)exc;

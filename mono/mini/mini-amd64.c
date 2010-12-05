@@ -71,6 +71,8 @@ mono_breakpoint_info [MONO_BREAKPOINT_ARRAY_SIZE];
  */
 static gpointer ss_trigger_page;
 
+static guint64 ss_enabled;
+
 /* Enabled breakpoints read from this trigger page */
 static gpointer bp_trigger_page;
 
@@ -1307,6 +1309,10 @@ mono_arch_init (void)
 	single_step_fault_size = 8;
 #endif
 
+	if (mini_get_debug_options ()->soft_breakpoints)
+		/* amd64_mov_reg_imm () + amd64_call_reg () */
+		breakpoint_size = 10 + 3;
+
 	ss_trigger_page = mono_valloc (NULL, mono_pagesize (), flags);
 	bp_trigger_page = mono_valloc (NULL, mono_pagesize (), flags);
 	mono_mprotect (bp_trigger_page, mono_pagesize (), 0);
@@ -2037,6 +2043,12 @@ mono_arch_create_vars (MonoCompile *cfg)
 	    ins = mono_compile_create_var (cfg, &mono_defaults.int_class->byval_arg, OP_LOCAL);
 		ins->flags |= MONO_INST_VOLATILE;
 		cfg->arch.ss_trigger_page_var = ins;
+
+		if (cfg->soft_breakpoints) {
+			ins = mono_compile_create_var (cfg, &mono_defaults.int_class->byval_arg, OP_LOCAL);
+			ins->flags |= MONO_INST_VOLATILE;
+			cfg->arch.ss_enabled_var = ins;
+		}
 	}
 
 #ifdef MONO_AMD64_NO_PUSHES
@@ -4075,13 +4087,25 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			 * a breakpoint is hit will step to the next IL offset.
 			 */
 			if (ins->flags & MONO_INST_SINGLE_STEP_LOC) {
-				if (((guint64)ss_trigger_page >> 32) == 0)
-					amd64_mov_reg_mem (code, AMD64_R11, (guint64)ss_trigger_page, 4);
-				else {
-					MonoInst *var = cfg->arch.ss_trigger_page_var;
+				if (cfg->soft_breakpoints) {
+					MonoInst *var = cfg->arch.ss_enabled_var;
+					gpointer br [1];
 
 					amd64_mov_reg_membase (code, AMD64_R11, var->inst_basereg, var->inst_offset, 8);
-					amd64_alu_membase_imm_size (code, X86_CMP, AMD64_R11, 0, 0, 4);
+					amd64_alu_membase_imm (code, X86_CMP, AMD64_R11, 0, 0);
+					br [0] = code; x86_branch8 (code, X86_CC_EQ, 0, FALSE);
+					/* This requires seq_point to be marked clob:c */
+					code = emit_call (cfg, code, MONO_PATCH_INFO_SINGLE_STEP_TRAMPOLINE, NULL, FALSE);
+					amd64_patch (br [0], code);
+				} else {
+					if (((guint64)ss_trigger_page >> 32) == 0)
+						amd64_mov_reg_mem (code, AMD64_R11, (guint64)ss_trigger_page, 4);
+					else {
+						MonoInst *var = cfg->arch.ss_trigger_page_var;
+
+						amd64_mov_reg_membase (code, AMD64_R11, var->inst_basereg, var->inst_offset, 8);
+						amd64_alu_membase_imm_size (code, X86_CMP, AMD64_R11, 0, 0, 4);
+					}
 				}
 			}
 
@@ -6989,6 +7013,16 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 		amd64_mov_membase_reg (code, var->inst_basereg, var->inst_offset, AMD64_R11, 8);
 	}
 
+	if (cfg->arch.ss_enabled_var) {
+		MonoInst *var = cfg->arch.ss_enabled_var;
+
+		g_assert (!cfg->compile_aot);
+		g_assert (var->opcode == OP_REGOFFSET);
+
+		amd64_mov_reg_imm (code, AMD64_R11, (guint64)&ss_enabled);
+		amd64_mov_membase_reg (code, var->inst_basereg, var->inst_offset, AMD64_R11, 8);
+	}
+
 	cfg->code_len = code - cfg->native_code;
 
 	g_assert (cfg->code_len < cfg->code_size);
@@ -8366,7 +8400,13 @@ mono_arch_set_breakpoint (MonoJitInfo *ji, guint8 *ip)
 	 * instead.
 	 */
 	g_assert (code [0] == 0x90);
-	if (breakpoint_size == 8) {
+	if (mini_get_debug_options ()->soft_breakpoints) {
+		static gpointer bp_tramp = NULL;
+		if (!bp_tramp)
+			bp_tramp = mono_create_specific_trampoline (NULL, MONO_TRAMPOLINE_BREAKPOINT, mono_get_root_domain (), NULL);
+		amd64_mov_reg_imm_size (code, AMD64_R11, bp_tramp, 8);
+		amd64_call_reg (code, AMD64_R11);
+	} else if (breakpoint_size == 8) {
 		amd64_mov_reg_mem (code, AMD64_R11, (guint64)bp_trigger_page, 4);
 	} else {
 		amd64_mov_reg_imm_size (code, AMD64_R11, (guint64)bp_trigger_page, 8);
@@ -8417,8 +8457,12 @@ mono_arch_get_ip_for_breakpoint (MonoJitInfo *ji, MonoContext *ctx)
 {
 	guint8 *ip = MONO_CONTEXT_GET_IP (ctx);
 
-	/* ip points to the instruction causing the fault */
-	ip -= (breakpoint_size - breakpoint_fault_size);
+	if (mini_get_debug_options ()->soft_breakpoints)
+		/* ip points to the end of the call */
+		ip -= breakpoint_size;
+	else
+		/* ip points to the instruction causing the fault */
+		ip -= (breakpoint_size - breakpoint_fault_size);
 
 	return ip;
 }
@@ -8432,6 +8476,8 @@ mono_arch_get_ip_for_breakpoint (MonoJitInfo *ji, MonoContext *ctx)
 void
 mono_arch_skip_breakpoint (MonoContext *ctx)
 {
+	g_assert (!mini_get_debug_options ()->soft_breakpoints);
+
 	MONO_CONTEXT_SET_IP (ctx, (guint8*)MONO_CONTEXT_GET_IP (ctx) + breakpoint_fault_size);
 }
 	
@@ -8444,6 +8490,7 @@ void
 mono_arch_start_single_stepping (void)
 {
 	mono_mprotect (ss_trigger_page, mono_pagesize (), 0);
+	ss_enabled = TRUE;
 }
 	
 /*
@@ -8455,6 +8502,7 @@ void
 mono_arch_stop_single_stepping (void)
 {
 	mono_mprotect (ss_trigger_page, mono_pagesize (), MONO_MMAP_READ);
+	ss_enabled = FALSE;
 }
 
 /*

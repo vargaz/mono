@@ -1107,6 +1107,8 @@ typedef enum {
 #ifdef MONO_ARCH_HAVE_HANDLER_BLOCK_GUARD
 	MONO_TRAMPOLINE_HANDLER_BLOCK_GUARD,
 #endif
+	MONO_TRAMPOLINE_SINGLE_STEP,
+	MONO_TRAMPOLINE_BREAKPOINT,
 	MONO_TRAMPOLINE_NUM
 } MonoTrampolineType;
 
@@ -1116,7 +1118,9 @@ typedef enum {
 	 (t) == MONO_TRAMPOLINE_RESTORE_STACK_PROT ||	\
 	 (t) == MONO_TRAMPOLINE_RGCTX_LAZY_FETCH ||	\
 	 (t) == MONO_TRAMPOLINE_MONITOR_ENTER ||	\
-	 (t) == MONO_TRAMPOLINE_MONITOR_EXIT)
+	 (t) == MONO_TRAMPOLINE_MONITOR_EXIT ||		\
+	 (t) == MONO_TRAMPOLINE_SINGLE_STEP ||		\
+     (t) == MONO_TRAMPOLINE_BREAKPOINT)
 
 /* optimization flags */
 #define OPTFLAG(id,shift,name,descr) MONO_OPT_ ## id = 1 << shift,
@@ -1278,6 +1282,7 @@ typedef struct {
 	guint            gen_seq_points : 1;
 	guint            explicit_null_checks : 1;
 	guint            compute_gc_maps : 1;
+	guint            soft_breakpoints : 1;
 	gpointer         debug_info;
 	guint32          lmf_offset;
     guint16          *intvars;
@@ -1595,6 +1600,13 @@ typedef struct {
 	 * debugging of the stack marking code in the GC.
 	 */
 	gboolean init_stacks;
+	/*
+	 * Whenever to implement single stepping and breakpoints without signals in the
+	 * soft debugger. This is useful on platforms without signals, like the ps3, or during
+	 * runtime debugging, since it avoids SIGSEGVs when a single step location or breakpoint
+	 * is hit.
+	 */
+	gboolean soft_breakpoints;
 } MonoDebugOptions;
 
 enum {
@@ -2021,7 +2033,11 @@ LLVMCallInfo* mono_arch_get_llvm_call_info      (MonoCompile *cfg, MonoMethodSig
 guint8*   mono_arch_emit_load_got_addr          (guint8 *start, guint8 *code, MonoCompile *cfg, MonoJumpInfo **ji) MONO_INTERNAL;
 guint8*   mono_arch_emit_load_aotconst          (guint8 *start, guint8 *code, MonoJumpInfo **ji, int tramp_type, gconstpointer target) MONO_INTERNAL;
 GSList*   mono_arch_get_cie_program             (void) MONO_INTERNAL;
+<<<<<<< HEAD
 void      mono_arch_set_target                  (char *mtriple) MONO_INTERNAL;
+=======
+void      mono_arch_regarr_to_ctx               (mgreg_t *regs, MonoContext *ctx) MONO_INTERNAL;
+>>>>>>> Implement support (amd64 only) for handling breakpoints using trampolines instead of SIGSEGV signals.
 
 /* Soft Debug support */
 #ifdef MONO_ARCH_SOFT_DEBUG_SUPPORTED
