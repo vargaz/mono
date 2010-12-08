@@ -1155,6 +1155,7 @@ typedef struct {
 	guint            keep_cil_nops : 1;
 	guint            gen_seq_points : 1;
 	guint            explicit_null_checks : 1;
+	guint            arm_thumb : 1;
 	gpointer         debug_info;
 	guint32          lmf_offset;
     guint16          *intvars;

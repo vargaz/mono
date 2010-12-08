@@ -45,6 +45,13 @@ mono_arch_patch_callsite (guint8 *method_start, guint8 *code_ptr, guint8 *addr)
 		return;
 	}
 
+	if ((mgreg_t)code & 1) {
+		/* Thumb */
+		arm_patch ((guint8*)code, addr);
+		mono_arch_flush_icache ((guint8*)(code - 2), 4);
+		return;
+	}
+
 	g_assert_not_reached ();
 }
 

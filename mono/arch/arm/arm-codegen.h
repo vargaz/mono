@@ -25,13 +25,15 @@ int arm_bsf(armword_t val);
 arminstr_t* arm_mov_reg_imm32_cond(arminstr_t* p, int reg, armword_t imm32, int cond);
 arminstr_t* arm_mov_reg_imm32(arminstr_t* p, int reg, armword_t imm32);
 
-
+#ifndef THUMB_CHECK
+#define THUMB_CHECK()
+#endif
 
 #if defined(_MSC_VER) || defined(__CC_NORCROFT)
 	void __inline _arm_emit(arminstr_t** p, arminstr_t i) {**p = i; (*p)++;}
 #	define ARM_EMIT(p, i) _arm_emit((arminstr_t**)&p, (arminstr_t)(i))
 #else
-#	define ARM_EMIT(p, i) do { arminstr_t *__ainstrp = (void*)(p); *__ainstrp = (arminstr_t)(i); (p) = (void*)(__ainstrp+1);} while (0)
+#	define ARM_EMIT(p, i) do { arminstr_t *__ainstrp = (void*)(p); THUMB_CHECK (); *__ainstrp = (arminstr_t)(i); (p) = (void*)(__ainstrp+1);} while (0)
 #endif
 
 #if defined(_MSC_VER) && !defined(ARM_NOIASM)

@@ -7,6 +7,10 @@
  *
  * (C) 2003 Ximian, Inc.
  */
+
+/* FIXME: */
+#define THUMB_CHECK() do { g_assert (!use_thumb); } while (0)
+
 #include "mini.h"
 #include <string.h>
 
@@ -24,7 +28,12 @@
 #include "mono/arch/arm/arm-vfp-codegen.h"
 #endif
 
-static gboolean use_thumb = TRUE;
+/*
+ * THUMB2 plan:
+ * - make thumb2 configurable on a per-method basis, to aid development. After the code works,
+ * get rid of use_thumb and use defines.
+ */
+gboolean use_thumb = FALSE;
 
 #include "mono/arch/arm/arm-thumb-codegen.h"
 
@@ -1347,6 +1356,12 @@ mono_arch_create_vars (MonoCompile *cfg)
 {
 	MonoMethodSignature *sig;
 	CallInfo *cinfo;
+
+	if (strstr (cfg->method->name, "test_") == cfg->method->name)
+		use_thumb = TRUE;
+	else
+		use_thumb = FALSE;
+	cfg->arm_thumb = use_thumb;
 
 	sig = mono_method_signature (cfg->method);
 
@@ -2796,21 +2811,36 @@ arm_patch_general (MonoDomain *domain, guchar *code, const guchar *target)
 	guint32 prim = (ins >> 25) & 7;
 	guint32 tval = GPOINTER_TO_UINT (target);
 
-	if (use_thumb) {
-		guint16 c1 = ((guint16*)code) [0];
-		guint16 c2 = ((guint16*)code) [1];
-		gint diff = target - code - 4;
+	if (use_thumb || (mgreg_t)code & 1) {
+		guint16 c1;
+		guint16 c2;
+		gint diff;
+		gboolean orig_use_thumb = use_thumb;
 
-		if (c1 >> 11 == 0b11110 && ((c2 >> 14) & 3) == 0b10 && (((c2 >> 12) & 1) == 0b0)) {
+		/* This could be called from mono_arch_patch_callsite () */
+		use_thumb = TRUE;
+
+		code = (guchar*)((mgreg_t)code & ~1);
+		diff = target - code - 4;
+		c1 = ((guint16*)code) [0];
+		c2 = ((guint16*)code) [1];
+		if (c1 >> 11 == 0b11100) {
+			/* B T2 encoding */
+			ARM_B (code, diff);
+		} else if (c1 >> 11 == 0b11110 && ((c2 >> 14) & 3) == 0b10 && (((c2 >> 12) & 1) == 0b0)) {
 			/* B T3 encoding */
 			guint32 cond = (c1 >> 6) & 0xf;
 			ARM_B_COND (code, cond, diff);
-		} else if (c1 >> 11 == 0b11110 && ((c2 >> 14) & 3) == 0b11 && (((c2 >> 12) & 1) == 0b1)) {
-			/* BL T1 encoding */
-			ARM_BL (code, diff);
+		} else if (c1 >> 11 == 0b11110 && ((c2 >> 14) & 3) == 0b11) {
+			/* BL/BLX T1 encoding */
+			if ((mgreg_t)target & 0x1)
+				ARM_BL (code, diff);
+			else
+				ARM_BLX (code, diff);
 		} else {
 			g_assert_not_reached ();
 		}
+		use_thumb = orig_use_thumb;
 		return;
 	}
 
@@ -2969,6 +2999,12 @@ int
 mono_arm_is_rotated_imm8 (guint32 val, gint *rot_amount)
 {
 	guint32 res, i;
+
+	if (use_thumb) {
+		*rot_amount = 0;
+		return val;
+	}
+
 	for (i = 0; i < 31; i+= 2) {
 		res = (val << (32 - i)) | (val >> i);
 		if (res & ~0xff)
@@ -2995,7 +3031,16 @@ mono_arm_emit_load_imm (guint8 *code, int dreg, guint32 val)
 	code += 4;
 	return code;
 #endif
-	if ((imm8 = mono_arm_is_rotated_imm8 (val, &rot_amount)) >= 0) {
+	if (use_thumb) {
+		if ((val >> 16) == 0) {
+			/* T2/T3 encoding can handle this */
+			ARM_MOV_REG_IMM (code, dreg, val, 0);
+		} else {
+			g_assert (v7_supported);
+			ARM_MOV_REG_IMM (code, dreg, val & 0xffff, 0);
+			ARM_MOVT_REG_IMM (code, dreg, (val >> 16) & 0xffff);
+		}
+	} else if ((imm8 = mono_arm_is_rotated_imm8 (val, &rot_amount)) >= 0) {
 		ARM_MOV_REG_IMM (code, dreg, imm8, rot_amount);
 	} else if ((imm8 = mono_arm_is_rotated_imm8 (~val, &rot_amount)) >= 0) {
 		ARM_MVN_REG_IMM (code, dreg, imm8, rot_amount);
@@ -5180,7 +5225,6 @@ mono_arch_emit_exceptions (MonoCompile *cfg)
 	cfg->code_len = code - cfg->native_code;
 
 	g_assert (cfg->code_len < cfg->code_size);
-
 }
 
 #endif /* #ifndef DISABLE_JIT */

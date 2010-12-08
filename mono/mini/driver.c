@@ -427,7 +427,11 @@ mini_regression (MonoImage *image, int verbose, int *total_run)
 						;
 					else
 #endif
-						func = (TestMethod)(gpointer)cfg->native_code;
+						{
+							func = (TestMethod)(gpointer)cfg->native_code;
+							if (cfg->arm_thumb)
+								func = (guint8*)func + 1;
+						}
 					func = (TestMethod)mono_create_ftnptr (mono_get_root_domain (), func);
 					result = func ();
 					if (result != expected) {
