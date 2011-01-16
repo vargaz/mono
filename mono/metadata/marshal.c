@@ -7113,7 +7113,7 @@ emit_marshal_array (EmitMarshalContext *m, int argnum, MonoType *t,
 				mono_mb_emit_stloc (mb, 1);
 
 				/* emit valuetype conversion code */
-				emit_struct_conv (mb, eklass, FALSE);
+				emit_struct_conv_full (mb, eklass, FALSE, encoding);
 			}
 
 			mono_mb_emit_add_to_local (mb, index_var, 1);
@@ -7231,7 +7231,7 @@ emit_marshal_array (EmitMarshalContext *m, int argnum, MonoType *t,
 					mono_mb_emit_stloc (mb, 1);
 
 					/* emit valuetype conversion code */
-					emit_struct_conv (mb, eklass, TRUE);
+					emit_struct_conv_full (mb, eklass, TRUE, encoding);
 				}
 
 				if (need_free) {
