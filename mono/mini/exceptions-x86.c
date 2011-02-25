@@ -401,6 +401,19 @@ mono_arch_get_call_filter (MonoTrampInfo **info, gboolean aot)
 	return start;
 }
 
+void
+mono_arch_regarr_to_ctx (mgreg_t *regs, MonoContext *ctx)
+{
+	ctx->esp = regs [X86_ESP];
+	ctx->ebp = regs [X86_EBP];
+	ctx->edi = regs [X86_EDI];
+	ctx->esi = regs [X86_ESI];
+	ctx->ebx = regs [X86_EBX];
+	ctx->edx = regs [X86_EDX];
+	ctx->ecx = regs [X86_ECX];
+	ctx->eax = regs [X86_EAX];
+}
+
 /*
  * mono_x86_throw_exception:
  *
@@ -416,15 +429,8 @@ mono_x86_throw_exception (mgreg_t *regs, MonoObject *exc,
 	if (!restore_context)
 		restore_context = mono_get_restore_context ();
 
-	ctx.esp = regs [X86_ESP];
-	ctx.eip = eip;
-	ctx.ebp = regs [X86_EBP];
-	ctx.edi = regs [X86_EDI];
-	ctx.esi = regs [X86_ESI];
-	ctx.ebx = regs [X86_EBX];
-	ctx.edx = regs [X86_EDX];
-	ctx.ecx = regs [X86_ECX];
-	ctx.eax = regs [X86_EAX];
+	mono_arch_regarr_to_ctx (regs, &ctx);
+	MONO_CONTEXT_SET_IP (&ctx, eip);
 
 #ifdef __APPLE__
 	/* The OSX ABI specifies 16 byte alignment at call sites */
