@@ -3933,11 +3933,13 @@ mono_method_check_inlining (MonoCompile *cfg, MonoMethod *method)
 
 #ifdef MONO_ARCH_HAVE_LMF_OPS
 	if (((method->iflags & METHOD_IMPL_ATTRIBUTE_INTERNAL_CALL) ||
-		 (method->flags & METHOD_ATTRIBUTE_PINVOKE_IMPL)) &&
-	    !MONO_TYPE_ISSTRUCT (signature->ret) && !mini_class_is_system_array (method->klass))
-		return TRUE;
-#endif
+		 (method->flags & METHOD_ATTRIBUTE_PINVOKE_IMPL))) {
+		MonoMethodSignature *sig = mono_method_signature (method);		
 
+	    if (!MONO_TYPE_ISSTRUCT (sig->ret) && !mini_class_is_system_array (method->klass))
+			return TRUE;
+	}
+#endif
 
 	if (!mono_method_get_header_summary (method, &header))
 		return FALSE;
@@ -4836,6 +4838,7 @@ inline_method (MonoCompile *cfg, MonoMethod *cmethod, MonoMethodSignature *fsig,
 	MonoMethod *prev_current_method;
 	MonoGenericContext *prev_generic_context;
 	gboolean ret_var_set, prev_ret_var_set, virtual = FALSE;
+	MonoInst *lmf_var = NULL;
 
 	g_assert (cfg->exception_type == MONO_EXCEPTION_NONE);
 
@@ -4946,6 +4949,18 @@ inline_method (MonoCompile *cfg, MonoMethod *cmethod, MonoMethodSignature *fsig,
 		prev_cbb->next_bb = sbblock;
 		link_bblock (cfg, prev_cbb, sbblock);
 
+#ifdef MONO_ARCH_HAVE_LMF_OPS
+		if (cmethod->wrapper_type == MONO_WRAPPER_MANAGED_TO_NATIVE) {
+			/* The type is dummy, the stack layout code will allocate the proper size */
+			lmf_var = mono_compile_create_var (cfg, &mono_defaults.int_class->byval_arg, OP_LOCAL);
+			lmf_var->flags |= MONO_INST_VOLATILE;
+			lmf_var->flags |= MONO_INST_LMF;
+			MONO_INST_NEW (cfg, ins, OP_SAVE_LMF);
+			ins->inst_c0 = lmf_var->dreg;
+			MONO_ADD_INS (prev_cbb, ins);
+		}
+#endif
+
 		/* 
 		 * Get rid of the begin and end bblocks if possible to aid local
 		 * optimizations.
@@ -4965,6 +4980,14 @@ inline_method (MonoCompile *cfg, MonoMethod *cmethod, MonoMethodSignature *fsig,
 			}
 		} else {
 			cfg->cbb = ebblock;
+		}
+
+		if (lmf_var) {
+			// FIXME: OP_SAVE_SP_TO_LMF on amd64, we disable MONO_ARCH_HAVE_NOTIFY_PENDING_EXC
+			// instead.
+			MONO_INST_NEW (cfg, ins, OP_RESTORE_LMF);
+			ins->inst_c0 = lmf_var->dreg;
+			MONO_ADD_INS (cfg->cbb, ins);
 		}
 
 		if (rvar) {

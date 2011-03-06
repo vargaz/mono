@@ -66,6 +66,8 @@ tailcall: len:120 clob:c
 br: len:6
 label: len:0
 seq_point: len:25
+save_lmf: len:96 clob:c
+restore_lmf: len:64 clob:s
 
 long_add: dest:i src1:i src2:i len:3 clob:1 nacl:6
 long_sub: dest:i src1:i src2:i len:3 clob:1 nacl:6

@@ -338,7 +338,7 @@ typedef struct MonoCompileArch {
  */
 #define MONO_ARCH_RGCTX_REG AMD64_R10
 #define MONO_ARCH_HAVE_CMOV_OPS 1
-#define MONO_ARCH_HAVE_NOTIFY_PENDING_EXC 1
+//#define MONO_ARCH_HAVE_NOTIFY_PENDING_EXC 1
 #define MONO_ARCH_HAVE_EXCEPTIONS_INIT 1
 #define MONO_ARCH_ENABLE_GLOBAL_RA 1
 #define MONO_ARCH_HAVE_GENERALIZED_IMT_THUNK 1
@@ -379,6 +379,7 @@ typedef struct MonoCompileArch {
 #define MONO_ARCH_HAVE_CARD_TABLE_WBARRIER 1
 #define MONO_ARCH_HAVE_SETUP_RESUME_FROM_SIGNAL_HANDLER_CTX 1
 #define MONO_ARCH_GC_MAPS_SUPPORTED 1
+#define MONO_ARCH_HAVE_LMF_OPS 1
 
 gboolean
 mono_amd64_tail_call_supported (MonoMethodSignature *caller_sig, MonoMethodSignature *callee_sig) MONO_INTERNAL;

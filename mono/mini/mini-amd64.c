@@ -4303,6 +4303,21 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				x86_nop (code);
 			break;
 		}
+		case OP_SAVE_LMF: {
+			MonoInst *lmf_var = get_vreg_to_inst (cfg, ins->inst_c0);
+
+			g_assert (lmf_var);
+			code = emit_setup_lmf (cfg, code, lmf_var->inst_offset, -1);
+			code = emit_save_lmf (cfg, code, lmf_var->inst_offset, NULL);
+			break;
+		}
+		case OP_RESTORE_LMF: {
+			MonoInst *lmf_var = get_vreg_to_inst (cfg, ins->inst_c0);
+
+			g_assert (lmf_var);
+			code = emit_restore_lmf (cfg, code, lmf_var->inst_offset);
+			break;
+		}
 		case OP_ADDCC:
 		case OP_LADD:
 			amd64_alu_reg_reg (code, X86_ADD, ins->sreg1, ins->sreg2);
