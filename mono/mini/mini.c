@@ -6225,6 +6225,11 @@ mini_init (const char *filename, const char *runtime_version)
 	}
 #endif
 
+#ifdef MONO_ARCH_HAVE_ABI_VARARGS
+	callbacks.argiterator_setup = mono_arch_argiterator_setup;
+	callbacks.argiterator_int_get_next_arg = mono_arch_argiterator_int_get_next_arg;
+#endif
+
 	mono_install_callbacks (&callbacks);
 
 	memset (&ticallbacks, 0, sizeof (ticallbacks));

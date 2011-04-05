@@ -32,6 +32,7 @@ typedef struct {
 	LLVMValueRef got_var;
 	const char *got_symbol;
 	GHashTable *plt_entries;
+	LLVMTypeRef arg_iter_type, va_list_type;
 } MonoLLVMModule;
 
 /*
@@ -81,6 +82,7 @@ typedef struct {
 	LLVMBuilderRef alloca_builder;
 	LLVMValueRef last_alloca;
 	LLVMValueRef rgctx_arg;
+	LLVMValueRef sig_cookie_arg;
 	LLVMTypeRef *vreg_types;
 	gboolean *is_dead;
 	gboolean *unreachable;
@@ -1010,6 +1012,7 @@ typedef struct {
 	int *pindexes;
 	/* The indexes of various special arguments in the LLVM signature */
 	int vret_arg_pindex, this_arg_pindex, rgctx_arg_pindex, imt_arg_pindex;
+	int sig_cookie_pindex;
 } LLVMSigInfo;
 
 /*
@@ -1052,7 +1055,7 @@ sig_to_llvm_sig_full (EmitContext *ctx, MonoMethodSignature *sig, LLVMCallInfo *
 	}
 
 	pindexes = g_new0 (int, sig->param_count);
-	param_types = g_new0 (LLVMTypeRef, (sig->param_count * 2) + 3);
+	param_types = g_new0 (LLVMTypeRef, (sig->param_count * 2) + 4);
 	pindex = 0;
 	if (cinfo && cinfo->rgctx_arg) {
 		if (sinfo)
@@ -1100,6 +1103,12 @@ sig_to_llvm_sig_full (EmitContext *ctx, MonoMethodSignature *sig, LLVMCallInfo *
 	for (i = 0; i < sig->param_count; ++i) {
 		if (vretaddr && vret_arg_pindex == pindex)
 			param_types [pindex ++] = IntPtrType ();
+		if (!sig->pinvoke && (sig->call_convention == MONO_CALL_VARARG) && (i == sig->sentinelpos)) {
+			/* Emit the signature cookie just before the implicit arguments */
+			if (sinfo)
+				sinfo->sig_cookie_pindex = pindex;
+			param_types [pindex ++] = IntPtrType ();
+		}
 		pindexes [i] = pindex;
 		if (cinfo && cinfo->args [i + sig->hasthis].storage == LLVMArgVtypeInReg) {
 			for (j = 0; j < 2; ++j) {
@@ -1124,10 +1133,16 @@ sig_to_llvm_sig_full (EmitContext *ctx, MonoMethodSignature *sig, LLVMCallInfo *
 	}
 	if (vretaddr && vret_arg_pindex == pindex)
 		param_types [pindex ++] = IntPtrType ();
+	if (!sig->pinvoke && (sig->call_convention == MONO_CALL_VARARG) && (sig->sentinelpos == sig->param_count)) {
+		/* Emit the signature cookie just before the implicit arguments */
+		if (sinfo)
+			sinfo->sig_cookie_pindex = pindex;
+		param_types [pindex ++] = IntPtrType ();
+	}
 
 	CHECK_FAILURE (ctx);
 
-	res = LLVMFunctionType (ret_type, param_types, pindex, FALSE);
+	res = LLVMFunctionType (ret_type, param_types, pindex, !sig->pinvoke && (sig->call_convention == MONO_CALL_VARARG));
 	g_free (param_types);
 
 	if (sinfo) {
@@ -1853,8 +1868,13 @@ process_call (EmitContext *ctx, MonoBasicBlock *bb, LLVMBuilderRef *builder_ref,
 	LLVMBuilderRef builder = *builder_ref;
 	LLVMSigInfo sinfo;
 
-	if (call->signature->call_convention != MONO_CALL_DEFAULT)
+	if (call->signature->call_convention != MONO_CALL_DEFAULT && call->signature->call_convention != MONO_CALL_VARARG)
 		LLVM_FAILURE (ctx, "non-default callconv");
+
+#ifndef MONO_ARCH_HAVE_ABI_VARARGS
+	if (call->signature->call_convention == MONO_CALL_VARARG)
+		LLVM_FAILURE (ctx, "varargs call");
+#endif
 
 	if (call->rgctx_arg_reg && !IS_LLVM_MONO_BRANCH)
 		LLVM_FAILURE (ctx, "rgctx reg in call");
@@ -2023,6 +2043,9 @@ process_call (EmitContext *ctx, MonoBasicBlock *bb, LLVMBuilderRef *builder_ref,
 			addresses [call->inst.dreg] = build_alloca (ctx, sig->ret);
 		args [sinfo.vret_arg_pindex] = LLVMBuildPtrToInt (builder, addresses [call->inst.dreg], IntPtrType (), "");
 	}
+
+	if (!sig->pinvoke && (sig->call_convention == MONO_CALL_VARARG))
+		args [sinfo.sig_cookie_pindex] = LLVMConstInt (IntPtrType (), (gsize)sig, FALSE);
 
 	for (i = 0; i < sig->param_count + sig->hasthis; ++i) {
 		guint32 regpair;
@@ -3983,6 +4006,66 @@ process_bb (EmitContext *ctx, MonoBasicBlock *bb)
 		case OP_DUMMY_USE:
 			break;
 
+#ifdef MONO_ARCH_HAVE_ABI_VARARGS
+		case OP_ARGLIST: {
+			LLVMValueRef va_list, arg_iter, index [16], args [16];
+
+			/*
+			 * MONO_ARCH_HAVE_ABI_VARARGS means the backend implements varargs as
+			 * specified by the platform ABI, instead of a mono specific calling
+			 * convention. This means LLVM can support this as follows:
+			 * - allocate a va_list structure which matches the ABI definition, and
+			 *   initialize it using llvm.va_start.
+			 * - pack it into a MonoArchArgIterator structure along with the sig
+			 *   cookie argument.
+			 * - store the pointer to this structure into the argument of ARGLIST.
+			 * - we don't use llvm.va_arg, mono_arch_argiterator_int_get_next_arg
+			 *   manipulates the va_list structure directly as specified by the ABI.
+			 */
+			if (!ctx->lmodule->arg_iter_type) {
+				LLVMTypeRef va_list_members [] = { LLVMInt32Type (), LLVMInt32Type (), LLVMPointerType (LLVMInt8Type (), 0), LLVMPointerType (LLVMInt8Type (), 0) };
+				LLVMTypeRef arg_iter_members [2];
+				LLVMTypeRef va_list_type, arg_iter_type;
+
+#ifdef TARGET_AMD64
+				va_list_type = LLVMStructType (va_list_members, 4, FALSE);
+#else
+				NOT_IMPLEMENTED;
+#endif
+				LLVMAddTypeName (ctx->module, "MonoArchVAList", va_list_type);
+
+				arg_iter_members [0] = IntPtrType ();
+				arg_iter_members [1] = LLVMPointerType (va_list_type, 0);
+
+				arg_iter_type = LLVMStructType (arg_iter_members, 2, FALSE);
+				LLVMAddTypeName (ctx->module, "MonoArchArgIterator", arg_iter_type);
+				mono_memory_barrier ();
+				ctx->lmodule->arg_iter_type = arg_iter_type;
+				ctx->lmodule->va_list_type = va_list_type;
+			}
+
+			/* Initialize va_list */
+			va_list = LLVMBuildAlloca (builder, ctx->lmodule->va_list_type, "");
+			args [0] = convert (ctx, va_list, LLVMPointerType (LLVMInt8Type (), 0));
+			LLVMBuildCall (builder, LLVMGetNamedFunction (module, "llvm.va_start"), args, 1, "");
+
+			arg_iter = LLVMBuildAlloca (builder, ctx->lmodule->arg_iter_type, "");
+
+			/* Initialize arg_iter */
+			index [0] = LLVMConstInt (LLVMInt32Type (), 0, FALSE);
+			index [1] = LLVMConstInt (LLVMInt32Type (), 0, FALSE);
+			LLVMBuildStore (builder, convert (ctx, ctx->sig_cookie_arg, IntPtrType ()), LLVMBuildGEP (builder, arg_iter, index, 2, ""));
+			index [1] = LLVMConstInt (LLVMInt32Type (), 1, FALSE);
+			LLVMBuildStore (builder, va_list, LLVMBuildGEP (builder, arg_iter, index, 2, ""));
+
+			/* Store it into ArgumentHandle */
+			LLVMBuildStore (builder, arg_iter, convert (ctx, ctx->values [ins->sreg1], LLVMPointerType (LLVMPointerType (ctx->lmodule->arg_iter_type, 0), 0)));
+
+			//LLVM_FAILURE (ctx, "opcode oparglist");
+			break;
+		}
+#endif
+
 			/*
 			 * EXCEPTION HANDLING
 			 */
@@ -4354,6 +4437,10 @@ mono_llvm_emit_method (MonoCompile *cfg)
 		values [cfg->args [0]->dreg] = LLVMGetParam (method, sinfo.this_arg_pindex);
 		LLVMSetValueName (values [cfg->args [0]->dreg], "this");
 	}
+	if (!sig->pinvoke && (sig->call_convention == MONO_CALL_VARARG)) {
+		ctx->sig_cookie_arg = LLVMGetParam (method, sinfo.sig_cookie_pindex);
+		LLVMSetValueName (ctx->sig_cookie_arg, "vararg_sig");
+	}
 
 	names = g_new (char *, sig->param_count);
 	mono_method_get_param_names (cfg->method, (const char **) names);
@@ -4634,10 +4721,12 @@ mono_llvm_emit_call (MonoCompile *cfg, MonoCallInst *call)
 	if (cfg->disable_llvm)
 		return;
 
+#ifndef MONO_ARCH_HAVE_ABI_VARARGS
 	if (sig->call_convention == MONO_CALL_VARARG) {
 		cfg->exception_message = g_strdup ("varargs");
 		cfg->disable_llvm = TRUE;
 	}
+#endif
 
 	for (i = 0; i < n; ++i) {
 		MonoInst *ins;
@@ -5082,6 +5171,14 @@ add_intrinsics (LLVMModuleRef module)
 			sprintf (name, "llvm.mono.store.i%d.p0i%d", i * 8, i * 8);
 			LLVMAddFunction (module, name, LLVMFunctionType (LLVMVoidType (), arg_types, 4, FALSE));
 		}
+	}
+
+	/* Vararg intrinsics */
+	{
+		LLVMTypeRef arg_types [16];
+
+		arg_types [0] = LLVMPointerType (LLVMInt8Type (), 0);
+		AddFunc (module, "llvm.va_start", LLVMVoidType (), arg_types, 1);
 	}
 }
 

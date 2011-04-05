@@ -512,13 +512,13 @@ mono_amd64_patch (unsigned char* code, gpointer target)
 }
 
 typedef enum {
+	ArgNone,
 	ArgInIReg,
 	ArgInFloatSSEReg,
 	ArgInDoubleSSEReg,
 	ArgOnStack,
 	ArgValuetypeInReg,
-	ArgValuetypeAddrInIReg,
-	ArgNone /* only in pair_storage */
+	ArgValuetypeAddrInIReg
 } ArgStorage;
 
 typedef struct {
@@ -561,6 +561,13 @@ static AMD64_Reg_No param_regs [] = { AMD64_RDI, AMD64_RSI, AMD64_RDX, AMD64_RCX
 
  static AMD64_Reg_No return_regs [] = { AMD64_RAX, AMD64_RDX };
 #endif
+
+/* Vararg register save area, see amd64 ABI, 3.5.4 */
+typedef struct {
+	mgreg_t gregs [PARAM_REGS];
+	/* Each SSE reg is stored in 16 bytes */
+	double fregs [32];
+} Amd64RegSaveArea;
 
 static void inline
 add_general (guint32 *gr, guint32 *stack_size, ArgInfo *ainfo)
@@ -1061,9 +1068,6 @@ get_call_info (MonoGenericSharingContext *gsctx, MonoMemPool *mp, MonoMethodSign
 	}
 
 	if (!sig->pinvoke && (sig->call_convention == MONO_CALL_VARARG) && (n == 0)) {
-		gr = PARAM_REGS;
-		fr = FLOAT_PARAM_REGS;
-		
 		/* Emit the signature cookie just before the implicit arguments */
 		add_general (&gr, &stack_size, &cinfo->sig_cookie);
 	}
@@ -1081,14 +1085,6 @@ get_call_info (MonoGenericSharingContext *gsctx, MonoMemPool *mp, MonoMethodSign
 #endif
 
 		if (!sig->pinvoke && (sig->call_convention == MONO_CALL_VARARG) && (i == sig->sentinelpos)) {
-			/* We allways pass the sig cookie on the stack for simplicity */
-			/* 
-			 * Prevent implicit arguments + the sig cookie from being passed 
-			 * in registers.
-			 */
-			gr = PARAM_REGS;
-			fr = FLOAT_PARAM_REGS;
-
 			/* Emit the signature cookie just before the implicit arguments */
 			add_general (&gr, &stack_size, &cinfo->sig_cookie);
 		}
@@ -1153,9 +1149,6 @@ get_call_info (MonoGenericSharingContext *gsctx, MonoMemPool *mp, MonoMethodSign
 	}
 
 	if (!sig->pinvoke && (sig->call_convention == MONO_CALL_VARARG) && (n > 0) && (sig->sentinelpos == sig->param_count)) {
-		gr = PARAM_REGS;
-		fr = FLOAT_PARAM_REGS;
-		
 		/* Emit the signature cookie just before the implicit arguments */
 		add_general (&gr, &stack_size, &cinfo->sig_cookie);
 	}
@@ -1870,8 +1863,18 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 
 	if (!sig->pinvoke && (sig->call_convention == MONO_CALL_VARARG)) {
 		g_assert (!cfg->arch.omit_fp);
-		g_assert (cinfo->sig_cookie.storage == ArgOnStack);
-		cfg->sig_cookie = cinfo->sig_cookie.offset + ARGS_OFFSET;
+
+		/* Allocate an Amd64RegSaveArea structure */
+		offset += sizeof (Amd64RegSaveArea);
+		cfg->arch.vararg_reg_save_area_offset = -offset;
+
+		/* Allocate a MonoArchVAList structure */
+		offset += sizeof (MonoArchVAList);
+		cfg->arch.va_list_offset = -offset;
+
+		/* Allocate a MonoArchArgIterator structure */
+		offset += sizeof (MonoArchArgIterator);
+		cfg->arch.arg_iter_offset = -offset;
 	}
 
 	for (i = 0; i < sig->param_count + sig->hasthis; ++i) {
@@ -2112,7 +2115,6 @@ static void
 emit_sig_cookie (MonoCompile *cfg, MonoCallInst *call, CallInfo *cinfo)
 {
 	MonoInst *arg;
-	MonoMethodSignature *tmp_sig;
 	MonoInst *sig_arg;
 
 	if (call->tail_call)
@@ -2121,30 +2123,22 @@ emit_sig_cookie (MonoCompile *cfg, MonoCallInst *call, CallInfo *cinfo)
 	/* FIXME: Add support for signature tokens to AOT */
 	cfg->disable_aot = TRUE;
 
-	g_assert (cinfo->sig_cookie.storage == ArgOnStack);
-			
-	/*
-	 * mono_ArgIterator_Setup assumes the signature cookie is 
-	 * passed first and all the arguments which were before it are
-	 * passed on the stack after the signature. So compensate by 
-	 * passing a different signature.
-	 */
-	tmp_sig = mono_metadata_signature_dup_full (cfg->method->klass->image, call->signature);
-	tmp_sig->param_count -= call->signature->sentinelpos;
-	tmp_sig->sentinelpos = 0;
-	memcpy (tmp_sig->params, call->signature->params + call->signature->sentinelpos, tmp_sig->param_count * sizeof (MonoType*));
-
 	MONO_INST_NEW (cfg, sig_arg, OP_ICONST);
 	sig_arg->dreg = mono_alloc_ireg (cfg);
-	sig_arg->inst_p0 = tmp_sig;
+	sig_arg->inst_p0 = call->signature;
 	MONO_ADD_INS (cfg->cbb, sig_arg);
 
-	if (cfg->arch.no_pushes) {
-		MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STORE_MEMBASE_REG, AMD64_RSP, cinfo->sig_cookie.offset, sig_arg->dreg);
+	if (cinfo->sig_cookie.storage == ArgInIReg) {
+		mono_call_inst_add_outarg_reg (cfg, call, sig_arg->dreg, cinfo->sig_cookie.reg, FALSE);
 	} else {
-		MONO_INST_NEW (cfg, arg, OP_X86_PUSH);
-		arg->sreg1 = sig_arg->dreg;
-		MONO_ADD_INS (cfg->cbb, arg);
+		g_assert (cinfo->sig_cookie.storage == ArgOnStack);
+		if (cfg->arch.no_pushes) {
+			MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STORE_MEMBASE_REG, AMD64_RSP, cinfo->sig_cookie.offset, sig_arg->dreg);
+		} else {
+			MONO_INST_NEW (cfg, arg, OP_X86_PUSH);
+			arg->sreg1 = sig_arg->dreg;
+			MONO_ADD_INS (cfg->cbb, arg);
+		}
 	}
 }
 
@@ -4808,7 +4802,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			amd64_alu_membase_imm_size (code, X86_CMP, ins->sreg1, 0, 0, 4);
 			break;
 		case OP_ARGLIST: {
-			amd64_lea_membase (code, AMD64_R11, cfg->frame_reg, cfg->sig_cookie);
+			amd64_lea_membase (code, AMD64_R11, cfg->frame_reg, cfg->arch.arg_iter_offset);
 			amd64_mov_membase_reg (code, ins->sreg1, 0, AMD64_R11, sizeof(gpointer));
 			break;
 		}
@@ -4822,9 +4816,17 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			/*
 			 * The AMD64 ABI forces callers to know about varargs.
 			 */
-			if ((call->signature->call_convention == MONO_CALL_VARARG) && (call->signature->pinvoke))
-				amd64_alu_reg_reg (code, X86_XOR, AMD64_RAX, AMD64_RAX);
-			else if ((cfg->method->wrapper_type == MONO_WRAPPER_MANAGED_TO_NATIVE) && (cfg->method->klass->image != mono_defaults.corlib)) {
+			if (call->signature->call_convention == MONO_CALL_VARARG) {
+				if (call->signature->pinvoke)
+					amd64_alu_reg_reg (code, X86_XOR, AMD64_RAX, AMD64_RAX);
+				else if (call->used_fregs)
+					/* This is a managed vararg call */
+					/* FIXME: Compute precisely */
+					/* FIXME: _REG/_MEMBASE too */
+					amd64_mov_reg_imm (code, AMD64_RAX, 1);
+				else
+					amd64_alu_reg_reg (code, X86_XOR, AMD64_RAX, AMD64_RAX);
+			} else if ((cfg->method->wrapper_type == MONO_WRAPPER_MANAGED_TO_NATIVE) && (cfg->method->klass->image != mono_defaults.corlib)) {
 				/* 
 				 * Since the unmanaged calling convention doesn't contain a 
 				 * 'vararg' entry, we have to treat every pinvoke call as a
@@ -6527,7 +6529,9 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 	guint alignment_check;
 #endif
 
-	cfg->code_size =  MAX (cfg->header->code_size * 4, 10240);
+	cinfo = cfg->arch.cinfo;
+
+	cfg->code_size = MAX (cfg->header->code_size * 4, 10240);
 
 #if defined(__default_codegen__)
 	code = cfg->native_code = g_malloc (cfg->code_size);
@@ -6777,6 +6781,59 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 		amd64_mov_membase_reg (code, cfg->rgctx_var->inst_basereg, cfg->rgctx_var->inst_offset, MONO_ARCH_RGCTX_REG, sizeof(gpointer));
 	}
 
+	/* Varargs support */
+	if (cfg->arch.arg_iter_offset) {
+		int first_greg;
+		int first_freg;
+		guint8 *br [16];
+
+		/* Compute first greg used to pass optional args */
+		if (cinfo->sig_cookie.storage == ArgInIReg) {
+			for (i = 0; i < PARAM_REGS; ++i)
+				if (param_regs [i] == cinfo->sig_cookie.reg)
+					break;
+			g_assert (i < PARAM_REGS);
+			first_greg = i + 1;
+		} else {
+			first_greg = PARAM_REGS;
+		}
+
+		/* Save registers */
+		for (i = first_greg; i < PARAM_REGS; ++i)
+			amd64_mov_membase_reg (code, cfg->frame_reg, cfg->arch.vararg_reg_save_area_offset + G_STRUCT_OFFSET (Amd64RegSaveArea, gregs) + (i * sizeof (mgreg_t)), param_regs [i], sizeof (mgreg_t));
+
+		amd64_test_reg_reg (code, AMD64_RAX, AMD64_RAX);
+		br[0] = code; x86_branch8 (code, X86_CC_Z, 0, FALSE);
+		first_freg = cinfo->freg_usage;
+		for (i = first_freg; i < FLOAT_PARAM_REGS; ++i)
+			amd64_sse_movsd_membase_reg (code, cfg->frame_reg, cfg->arch.vararg_reg_save_area_offset + G_STRUCT_OFFSET (Amd64RegSaveArea, fregs) + (i * sizeof (double) * 2), i);
+		amd64_patch (br [0], code);
+
+		/* Initialize the MonoArchVAList structure on the stack */
+		/* reg save area */
+		amd64_lea_membase (code, AMD64_R11, cfg->frame_reg, cfg->arch.vararg_reg_save_area_offset);
+		amd64_mov_membase_reg (code, cfg->frame_reg, cfg->arch.va_list_offset + G_STRUCT_OFFSET (MonoArchVAList, reg_save_area), AMD64_R11, sizeof (gpointer));
+		/* overflow arg area */
+		amd64_lea_membase (code, AMD64_R11, cfg->frame_reg, ARGS_OFFSET);
+		amd64_mov_membase_reg (code, cfg->frame_reg, cfg->arch.va_list_offset + G_STRUCT_OFFSET (MonoArchVAList, overflow_arg_area), AMD64_R11, sizeof (gpointer));
+		/* gp_offset */
+		/* Start from the first reg after sig_cookie */
+		amd64_mov_membase_imm (code, cfg->frame_reg, cfg->arch.va_list_offset + G_STRUCT_OFFSET (MonoArchVAList, gp_offset), first_greg * sizeof (mgreg_t), 4);
+		/* fp_offset */
+		amd64_mov_membase_imm (code, cfg->frame_reg, cfg->arch.va_list_offset + G_STRUCT_OFFSET (MonoArchVAList, fp_offset), G_STRUCT_OFFSET (Amd64RegSaveArea, fregs) + first_freg * sizeof (double) * 2, 4);
+
+		/* Initialize the MonoArchArgIterator structure on the stack */
+		/* sig */
+		if (cinfo->sig_cookie.storage == ArgInIReg)
+			amd64_mov_reg_reg (code, AMD64_R11, cinfo->sig_cookie.reg, sizeof (gpointer));
+		else
+			amd64_mov_reg_membase (code, AMD64_R11, cfg->frame_reg, cfg->sig_cookie, sizeof (gpointer));
+		amd64_mov_membase_reg (code, cfg->frame_reg, cfg->arch.arg_iter_offset + G_STRUCT_OFFSET (MonoArchArgIterator, sig), AMD64_R11, sizeof (gpointer));
+		/* va_list */
+		amd64_lea_membase (code, AMD64_R11, cfg->frame_reg, cfg->arch.va_list_offset);
+		amd64_mov_membase_reg (code, cfg->frame_reg, cfg->arch.arg_iter_offset + G_STRUCT_OFFSET (MonoArchArgIterator, va_list), AMD64_R11, sizeof (gpointer));
+	}
+
 	/* compute max_length in order to use short forward jumps */
 	max_epilog_size = get_max_epilog_size (cfg);
 	if (cfg->opt & MONO_OPT_BRANCH) {
@@ -6818,8 +6875,6 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 
 	sig = mono_method_signature (method);
 	pos = 0;
-
-	cinfo = cfg->arch.cinfo;
 
 	if (sig->ret->type != MONO_TYPE_VOID) {
 		/* Save volatile arguments to the stack */
@@ -8637,3 +8692,81 @@ mono_arch_get_seq_point_info (MonoDomain *domain, guint8 *code)
 }
 
 #endif
+
+/*
+ * Varargs implementation for amd64:
+ *
+ * - the current ArgIterator code in icall.c assumes that all arguments are passed
+ *   sequentially on the stack right next to the signature cookie. To be able to work
+ *   with LLVM, we use the amd64 abi instead. We initialize a va_list structure in the
+ *   prolog, and pack its address, along with the signature cookie, into a
+ *   MonoArchArgIterator structure, which is passed to ArgIterator.Setup ().
+ */
+
+void
+mono_arch_argiterator_setup (MonoArgIterator *iter, char *argsp, char *start)
+{
+	MonoArchArgIterator *aiter = (MonoArchArgIterator*)argsp;
+
+	iter->sig = aiter->sig;
+
+	// FIXME: What 'start' does ?
+	g_assert (!start);
+
+	/* Store the va_list pointer here */
+	iter->args = aiter->va_list;
+
+	g_assert (iter->sig->sentinelpos <= iter->sig->param_count);
+	g_assert (iter->sig->call_convention == MONO_CALL_VARARG);
+
+	iter->next_arg = 0;
+	iter->num_args = iter->sig->param_count - iter->sig->sentinelpos;
+}
+
+MonoTypedRef
+mono_arch_argiterator_int_get_next_arg (MonoArgIterator *iter, int pos)
+{
+	guint32 arg_size;
+	gint32 align;
+	MonoTypedRef res;
+	MonoArchVAList *va_list = iter->args;
+
+	/* Based on mono_ArgIterator_IntGetNextArg */
+
+	res.type = iter->sig->params [pos];
+	res.klass = mono_class_from_mono_type (res.type);
+	arg_size = mono_type_stack_size (res.type, &align);
+	if (!res.type->byref && (res.type->type == MONO_TYPE_R4 || res.type->type == MONO_TYPE_R8)) {
+		/* FP */
+		// FIXME: fp aggregates
+		if (va_list->fp_offset + arg_size <= (PARAM_REGS * sizeof (mgreg_t)) + FLOAT_PARAM_REGS * 16) {
+			res.value = (guint8*)va_list->reg_save_area + va_list->fp_offset;
+			va_list->fp_offset += 16;
+		} else {
+			res.value = (guint8*)va_list->overflow_arg_area;
+			va_list->overflow_arg_area += arg_size;
+		}
+	} else {
+		/* INT */
+		if (va_list->gp_offset + arg_size <= PARAM_REGS * sizeof (mgreg_t)) {
+			res.value = (guint8*)va_list->reg_save_area + va_list->gp_offset;
+			va_list->gp_offset += arg_size;
+		} else {
+			res.value = (guint8*)va_list->overflow_arg_area;
+			va_list->overflow_arg_area += arg_size;
+		}
+	}
+
+#if G_BYTE_ORDER != G_LITTLE_ENDIAN
+	if (arg_size <= sizeof (gpointer)) {
+		int dummy;
+		int padding = arg_size - mono_type_size (res.type, &dummy);
+		res.value = (guint8*)res.value + padding;
+	}
+#endif
+
+	/* g_print ("returning arg %d, type 0x%02x of size %d at %p\n", i, res.type->type, arg_size, res.value); */
+
+	return res;
+}
+

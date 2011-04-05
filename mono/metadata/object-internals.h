@@ -570,6 +570,8 @@ typedef struct {
 	gpointer (*get_vtable_trampoline) (int slot_index);
 	gpointer (*get_imt_trampoline) (int imt_slot_index);
 	void (*set_cast_details) (MonoClass *from, MonoClass *to);
+	void (*argiterator_setup) (MonoArgIterator *iter, char *argsp, char *start);
+	MonoTypedRef (*argiterator_int_get_next_arg) (MonoArgIterator *iter, int pos);
 } MonoRuntimeCallbacks;
 
 typedef gboolean (*MonoInternalStackWalk) (MonoStackFrameInfo *frame, MonoContext *ctx, gpointer data);

@@ -184,6 +184,9 @@ typedef struct MonoCompileArch {
 	gint32 reg_save_area_offset;
 	gint32 stack_alloc_size;
 	gint32 sp_fp_offset;
+	gint32 vararg_reg_save_area_offset;
+	gint32 va_list_offset;
+	gint32 arg_iter_offset;
 	gboolean omit_fp, omit_fp_computed, no_pushes;
 	gpointer cinfo;
 	gint32 async_point_count;
@@ -194,6 +197,15 @@ typedef struct MonoCompileArch {
 	gpointer ss_trigger_page_var;
 	gpointer lmf_var;
 } MonoCompileArch;
+
+/* va_list structure from AMD64 ABI, section 3.5.6 */
+typedef struct
+{
+	unsigned int gp_offset;
+	unsigned int fp_offset;
+	guint8 *overflow_arg_area;
+	guint8 *reg_save_area;
+} MonoArchVAList;
 
 #define MONO_CONTEXT_SET_LLVM_EXC_REG(ctx, exc) do { (ctx)->rax = (gsize)exc; } while (0)
 
@@ -378,6 +390,7 @@ typedef struct MonoCompileArch {
 #define MONO_ARCH_HAVE_SETUP_RESUME_FROM_SIGNAL_HANDLER_CTX 1
 #define MONO_ARCH_GC_MAPS_SUPPORTED 1
 #define MONO_ARCH_HAVE_CONTEXT_SET_INT_REG 1
+#define MONO_ARCH_HAVE_VARARGS 1
 
 gboolean
 mono_amd64_tail_call_supported (MonoMethodSignature *caller_sig, MonoMethodSignature *callee_sig) MONO_INTERNAL;

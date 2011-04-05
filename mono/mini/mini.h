@@ -982,6 +982,19 @@ typedef struct {
 	MonoContext ctx; /* if debugger_invoke is TRUE */
 } MonoLMFExt;
 
+/*
+ * For platforms implementing their own arg iterator routines.
+ * This structure encapsulates both the signature and the platform specific va_list
+ * structure. It should be initialized in the prolog, and OP_ARGLIST should store its
+ * address into the RuntimeArgumentHandle structure.
+ */
+typedef struct
+{
+	MonoMethodSignature *sig;
+	/* Platform specific */
+	gpointer va_list;
+} MonoArchArgIterator;
+
 typedef enum {
 #define PATCH_INFO(a,b) MONO_PATCH_INFO_ ## a,
 #include "patch-info.h"
@@ -2005,6 +2018,8 @@ guint8*   mono_arch_emit_load_got_addr          (guint8 *start, guint8 *code, Mo
 guint8*   mono_arch_emit_load_aotconst          (guint8 *start, guint8 *code, MonoJumpInfo **ji, int tramp_type, gconstpointer target) MONO_INTERNAL;
 GSList*   mono_arch_get_cie_program             (void) MONO_INTERNAL;
 void      mono_arch_set_target                  (char *mtriple) MONO_INTERNAL;
+void      mono_arch_argiterator_setup           (MonoArgIterator *iter, char *argsp, char *start) MONO_INTERNAL;
+MonoTypedRef mono_arch_argiterator_int_get_next_arg (MonoArgIterator *iter, int pos) MONO_INTERNAL;
 
 /* Soft Debug support */
 #ifdef MONO_ARCH_SOFT_DEBUG_SUPPORTED
