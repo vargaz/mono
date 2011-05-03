@@ -119,7 +119,15 @@ typedef struct MonoCompileArch {
 	gpointer seq_point_bp_method_var;
 	gboolean omit_fp, omit_fp_computed;
 	gpointer cinfo;
+	gint32 va_list_offset;
+	gint32 arg_iter_offset;
 } MonoCompileArch;
+
+/* va_list structure from AAPCS, section 7.1.4 */
+typedef struct
+{
+	guint8 *ap;
+} MonoArchVAList;
 
 #define MONO_ARCH_EMULATE_FCONV_TO_I8 1
 #define MONO_ARCH_EMULATE_LCONV_TO_R8 1
@@ -162,6 +170,7 @@ typedef struct MonoCompileArch {
 #define MONO_ARCH_HAVE_GET_TRAMPOLINES 1
 #define MONO_ARCH_HAVE_CONTEXT_SET_INT_REG 1
 #define MONO_ARCH_HAVE_SIGCTX_TO_MONOCTX 1
+#define MONO_ARCH_HAVE_ABI_VARARGS 1
 
 /* Matches the HAVE_AEABI_READ_TP define in mini-arm.c */
 #if defined(__ARM_EABI__) && defined(__linux__) && !defined(PLATFORM_ANDROID)

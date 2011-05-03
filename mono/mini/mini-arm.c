@@ -1010,9 +1010,6 @@ get_call_info (MonoGenericSharingContext *gsctx, MonoMemPool *mp, MonoMethodSign
 	DEBUG(printf("params: %d\n", sig->param_count));
 	for (i = pstart; i < sig->param_count; ++i) {
 		if ((sig->call_convention == MONO_CALL_VARARG) && (i == sig->sentinelpos)) {
-			/* Prevent implicit arguments and sig_cookie from
-			   being passed in registers */
-			gr = ARMREG_R3 + 1;
 			/* Emit the signature cookie just before the implicit arguments */
 			add_general (&gr, &stack_size, &cinfo->sig_cookie, TRUE);
 		}
@@ -1131,9 +1128,6 @@ get_call_info (MonoGenericSharingContext *gsctx, MonoMemPool *mp, MonoMethodSign
 
 	/* Handle the case where there are no implicit arguments */
 	if ((sig->call_convention == MONO_CALL_VARARG) && (i == sig->sentinelpos)) {
-		/* Prevent implicit arguments and sig_cookie from
-		   being passed in registers */
-		gr = ARMREG_R3 + 1;
 		/* Emit the signature cookie just before the implicit arguments */
 		add_general (&gr, &stack_size, &cinfo->sig_cookie, TRUE);
 	}
@@ -1499,6 +1493,20 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 		//g_print ("allocating local %d to %d\n", i, inst->inst_offset);
 	}
 
+	if (!sig->pinvoke && (sig->call_convention == MONO_CALL_VARARG)) {
+		g_assert (!cfg->arch.omit_fp);
+
+		/* Allocate a MonoArchVAList structure */
+		cfg->arch.va_list_offset = offset;
+		offset += sizeof (MonoArchVAList);
+
+		/* Allocate a MonoArchArgIterator structure */
+		cfg->arch.arg_iter_offset = offset;
+		offset += sizeof (MonoArchArgIterator);
+	} else {
+		cfg->arch.arg_iter_offset = -1;
+	}
+
 	curinst = 0;
 	if (sig->hasthis) {
 		ins = cfg->args [curinst];
@@ -1512,17 +1520,6 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 		}
 		curinst++;
 	}
-
-	if (sig->call_convention == MONO_CALL_VARARG) {
-		size = 4;
-		align = 4;
-
-		/* Allocate a local slot to hold the sig cookie address */
-		offset += align - 1;
-		offset &= ~(align - 1);
-		cfg->sig_cookie = offset;
-		offset += size;
-	}			
 
 	for (i = 0; i < sig->param_count; ++i) {
 		ins = cfg->args [curinst];
@@ -1619,8 +1616,6 @@ emit_sig_cookie (MonoCompile *cfg, MonoCallInst *call, CallInfo *cinfo)
 	/* FIXME: Add support for signature tokens to AOT */
 	cfg->disable_aot = TRUE;
 
-	g_assert (cinfo->sig_cookie.storage == RegTypeBase);
-			
 	/*
 	 * mono_ArgIterator_Setup assumes the signature cookie is 
 	 * passed first and all the arguments which were before it are
@@ -1637,7 +1632,12 @@ emit_sig_cookie (MonoCompile *cfg, MonoCallInst *call, CallInfo *cinfo)
 	sig_arg->inst_p0 = tmp_sig;
 	MONO_ADD_INS (cfg->cbb, sig_arg);
 
-	MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STORE_MEMBASE_REG, ARMREG_SP, cinfo->sig_cookie.offset, sig_arg->dreg);
+	if (cinfo->sig_cookie.storage == RegTypeGeneral) {
+		mono_call_inst_add_outarg_reg (cfg, call, sig_arg->dreg, cinfo->sig_cookie.reg, FALSE);
+	} else {
+		g_assert (cinfo->sig_cookie.storage == RegTypeBase);
+		MONO_EMIT_NEW_STORE_MEMBASE (cfg, OP_STORE_MEMBASE_REG, ARMREG_SP, cinfo->sig_cookie.offset, sig_arg->dreg);
+	}
 }
 
 #ifdef ENABLE_LLVM
@@ -1680,15 +1680,15 @@ mono_arch_get_llvm_call_info (MonoCompile *cfg, MonoMethodSignature *sig)
 		case RegTypeGeneral:
 		case RegTypeIRegPair:
 		case RegTypeBase:
-			linfo->args [i].storage = LLVMArgInIReg;
+			linfo->args [i].storage = LLVMRegTypeGeneral;
 			break;
 		case RegTypeStructByVal:
 			// FIXME: Passing entirely on the stack or split reg/stack
 			if (ainfo->vtsize == 0 && ainfo->size <= 2) {
 				linfo->args [i].storage = LLVMArgVtypeInReg;
-				linfo->args [i].pair_storage [0] = LLVMArgInIReg;
+				linfo->args [i].pair_storage [0] = LLVMRegTypeGeneral;
 				if (ainfo->size == 2)
-					linfo->args [i].pair_storage [1] = LLVMArgInIReg;
+					linfo->args [i].pair_storage [1] = LLVMRegTypeGeneral;
 				else
 					linfo->args [i].pair_storage [1] = LLVMArgNone;
 			} else {
@@ -4059,8 +4059,9 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			ARM_LDRB_IMM (code, ARMREG_LR, ins->sreg1, 0);
 			break;
 		case OP_ARGLIST: {
-			g_assert (cfg->sig_cookie < 128);
-			ARM_LDR_IMM (code, ARMREG_IP, cfg->frame_reg, cfg->sig_cookie);
+			g_assert (cfg->arch.arg_iter_offset < 128);
+			/* The ArgList structure will contain the address of the MonoArchArgIter structure */
+			code = emit_big_add (code, ARMREG_IP, cfg->frame_reg, cfg->arch.arg_iter_offset);
 			ARM_STR_IMM (code, ARMREG_IP, ins->sreg1, 0);
 			break;
 		}
@@ -4923,6 +4924,12 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 	pos = 0;
 	prev_sp_offset = 0;
 
+	if (cfg->arch.arg_iter_offset != -1) {
+		/* Save argument registers right next to the arguments received on the stack */
+		ARM_PUSH (code, (1 << ARMREG_R0) | (1 << ARMREG_R1) | (1 << ARMREG_R2) | (1 << ARMREG_R3));
+		prev_sp_offset += 4 * sizeof (mgreg_t);
+	}
+
 	if (!method->save_lmf) {
 		if (iphone_abi) {
 			/* 
@@ -5008,6 +5015,36 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 	//g_print ("prev_sp_offset: %d, alloc_size:%d\n", prev_sp_offset, alloc_size);
 	prev_sp_offset += alloc_size;
 
+	cinfo = get_call_info (cfg->generic_sharing_context, NULL, sig);
+
+	/* Varargs support */
+	if (cfg->arch.arg_iter_offset != -1) {
+		int first_greg;
+
+		/* Compute first greg used to pass optional args */
+		if (cinfo->sig_cookie.storage == RegTypeGeneral) {
+			first_greg = cinfo->sig_cookie.reg + 1;
+		} else {
+			first_greg = PARAM_REGS;
+		}
+
+		/* Initialize the MonoArchVAList structure on the stack */
+		// FIXME:
+		code = emit_big_add (code, ARMREG_IP, ARMREG_SP, prev_sp_offset - ((4 - first_greg) * sizeof (mgreg_t)));
+		ARM_STR_IMM_GENERAL (code, ARMREG_IP, cfg->frame_reg, cfg->arch.va_list_offset + G_STRUCT_OFFSET (MonoArchVAList, ap), ARMREG_LR);
+
+		/* Initialize the MonoArchArgIterator structure on the stack */
+		/* sig */
+		if (cinfo->sig_cookie.storage == RegTypeGeneral)
+			ARM_MOV_REG_REG (code, ARMREG_IP, cinfo->sig_cookie.reg);
+		else
+			ARM_LDR_IMM_GENERAL (code, ARMREG_IP, cfg->frame_reg, cfg->sig_cookie, ARMREG_LR);
+		ARM_STR_IMM_GENERAL (code, ARMREG_IP, cfg->frame_reg, cfg->arch.arg_iter_offset + G_STRUCT_OFFSET (MonoArchArgIterator, sig), ARMREG_LR);
+		/* va_list */
+		code = emit_big_add (code, ARMREG_IP, cfg->frame_reg, cfg->arch.va_list_offset);
+		ARM_STR_IMM_GENERAL (code, ARMREG_IP, cfg->frame_reg, cfg->arch.arg_iter_offset + G_STRUCT_OFFSET (MonoArchArgIterator, va_list), ARMREG_LR);
+	}
+
         /* compute max_offset in order to use short forward jumps
 	 * we could skip do it on arm because the immediate displacement
 	 * for jumps is large enough, it may be useful later for constant pools
@@ -5041,25 +5078,11 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 	/* load arguments allocated to register from the stack */
 	pos = 0;
 
-	cinfo = get_call_info (cfg->generic_sharing_context, NULL, sig);
-
 	if (MONO_TYPE_ISSTRUCT (sig->ret) && cinfo->ret.storage != RegTypeStructByVal) {
 		ArgInfo *ainfo = &cinfo->ret;
 		inst = cfg->vret_addr;
 		g_assert (arm_is_imm12 (inst->inst_offset));
 		ARM_STR_IMM (code, ainfo->reg, inst->inst_basereg, inst->inst_offset);
-	}
-
-	if (sig->call_convention == MONO_CALL_VARARG) {
-		ArgInfo *cookie = &cinfo->sig_cookie;
-
-		/* Save the sig cookie address */
-		g_assert (cookie->storage == RegTypeBase);
-
-		g_assert (arm_is_imm12 (prev_sp_offset + cookie->offset));
-		g_assert (arm_is_imm12 (cfg->sig_cookie));
-		ARM_ADD_REG_IMM8 (code, ARMREG_IP, cfg->frame_reg, prev_sp_offset + cookie->offset);
-		ARM_STR_IMM (code, ARMREG_IP, cfg->frame_reg, cfg->sig_cookie);
 	}
 
 	for (i = 0; i < sig->param_count + sig->hasthis; ++i) {
@@ -5385,10 +5408,21 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 			/* Restore saved gregs */
 			if (cfg->used_int_regs)
 				ARM_POP (code, cfg->used_int_regs);
-			/* Restore saved r7, restore LR to PC */
-			ARM_POP (code, (1 << ARMREG_R7) | (1 << ARMREG_PC));
+			if (cfg->arch.arg_iter_offset != -1) {
+				NOT_IMPLEMENTED;
+			} else {
+				/* Restore saved r7, restore LR to PC */
+				ARM_POP (code, (1 << ARMREG_R7) | (1 << ARMREG_PC));
+			}
 		} else {
-			ARM_POP (code, cfg->used_int_regs | (1 << ARMREG_PC));
+			if (cfg->arch.arg_iter_offset != -1) {
+				/* Have to pop the saved argument regs too */
+				ARM_POP (code, cfg->used_int_regs | (1 << ARMREG_LR));
+				ARM_ADD_REG_IMM (code, ARMREG_SP, ARMREG_SP, 4 * sizeof (mgreg_t), 0);
+				ARM_BX (code, ARMREG_LR);
+			} else {
+				ARM_POP (code, cfg->used_int_regs | (1 << ARMREG_PC));
+			}
 		}
 	}
 
@@ -6165,4 +6199,64 @@ mono_arch_set_target (char *mtriple)
 	}
 	if (strstr (mtriple, "gnueabi"))
 		eabi_supported = TRUE;
+}
+
+/*
+ * Varargs implementation for ARM:
+ *
+ * - the current ArgIterator code in icall.c assumes that all arguments are passed
+ *   sequentially on the stack right next to the signature cookie. To be able to work
+ *   with LLVM, we use the arm abi instead. We initialize a va_list structure in the
+ *   prolog, and pack its address, along with the signature cookie, into a
+ *   MonoArchArgIterator structure, which is passed to ArgIterator.Setup ().
+ */
+void
+mono_arch_argiterator_setup (MonoArgIterator *iter, char *argsp, char *start)
+{
+	MonoArchArgIterator *aiter = (MonoArchArgIterator*)argsp;
+
+	iter->sig = aiter->sig;
+
+	// FIXME: What 'start' does ?
+	g_assert (!start);
+
+	/* Store the va_list pointer here */
+	iter->args = aiter->va_list;
+
+	g_assert (iter->sig->sentinelpos <= iter->sig->param_count);
+	g_assert (iter->sig->call_convention == MONO_CALL_VARARG);
+
+	iter->next_arg = 0;
+	iter->num_args = iter->sig->param_count - iter->sig->sentinelpos;
+}
+
+MonoTypedRef
+mono_arch_argiterator_int_get_next_arg (MonoArgIterator *iter, int pos)
+{
+	guint32 arg_size;
+	gint32 align;
+	MonoTypedRef res;
+	MonoArchVAList *va_list = iter->args;
+
+	/* Based on mono_ArgIterator_IntGetNextArg */
+
+	res.type = iter->sig->params [pos];
+	res.klass = mono_class_from_mono_type (res.type);
+	arg_size = mono_type_stack_size (res.type, &align);
+	/* Have to align for doubles etc */
+	va_list->ap = (guint8*)(((gsize)va_list->ap + (align) - 1) & ~(align - 1));
+	res.value = va_list->ap;
+	va_list->ap += arg_size;
+
+#if G_BYTE_ORDER != G_LITTLE_ENDIAN
+	if (arg_size <= sizeof (gpointer)) {
+		int dummy;
+		int padding = arg_size - mono_type_size (res.type, &dummy);
+		res.value = (guint8*)res.value + padding;
+	}
+#endif
+
+	/* g_print ("returning arg %d, type 0x%02x of size %d at %p\n", i, res.type->type, arg_size, res.value); */
+
+	return res;
 }
