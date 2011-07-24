@@ -2252,6 +2252,7 @@ is_plt_patch (MonoJumpInfo *patch_info)
 	case MONO_PATCH_INFO_MONITOR_ENTER:
 	case MONO_PATCH_INFO_MONITOR_EXIT:
 	case MONO_PATCH_INFO_LLVM_IMT_TRAMPOLINE:
+	case MONO_PATCH_INFO_DIRECT_CALL:
 		return TRUE;
 	default:
 		return FALSE;
@@ -3475,6 +3476,12 @@ emit_and_reloc_code (MonoAotCompile *acfg, MonoMethod *method, guint8 *code, gui
 
 					acfg->stats.all_calls ++;
 				}
+				if (patch_info->type == MONO_PATCH_INFO_DIRECT_CALL) {
+					g_assert (!got_only);
+					direct_call = TRUE;
+					sprintf (direct_call_target, patch_info->data.name);
+					patch_info->type = MONO_PATCH_INFO_NONE;
+				}
 
 				if (!got_only && !direct_call) {
 					MonoPltEntry *plt_entry = get_plt_entry (acfg, patch_info);
@@ -3765,6 +3772,7 @@ encode_patch (MonoAotCompile *acfg, MonoJumpInfo *patch_info, guint8 *buf, guint
 	case MONO_PATCH_INFO_MONITOR_ENTER:
 	case MONO_PATCH_INFO_MONITOR_EXIT:
 	case MONO_PATCH_INFO_SEQ_POINT_INFO:
+	case MONO_PATCH_INFO_DIRECT_CALL:
 		break;
 	case MONO_PATCH_INFO_LLVM_IMT_TRAMPOLINE:
 		encode_method_ref (acfg, patch_info->data.imt_tramp->method, p, &p);
@@ -4966,6 +4974,18 @@ can_encode_patch (MonoAotCompile *acfg, MonoJumpInfo *patch_info)
 	return TRUE;
 }
 
+static gboolean
+jit_icall_direct_callable (MonoJumpInfo *patch_info)
+{
+	const char *name = patch_info->data.name;
+
+	/* The icall is required to be an exported symbol, i.e. not static or MONO_INTERNAL */
+	if (!strcmp (name, "mono_object_new_fast"))
+		return TRUE;
+	else
+		return FALSE;
+}
+
 /*
  * compile_method:
  *
@@ -5144,6 +5164,7 @@ compile_method (MonoAotCompile *acfg, MonoMethod *method)
 	}
 
 	/* Determine whenever the method has GOT slots */
+	/* Also convert some calls to direct calls if possible */
 	for (patch_info = cfg->patch_info; patch_info; patch_info = patch_info->next) {
 		switch (patch_info->type) {
 		case MONO_PATCH_INFO_GOT_OFFSET:
@@ -5154,6 +5175,11 @@ compile_method (MonoAotCompile *acfg, MonoMethod *method)
 			/* The assembly is stored in GOT slot 0 */
 			if (patch_info->data.image != acfg->image)
 				cfg->has_got_slots = TRUE;
+			break;
+		case MONO_PATCH_INFO_JIT_ICALL_ADDR:
+			/* Convert calls to some jit icalls to direct calls in static mode */
+			if (acfg->aot_opts.static_link && jit_icall_direct_callable (patch_info))
+				patch_info->type = MONO_PATCH_INFO_DIRECT_CALL;
 			break;
 		default:
 			if (!is_plt_patch (patch_info))
