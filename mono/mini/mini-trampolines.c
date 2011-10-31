@@ -15,6 +15,7 @@
 
 #include "mini.h"
 #include "debug-mini.h"
+#include "debugger-agent.h"
 
 /*
  * Address of the trampoline code.  This is used by the debugger to check
@@ -1043,6 +1044,28 @@ mono_create_handler_block_trampoline (void)
 #endif
 
 /*
+ * soft_breakpoint_trampoline:
+ *
+ *   This trampoline is used to implement sdb breakpoints in software without hardware
+ * page fault support, i.e. the seq points call this trampoline directly.
+ */
+static gpointer
+soft_breakpoint_trampoline (mgreg_t *regs, guint8 *code, gpointer *tramp_data, guint8* tramp)
+{
+	mono_debugger_agent_handle_soft_breakpoint (regs, code);
+	g_assert_not_reached ();
+	return NULL;
+}
+
+static gpointer
+soft_single_step_trampoline (mgreg_t *regs, guint8 *code, gpointer *tramp_data, guint8* tramp)
+{
+	mono_debugger_agent_handle_soft_single_step (regs, code);
+	g_assert_not_reached ();
+	return NULL;
+}
+
+/*
  * mono_get_trampoline_func:
  *
  *   Return the C function which needs to be called by the generic trampoline of type
@@ -1085,6 +1108,10 @@ mono_get_trampoline_func (MonoTrampolineType tramp_type)
 	case MONO_TRAMPOLINE_HANDLER_BLOCK_GUARD:
 		return mono_handler_block_guard_trampoline;
 #endif
+	case MONO_TRAMPOLINE_SOFT_BREAKPOINT:
+		return soft_breakpoint_trampoline;
+	case MONO_TRAMPOLINE_SOFT_SINGLE_STEP:
+		return soft_single_step_trampoline;
 	default:
 		g_assert_not_reached ();
 		return NULL;
@@ -1137,6 +1164,8 @@ mono_trampolines_init (void)
 	mono_trampoline_code [MONO_TRAMPOLINE_HANDLER_BLOCK_GUARD] = create_trampoline_code (MONO_TRAMPOLINE_HANDLER_BLOCK_GUARD);
 	mono_create_handler_block_trampoline ();
 #endif
+	mono_trampoline_code [MONO_TRAMPOLINE_SOFT_BREAKPOINT] = create_trampoline_code (MONO_TRAMPOLINE_SOFT_BREAKPOINT);
+	mono_trampoline_code [MONO_TRAMPOLINE_SOFT_SINGLE_STEP] = create_trampoline_code (MONO_TRAMPOLINE_SOFT_SINGLE_STEP);
 
 	mono_counters_register ("Calls to trampolines", MONO_COUNTER_JIT | MONO_COUNTER_INT, &trampoline_calls);
 	mono_counters_register ("JIT trampolines", MONO_COUNTER_JIT | MONO_COUNTER_INT, &jit_trampolines);
@@ -1502,7 +1531,49 @@ mono_create_monitor_exit_trampoline (void)
 #endif
 	return code;
 }
- 
+
+gpointer
+mono_create_soft_breakpoint_trampoline (void)
+{
+	static gpointer code;
+
+	if (code)
+		return code;
+
+	mono_trampolines_lock ();
+
+	if (!code) {
+		gpointer c = mono_create_specific_trampoline (NULL, MONO_TRAMPOLINE_SOFT_BREAKPOINT, mono_get_root_domain (), NULL);
+		mono_memory_barrier ();
+		code = c;
+	}
+
+	mono_trampolines_unlock ();
+
+	return code;
+}
+
+gpointer
+mono_create_soft_single_step_trampoline (void)
+{
+	static gpointer code;
+
+	if (code)
+		return code;
+
+	mono_trampolines_lock ();
+
+	if (!code) {
+		gpointer c = mono_create_specific_trampoline (NULL, MONO_TRAMPOLINE_SOFT_SINGLE_STEP, mono_get_root_domain (), NULL);
+		mono_memory_barrier ();
+		code = c;
+	}
+
+	mono_trampolines_unlock ();
+
+	return code;
+}
+
 #ifdef MONO_ARCH_LLVM_SUPPORTED
 /*
  * mono_create_llvm_imt_trampoline:
@@ -1572,8 +1643,10 @@ static const char*tramp_names [MONO_TRAMPOLINE_NUM] = {
 	"monitor_exit",
 	"vcall",
 #ifdef MONO_ARCH_HAVE_HANDLER_BLOCK_GUARD
-	"handler_block_guard"
+	"handler_block_guard",
 #endif
+	"soft_breakpoint",
+	"soft_single_step"
 };
 
 /*

@@ -4083,7 +4083,7 @@ breakpoint_matches_assembly (MonoBreakpoint *bp, MonoAssembly *assembly)
 }
 
 static void
-process_breakpoint_inner (DebuggerTlsData *tls)
+process_breakpoint_inner (DebuggerTlsData *tls, gboolean soft)
 {
 	MonoJitInfo *ji;
 	guint8 *ip;
@@ -4111,7 +4111,8 @@ process_breakpoint_inner (DebuggerTlsData *tls)
 	/* 
 	 * Skip the instruction causing the breakpoint signal.
 	 */
-	mono_arch_skip_breakpoint (ctx);
+	if (!soft)
+		mono_arch_skip_breakpoint (ctx);
 
 	if (ji->method->wrapper_type || tls->disable_breakpoints)
 		return;
@@ -4216,7 +4217,7 @@ process_breakpoint_inner (DebuggerTlsData *tls)
 
 /* Process a breakpoint/single step event after resuming from a signal handler */
 static void
-process_signal_event (void (*func) (DebuggerTlsData*))
+process_signal_event (void (*func) (DebuggerTlsData*, gboolean))
 {
 	DebuggerTlsData *tls;
 	MonoContext orig_restore_ctx, ctx;
@@ -4230,7 +4231,7 @@ process_signal_event (void (*func) (DebuggerTlsData*))
 	memcpy (&orig_restore_ctx, &tls->restore_ctx, sizeof (MonoContext));
 	memcpy (&tls->restore_ctx, &tls->handler_ctx, sizeof (MonoContext));
 
-	func (tls);
+	func (tls, FALSE);
 
 	/* This is called when resuming from a signal handler, so it shouldn't return */
 	memcpy (&ctx, &tls->restore_ctx, sizeof (MonoContext));
@@ -4341,7 +4342,7 @@ ss_depth_to_string (StepDepth depth)
 }
 
 static void
-process_single_step_inner (DebuggerTlsData *tls)
+process_single_step_inner (DebuggerTlsData *tls, gboolean soft)
 {
 	MonoJitInfo *ji;
 	guint8 *ip;
@@ -4357,7 +4358,8 @@ process_single_step_inner (DebuggerTlsData *tls)
 	ip = MONO_CONTEXT_GET_IP (ctx);
 
 	/* Skip the instruction causing the single step */
-	mono_arch_skip_single_step (ctx);
+	if (!soft)
+		mono_arch_skip_single_step (ctx);
 
 	if (suspend_count > 0) {
 		process_suspend (tls, ctx);
@@ -4516,7 +4518,7 @@ debugger_agent_single_step_from_context (MonoContext *ctx)
 	memcpy (&orig_restore_ctx, &tls->restore_ctx, sizeof (MonoContext));
 	memcpy (&tls->restore_ctx, ctx, sizeof (MonoContext));
 
-	process_single_step_inner (tls);
+	process_single_step_inner (tls, TRUE);
 
 	memcpy (ctx, &tls->restore_ctx, sizeof (MonoContext));
 	memcpy (&tls->restore_ctx, &orig_restore_ctx, sizeof (MonoContext));
@@ -4533,10 +4535,56 @@ debugger_agent_breakpoint_from_context (MonoContext *ctx)
 	memcpy (&orig_restore_ctx, &tls->restore_ctx, sizeof (MonoContext));
 	memcpy (&tls->restore_ctx, ctx, sizeof (MonoContext));
 
-	process_breakpoint_inner (tls);
+	process_breakpoint_inner (tls, TRUE);
 
 	memcpy (ctx, &tls->restore_ctx, sizeof (MonoContext));
 	memcpy (&tls->restore_ctx, &orig_restore_ctx, sizeof (MonoContext));
+}
+
+static void
+process_soft_event (mgreg_t *regs, guint8 *code, void (*func) (DebuggerTlsData*, gboolean))
+{
+	DebuggerTlsData *tls;
+	MonoContext orig_restore_ctx;
+	MonoContext ctx;
+	static void (*restore_context) (void *);
+
+	if (!restore_context)
+		restore_context = mono_get_restore_context ();
+
+	/* Create a MonoContext from the regs array */
+	memset (&ctx, 0, sizeof (MonoContext));
+#ifdef TARGET_AMD64
+	mono_regarr_to_monoctx (regs, code, &ctx);
+#else
+	NOT_IMPLEMENTED;
+#endif
+
+	tls = mono_native_tls_get_value (debugger_tls_id);
+	g_assert (tls);
+	memcpy (&orig_restore_ctx, &tls->restore_ctx, sizeof (MonoContext));
+	memcpy (&tls->restore_ctx, &ctx, sizeof (MonoContext));
+
+	(*func) (tls, TRUE);
+
+	memcpy (&ctx, &tls->restore_ctx, sizeof (MonoContext));
+	memcpy (&tls->restore_ctx, &orig_restore_ctx, sizeof (MonoContext));
+
+	/* The trampoline which called us can't restore registers */
+	restore_context (&ctx);
+	g_assert_not_reached ();
+}
+
+void
+mono_debugger_agent_handle_soft_breakpoint (mgreg_t *regs, guint8 *code)
+{
+	process_soft_event (regs, code, process_breakpoint_inner);
+}
+
+void
+mono_debugger_agent_handle_soft_single_step (mgreg_t *regs, guint8 *code)
+{
+	process_soft_event (regs, code, process_single_step_inner);
 }
 
 /*
@@ -8079,6 +8127,18 @@ gboolean
 mono_debugger_agent_debug_log_is_enabled (void)
 {
 	return FALSE;
+}
+
+void
+mono_debugger_agent_handle_soft_breakpoint (mgreg_t *regs, guint8 *code)
+{
+	g_assert_not_reached ();
+}
+
+void
+mono_debugger_agent_handle_soft_single_step (mgreg_t *regs, guint8 *code)
+{
+	g_assert_not_reached ();
 }
 
 #endif

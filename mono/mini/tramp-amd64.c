@@ -388,7 +388,7 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	guint8 *buf, *code, *tramp, *br [2], *r11_save_code, *after_r11_save_code;
 	int i, lmf_offset, offset, res_offset, arg_offset, rax_offset, tramp_offset, saved_regs_offset;
 	int saved_fpregs_offset, rbp_offset, framesize, orig_rsp_to_rbp_offset, cfa_offset;
-	gboolean has_caller;
+	gboolean has_caller, save_lmf;
 	GSList *unwind_ops = NULL;
 	MonoJumpInfo *ji = NULL;
 	const guint kMaxCodeSize = NACL_SIZE (548, 548*2);
@@ -401,6 +401,7 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 		has_caller = FALSE;
 	else
 		has_caller = TRUE;
+	save_lmf = MONO_TRAMPOLINE_TYPE_NEEDS_LMF (tramp_type);
 
 	code = buf = mono_global_codeman_reserve (kMaxCodeSize);
 
@@ -476,6 +477,11 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 		if (i == AMD64_RBP) {
 			/* RAX is already saved */
 			amd64_mov_reg_membase (code, AMD64_RAX, AMD64_RBP, rbp_offset, sizeof(mgreg_t));
+			amd64_mov_membase_reg (code, AMD64_RBP, saved_regs_offset + (i * sizeof(mgreg_t)), AMD64_RAX, sizeof(mgreg_t));
+		} else if (i == AMD64_RSP) {
+			/* Save the CFA value */
+			amd64_mov_reg_reg (code, AMD64_RAX, AMD64_RBP, 8);
+			amd64_alu_reg_imm (code, X86_ADD, AMD64_RAX, cfa_offset);
 			amd64_mov_membase_reg (code, AMD64_RBP, saved_regs_offset + (i * sizeof(mgreg_t)), AMD64_RAX, sizeof(mgreg_t));
 		} else if (i != AMD64_R11) {
 			amd64_mov_membase_reg (code, AMD64_RBP, saved_regs_offset + (i * sizeof(mgreg_t)), i, sizeof(mgreg_t));
@@ -573,23 +579,25 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 	amd64_mov_membase_reg (code, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, r14), AMD64_R14, sizeof(mgreg_t));
 	amd64_mov_membase_reg (code, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, r15), AMD64_R15, sizeof(mgreg_t));
 
-	if (aot) {
-		code = mono_arch_emit_load_aotconst (buf, code, &ji, MONO_PATCH_INFO_JIT_ICALL_ADDR, "mono_get_lmf_addr");
-	} else {
-		amd64_mov_reg_imm (code, AMD64_R11, mono_get_lmf_addr);
-	}
-	amd64_call_reg (code, AMD64_R11);
+	if (save_lmf) {
+		if (aot) {
+			code = mono_arch_emit_load_aotconst (buf, code, &ji, MONO_PATCH_INFO_JIT_ICALL_ADDR, "mono_get_lmf_addr");
+		} else {
+			amd64_mov_reg_imm (code, AMD64_R11, mono_get_lmf_addr);
+		}
+		amd64_call_reg (code, AMD64_R11);
 
-	/* Save lmf_addr */
-	amd64_mov_membase_reg (code, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, lmf_addr), AMD64_RAX, sizeof(gpointer));
-	/* Save previous_lmf */
-	/* Set the lowest bit to 1 to signal that this LMF has the ip field set */
-	amd64_mov_reg_membase (code, AMD64_R11, AMD64_RAX, 0, sizeof(gpointer));
-	amd64_alu_reg_imm_size (code, X86_ADD, AMD64_R11, 1, sizeof(gpointer));
-	amd64_mov_membase_reg (code, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, previous_lmf), AMD64_R11, sizeof(gpointer));
-	/* Set new lmf */
-	amd64_lea_membase (code, AMD64_R11, AMD64_RBP, lmf_offset);
-	amd64_mov_membase_reg (code, AMD64_RAX, 0, AMD64_R11, sizeof(gpointer));
+		/* Save lmf_addr */
+		amd64_mov_membase_reg (code, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, lmf_addr), AMD64_RAX, sizeof(gpointer));
+		/* Save previous_lmf */
+		/* Set the lowest bit to 1 to signal that this LMF has the ip field set */
+		amd64_mov_reg_membase (code, AMD64_R11, AMD64_RAX, 0, sizeof(gpointer));
+		amd64_alu_reg_imm_size (code, X86_ADD, AMD64_R11, 1, sizeof(gpointer));
+		amd64_mov_membase_reg (code, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, previous_lmf), AMD64_R11, sizeof(gpointer));
+		/* Set new lmf */
+		amd64_lea_membase (code, AMD64_R11, AMD64_RBP, lmf_offset);
+		amd64_mov_membase_reg (code, AMD64_RAX, 0, AMD64_R11, sizeof(gpointer));
+	}
 
 	/* Save LMF end */
 
@@ -634,10 +642,12 @@ mono_arch_create_generic_trampoline (MonoTrampolineType tramp_type, MonoTrampInf
 
 	/* Restore LMF */
 
-	amd64_mov_reg_membase (code, AMD64_RCX, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, previous_lmf), sizeof(gpointer));
-	amd64_alu_reg_imm_size (code, X86_SUB, AMD64_RCX, 1, sizeof(gpointer));
-	amd64_mov_reg_membase (code, AMD64_R11, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, lmf_addr), sizeof(gpointer));
-	amd64_mov_membase_reg (code, AMD64_R11, 0, AMD64_RCX, sizeof(gpointer));
+	if (save_lmf) {
+		amd64_mov_reg_membase (code, AMD64_RCX, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, previous_lmf), sizeof(gpointer));
+		amd64_alu_reg_imm_size (code, X86_SUB, AMD64_RCX, 1, sizeof(gpointer));
+		amd64_mov_reg_membase (code, AMD64_R11, AMD64_RBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, lmf_addr), sizeof(gpointer));
+		amd64_mov_membase_reg (code, AMD64_R11, 0, AMD64_RCX, sizeof(gpointer));
+	}
 
 	/* 
 	 * Save rax to the stack, after the leave instruction, this will become part of

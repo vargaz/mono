@@ -425,4 +425,6 @@ typedef struct ucontext MonoContext;
 void mono_sigctx_to_monoctx (void *sigctx, MonoContext *mctx) MONO_INTERNAL;
 void mono_monoctx_to_sigctx (MonoContext *mctx, void *sigctx) MONO_INTERNAL;
 
+void mono_regarr_to_monoctx (mgreg_t *regs, gpointer ip, MonoContext *mctx) MONO_INTERNAL;
+
 #endif /* __MONO_MONO_CONTEXT_H__ */

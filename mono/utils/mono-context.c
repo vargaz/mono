@@ -103,6 +103,7 @@ mono_monoctx_to_sigctx (MonoContext *mctx, void *sigctx)
 #elif (defined(__x86_64__) && !defined(MONO_CROSS_COMPILE)) || (defined(TARGET_AMD64)) /* defined(__i386__) */
 
 #include <mono/utils/mono-context.h>
+#include <mono/arch/amd64/amd64-codegen.h>
 
 void
 mono_sigctx_to_monoctx (void *sigctx, MonoContext *mctx)
@@ -202,6 +203,30 @@ mono_monoctx_to_sigctx (MonoContext *mctx, void *sigctx)
 	ctx->r15 = mctx->r15;
 	ctx->rip = mctx->rip;
 #endif
+}
+
+void
+mono_regarr_to_monoctx (mgreg_t *regs, gpointer ip, MonoContext *mctx)
+{
+	memset (mctx, 0, sizeof (MonoContext));
+
+	mctx->rax = regs [AMD64_RAX];
+	mctx->rbx = regs [AMD64_RBX];
+	mctx->rcx = regs [AMD64_RCX];
+	mctx->rdx = regs [AMD64_RDX];
+	mctx->rbp = regs [AMD64_RBP];
+	mctx->rsp = regs [AMD64_RSP];
+	mctx->rsi = regs [AMD64_RSI];
+	mctx->rdi = regs [AMD64_RDI];
+	mctx->r8  = regs [AMD64_R8];
+	mctx->r9  = regs [AMD64_R9];
+	mctx->r10 = regs [AMD64_R10];
+	mctx->r11 = regs [AMD64_R11];
+	mctx->r12 = regs [AMD64_R12];
+	mctx->r13 = regs [AMD64_R13];
+	mctx->r14 = regs [AMD64_R14];
+	mctx->r15 = regs [AMD64_R15];
+	mctx->rip = (mgreg_t)ip;
 }
 
 #elif defined(__s390x__)

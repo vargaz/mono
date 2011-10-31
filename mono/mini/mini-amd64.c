@@ -78,6 +78,9 @@ static gpointer ss_trigger_page;
 /* Enabled breakpoints read from this trigger page */
 static gpointer bp_trigger_page;
 
+/* Used to activate single stepping in soft-breakpoints mode */
+static volatile int ss_trigger_var = 0;
+
 /* The size of the breakpoint sequence */
 static int breakpoint_size;
 
@@ -2030,6 +2033,7 @@ mono_arch_create_vars (MonoCompile *cfg)
 	if (cfg->gen_seq_points) {
 		MonoInst *ins;
 
+		/* In soft-breakpoint mode, this will contain &ss_trigger_var */
 	    ins = mono_compile_create_var (cfg, &mono_defaults.int_class->byval_arg, OP_LOCAL);
 		ins->flags |= MONO_INST_VOLATILE;
 		cfg->arch.ss_trigger_page_var = ins;
@@ -4282,13 +4286,33 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			 * a breakpoint is hit will step to the next IL offset.
 			 */
 			if (ins->flags & MONO_INST_SINGLE_STEP_LOC) {
-				if (((guint64)ss_trigger_page >> 32) == 0)
-					amd64_mov_reg_mem (code, AMD64_R11, (guint64)ss_trigger_page, 4);
-				else {
+				if (mini_get_debug_options ()->soft_breakpoints) {
+					// FIXME: Check trigger var
 					MonoInst *var = cfg->arch.ss_trigger_page_var;
+					guint8 *buf [1];
 
 					amd64_mov_reg_membase (code, AMD64_R11, var->inst_basereg, var->inst_offset, 8);
 					amd64_alu_membase_imm_size (code, X86_CMP, AMD64_R11, 0, 0, 4);
+
+					buf [0] = code;
+					x86_branch8 (code, X86_CC_EQ, 0, TRUE);
+					mono_add_patch_info (cfg, code - cfg->native_code, MONO_PATCH_INFO_SOFT_SINGLE_STEP_TRAMPOLINE, NULL);
+					if (cfg->method->dynamic) {
+						amd64_set_reg_template (code, GP_SCRATCH_REG);
+						amd64_call_reg (code, GP_SCRATCH_REG);
+					} else {
+						amd64_call_code (code, 0);
+					}
+					amd64_patch (buf [0], code);
+				} else {
+					if (((guint64)ss_trigger_page >> 32) == 0)
+						amd64_mov_reg_mem (code, AMD64_R11, (guint64)ss_trigger_page, 4);
+					else {
+						MonoInst *var = cfg->arch.ss_trigger_page_var;
+
+						amd64_mov_reg_membase (code, AMD64_R11, var->inst_basereg, var->inst_offset, 8);
+						amd64_alu_membase_imm_size (code, X86_CMP, AMD64_R11, 0, 0, 4);
+					}
 				}
 			}
 
@@ -7106,7 +7130,12 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 		g_assert (!cfg->compile_aot);
 		g_assert (var->opcode == OP_REGOFFSET);
 
-		amd64_mov_reg_imm (code, AMD64_R11, (guint64)ss_trigger_page);
+		if (cfg->soft_breakpoints) {
+			guint64 addr = (guint64)&ss_trigger_var;
+			amd64_mov_reg_imm (code, AMD64_R11, addr);
+		} else {
+			amd64_mov_reg_imm (code, AMD64_R11, (guint64)ss_trigger_page);
+		}
 		amd64_mov_membase_reg (code, var->inst_basereg, var->inst_offset, AMD64_R11, 8);
 	}
 
@@ -8498,20 +8527,28 @@ mono_arch_set_breakpoint (MonoJitInfo *ji, guint8 *ip)
 	guint8 *code = ip;
 	guint8 *orig_code = code;
 
-	/* 
-	 * In production, we will use int3 (has to fix the size in the md 
-	 * file). But that could confuse gdb, so during development, we emit a SIGSEGV
-	 * instead.
-	 */
-	g_assert (code [0] == 0x90);
-	if (breakpoint_size == 8) {
-		amd64_mov_reg_mem (code, AMD64_R11, (guint64)bp_trigger_page, 4);
-	} else {
-		amd64_mov_reg_imm_size (code, AMD64_R11, (guint64)bp_trigger_page, 8);
-		amd64_mov_reg_membase (code, AMD64_R11, AMD64_R11, 0, 4);
-	}
+	if (mini_get_debug_options ()->soft_breakpoints) {
+		gpointer tramp = mono_create_soft_breakpoint_trampoline ();
 
-	g_assert (code - orig_code == breakpoint_size);
+		amd64_call_code (code, tramp);
+
+		g_assert (code - orig_code <= breakpoint_size);
+	} else {
+		/* 
+		 * In production, we will use int3 (has to fix the size in the md 
+		 * file). But that could confuse gdb, so during development, we emit a SIGSEGV
+		 * instead.
+		 */
+		g_assert (code [0] == 0x90);
+		if (breakpoint_size == 8) {
+			amd64_mov_reg_mem (code, AMD64_R11, (guint64)bp_trigger_page, 4);
+		} else {
+			amd64_mov_reg_imm_size (code, AMD64_R11, (guint64)bp_trigger_page, 8);
+			amd64_mov_reg_membase (code, AMD64_R11, AMD64_R11, 0, 4);
+		}
+
+		g_assert (code - orig_code == breakpoint_size);
+	}
 }
 
 /*
@@ -8566,6 +8603,7 @@ void
 mono_arch_start_single_stepping (void)
 {
 	mono_mprotect (ss_trigger_page, mono_pagesize (), 0);
+	ss_trigger_var = TRUE;
 }
 	
 /*
@@ -8577,6 +8615,7 @@ void
 mono_arch_stop_single_stepping (void)
 {
 	mono_mprotect (ss_trigger_page, mono_pagesize (), MONO_MMAP_READ);
+	ss_trigger_var = FALSE;
 }
 
 /*

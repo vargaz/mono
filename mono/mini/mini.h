@@ -1135,6 +1135,8 @@ typedef enum {
 #ifdef MONO_ARCH_HAVE_HANDLER_BLOCK_GUARD
 	MONO_TRAMPOLINE_HANDLER_BLOCK_GUARD,
 #endif
+	MONO_TRAMPOLINE_SOFT_BREAKPOINT,
+	MONO_TRAMPOLINE_SOFT_SINGLE_STEP,
 	MONO_TRAMPOLINE_NUM
 } MonoTrampolineType;
 
@@ -1145,6 +1147,10 @@ typedef enum {
 	 (t) == MONO_TRAMPOLINE_RGCTX_LAZY_FETCH ||	\
 	 (t) == MONO_TRAMPOLINE_MONITOR_ENTER ||	\
 	 (t) == MONO_TRAMPOLINE_MONITOR_EXIT)
+
+#define MONO_TRAMPOLINE_TYPE_NEEDS_LMF(t)		\
+	((t) != MONO_TRAMPOLINE_SOFT_BREAKPOINT && \
+	 (t) != MONO_TRAMPOLINE_SOFT_SINGLE_STEP)
 
 /* optimization flags */
 #define OPTFLAG(id,shift,name,descr) MONO_OPT_ ## id = 1 << shift,
@@ -1954,6 +1960,8 @@ gpointer          mono_create_monitor_enter_trampoline (void) MONO_INTERNAL;
 gpointer          mono_create_monitor_exit_trampoline (void) MONO_INTERNAL;
 gpointer          mono_create_static_rgctx_trampoline (MonoMethod *m, gpointer addr) MONO_INTERNAL;
 gpointer          mono_create_llvm_imt_trampoline (MonoDomain *domain, MonoMethod *m, int vt_offset) MONO_LLVM_INTERNAL;
+gpointer          mono_create_soft_breakpoint_trampoline (void) MONO_INTERNAL;
+gpointer          mono_create_soft_single_step_trampoline (void) MONO_INTERNAL;
 MonoVTable*       mono_find_class_init_trampoline_by_addr (gconstpointer addr) MONO_INTERNAL;
 guint32           mono_find_rgctx_lazy_fetch_trampoline_by_addr (gconstpointer addr) MONO_INTERNAL;
 gpointer          mono_magic_trampoline (mgreg_t *regs, guint8 *code, gpointer arg, guint8* tramp) MONO_INTERNAL;

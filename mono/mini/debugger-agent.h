@@ -48,4 +48,10 @@ mono_debugger_agent_debug_log (int level, MonoString *category, MonoString *mess
 gboolean
 mono_debugger_agent_debug_log_is_enabled (void) MONO_INTERNAL;
 
+void
+mono_debugger_agent_handle_soft_breakpoint (mgreg_t *regs, guint8 *code) MONO_INTERNAL;
+
+void
+mono_debugger_agent_handle_soft_single_step (mgreg_t *regs, guint8 *code) MONO_INTERNAL;
+
 #endif
