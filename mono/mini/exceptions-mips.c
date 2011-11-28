@@ -413,89 +413,70 @@ mono_arch_find_jit_info (MonoDomain *domain, MonoJitTlsData *jit_tls,
 							 mgreg_t **save_locations,
 							 StackFrameInfo *frame)
 {
-	gpointer ip = MONO_CONTEXT_GET_IP (ctx);
-	gpointer fp = MONO_CONTEXT_GET_BP (ctx);
-	guint32 sp;
-
 	memset (frame, 0, sizeof (StackFrameInfo));
 	frame->ji = ji;
-	frame->managed = FALSE;
 
 	*new_ctx = *ctx;
 
 	if (ji != NULL) {
 		int i;
-		gint32 address;
-		int offset = 0;
+		gpointer ip = MONO_CONTEXT_GET_IP (ctx);
+		mgreg_t regs [MONO_MAX_IREGS + 1];
+		guint8 *cfa;
+		guint32 unwind_info_len;
+		guint8 *unwind_info;
 
 		frame->type = FRAME_TYPE_MANAGED;
 
-		if (!ji->method->wrapper_type || ji->method->wrapper_type == MONO_WRAPPER_DYNAMIC_METHOD)
-			frame->managed = TRUE;
+		if (ji->from_aot)
+			unwind_info = mono_aot_get_unwind_info (ji, &unwind_info_len);
+		else
+			unwind_info = mono_get_cached_unwind_info (ji->used_regs, &unwind_info_len);
 
-		if (*lmf && (MONO_CONTEXT_GET_BP (ctx) >= (gpointer)(*lmf)->ebp)) {
+		for (i = 0; i < MONO_MAX_IREGS; ++i)
+			regs [i] = new_ctx->sc_regs [i];
+
+		mono_unwind_frame (unwind_info, unwind_info_len, ji->code_start, 
+						   (guint8*)ji->code_start + ji->code_size,
+						   ip, regs, MONO_MAX_IREGS,
+						   save_locations, MONO_MAX_IREGS, &cfa);
+
+		for (i = 0; i < MONO_MAX_IREGS; ++i)
+			new_ctx->sc_regs [i] = regs [i];
+		new_ctx->sc_pc = regs [mips_ra];
+		new_ctx->sc_regs [mips_sp] = (mgreg_t)cfa;
+
+		if (*lmf && (MONO_CONTEXT_GET_SP (ctx) >= (gpointer)(*lmf)->iregs [mips_sp])) {
 			/* remove any unused lmf */
-			*lmf = (*lmf)->previous_lmf;
+			*lmf = (gpointer)(((gsize)(*lmf)->previous_lmf) & ~3);
 		}
 
-		address = (char *)ip - (char *)ji->code_start;
-
-		/* My stack frame */
-		fp = MONO_CONTEXT_GET_BP (ctx);
-
-		/* Compute the previous stack frame */
-		sp = (guint32)(fp) - (short)(*(guint32 *)(ji->code_start));
-
-		/* Sanity check the frame */
-		if (!sp || (sp == 0xffffffff)
-		    || (sp & 0x07) || (sp < 64*1024)) {
-#ifdef DEBUG_EXCEPTIONS
-			g_print ("mono_arch_find_jit_info: bad stack sp=%p\n", (void *) sp);
-#endif
-			return FALSE;
-		}
-
-		if (ji->method->save_lmf && 0) {
-			/* only enable this when prologue stops emitting
-			 * normal save of s-regs when save_lmf is true.
-			 * Will have to sync with prologue code at that point.
-			 */
-			memcpy (&new_ctx->sc_fpregs,
-				(char*)sp - sizeof (float) * MONO_SAVED_FREGS,
-				sizeof (float) * MONO_SAVED_FREGS);
-			memcpy (&new_ctx->sc_regs,
-				(char*)sp - sizeof (float) * MONO_SAVED_FREGS - sizeof (gulong) * MONO_SAVED_GREGS,
-				sizeof (gulong) * MONO_SAVED_GREGS);
-		} else if (ji->used_regs) {
-			guint32 *insn;
-			guint32 mask = ji->used_regs;
-
-			/* these all happen before adjustment of fp */
-			/* Look for sw ??, ????(sp) */
-			insn = ((guint32 *)ji->code_start) + 1;
-			while (!*insn || ((*insn & 0xffe00000) == 0xafa00000) || ((*insn & 0xffe00000) == 0xffa00000)) {
-				int reg = (*insn >> 16) & 0x1f;
-				guint32 addr = (((guint32)fp) + (short)(*insn & 0x0000ffff));
-
-				mask &= ~(1 << reg);
-				if ((*insn & 0xffe00000) == 0xafa00000)
-					new_ctx->sc_regs [reg] = *(guint32 *)addr;
-				else
-					new_ctx->sc_regs [reg] = *(guint64 *)addr;
-				insn++;
-			}
-			MONO_CONTEXT_SET_SP (new_ctx, sp);
-			MONO_CONTEXT_SET_BP (new_ctx, sp);
-			/* assert that we found all registers we were supposed to */
-			g_assert (!mask);
-		}
 		/* we substract 8, so that the IP points into the call instruction */
-		MONO_CONTEXT_SET_IP (new_ctx, new_ctx->sc_regs[mips_ra] - 8);
+		MONO_CONTEXT_SET_IP (new_ctx, new_ctx->sc_pc - 8);
 
 		/* Sanity check -- we should have made progress here */
-		g_assert (new_ctx->sc_pc != ctx->sc_pc);
+		g_assert (MONO_CONTEXT_GET_SP (new_ctx) != MONO_CONTEXT_GET_SP (ctx));
 		return TRUE;
 	} else if (*lmf) {
+
+		if (((mgreg_t)(*lmf)->previous_lmf) & 2) {
+			/* 
+			 * This LMF entry is created by the soft debug code to mark transitions to
+			 * managed code done during invokes.
+			 */
+			MonoLMFExt *ext = (MonoLMFExt*)(*lmf);
+
+			g_assert (ext->debugger_invoke);
+
+			memcpy (new_ctx, &ext->ctx, sizeof (MonoContext));
+
+			*lmf = (gpointer)(((gsize)(*lmf)->previous_lmf) & ~3);
+
+			frame->type = FRAME_TYPE_DEBUGGER_INVOKE;
+
+			return TRUE;
+		}
+
 		if (!(*lmf)->method) {
 #ifdef DEBUG_EXCEPTIONS
 			g_print ("mono_arch_find_jit_info: bad lmf @ %p\n", (void *) *lmf);
@@ -518,7 +499,8 @@ mono_arch_find_jit_info (MonoDomain *domain, MonoJitTlsData *jit_tls,
 		MONO_CONTEXT_SET_IP (new_ctx, (*lmf)->eip);
 		/* ensure that we've made progress */
 		g_assert (new_ctx->sc_pc != ctx->sc_pc);
-		*lmf = (*lmf)->previous_lmf;
+
+		*lmf = (gpointer)(((gsize)(*lmf)->previous_lmf) & ~3);
 
 		return TRUE;
 	}
