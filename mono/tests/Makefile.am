@@ -419,6 +419,11 @@ if ARM
 PLATFORM_DISABLED_TESTS=filter-stack.exe
 endif
 
+if MIPS
+# monitor.exe is racy
+PLATFORM_DISABLED_TESTS=filter-stack.exe monitor.exe
+endif
+
 # The two finalizer tests only work under sgen
 # gc-altstack.exe fails under boehm because it has no support for altstack
 # bug-459094.exe creates an extremely deep directory tree
