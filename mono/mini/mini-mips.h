@@ -232,6 +232,7 @@ typedef struct {
 } MonoContext;
 
 typedef struct MonoCompileArch {
+	gpointer    cinfo;
 	guint		iregs_offset;
 	guint		lmf_offset;
 	guint		local_alloc_offset;
