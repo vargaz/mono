@@ -1059,7 +1059,7 @@ get_call_info (MonoGenericSharingContext *gsctx, MonoMemPool *mp, MonoMethodSign
 	 * are sometimes made using calli without sig->hasthis set, like in the delegate
 	 * invoke wrappers.
 	 */
-	if (cinfo->vtype_retaddr && !is_pinvoke && (sig->hasthis || (sig->param_count > 0 && MONO_TYPE_IS_REFERENCE (mini_type_get_underlying_type (NULL, sig->params [0]))))) {
+	if (cinfo->vtype_retaddr && !is_pinvoke && (sig->hasthis || (sig->param_count > 0 && MONO_TYPE_IS_REFERENCE (mini_type_get_underlying_type (gsctx, sig->params [0]))))) {
 		if (sig->hasthis) {
 			add_int32_arg (cinfo, cinfo->args + n);
 			n ++;
@@ -1094,7 +1094,7 @@ get_call_info (MonoGenericSharingContext *gsctx, MonoMemPool *mp, MonoMethodSign
 			add_int32_arg (cinfo, &cinfo->sig_cookie);
 		}
 		DEBUG(printf("param %d: ", i));
-		simpletype = mini_type_get_underlying_type (NULL, sig->params [i]);
+		simpletype = mini_type_get_underlying_type (gsctx, sig->params [i]);
 		switch (simpletype->type) {
 		case MONO_TYPE_BOOLEAN:
 		case MONO_TYPE_I1:
@@ -1241,7 +1241,7 @@ get_call_info (MonoGenericSharingContext *gsctx, MonoMemPool *mp, MonoMethodSign
 	}
 
 	{
-		simpletype = mono_type_get_underlying_type (sig->ret);
+		simpletype = mini_type_get_underlying_type (gsctx, sig->ret);
 		switch (simpletype->type) {
 		case MONO_TYPE_BOOLEAN:
 		case MONO_TYPE_I1:
@@ -1458,7 +1458,7 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 	curinst = 0;
 	if (!MONO_TYPE_ISSTRUCT (sig->ret)) {
 		/* FIXME: handle long and FP values */
-		switch (mono_type_get_underlying_type (sig->ret)->type) {
+		switch (mini_type_get_underlying_type (cfg->generic_sharing_context, sig->ret)->type) {
 		case MONO_TYPE_VOID:
 			break;
 		case MONO_TYPE_R4:
@@ -5073,6 +5073,15 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 		code = mono_arch_instrument_prolog (cfg, mono_trace_enter_method, code, TRUE);
 	}
 
+	/* store runtime generic context */
+	if (cfg->rgctx_var) {
+		MonoInst *ins = cfg->rgctx_var;
+
+		g_assert (ins->opcode == OP_REGOFFSET);
+
+		g_assert (mips_is_imm16 (ins->inst_offset));
+		mips_sw (code, MONO_ARCH_RGCTX_REG, ins->inst_basereg, ins->inst_offset);
+	}
 
 	/* load arguments allocated to register from the stack */
 	pos = 0;
@@ -5312,7 +5321,7 @@ mono_arch_instrument_epilog_full (MonoCompile *cfg, void *func, void *p, gboolea
 	int save_mode = SAVE_NONE;
 	int offset;
 	MonoMethod *method = cfg->method;
-	int rtype = mono_type_get_underlying_type (mono_method_signature (method)->ret)->type;
+	int rtype = mini_type_get_underlying_type (cfg->generic_sharing_context, mono_method_signature (method)->ret)->type;
 	int save_offset = MIPS_STACK_PARAM_OFFSET;
 
 	g_assert ((save_offset & (MIPS_STACK_ALIGNMENT-1)) == 0);
@@ -5846,8 +5855,7 @@ MonoInst* mono_arch_get_domain_intrinsic (MonoCompile* cfg)
 gpointer
 mono_arch_context_get_int_reg (MonoContext *ctx, int reg)
 {
-	/* FIXME: implement */
-	g_assert_not_reached ();
+	return ctx->sc_regs [reg];
 }
 
 #ifdef MONO_ARCH_HAVE_IMT
@@ -6010,6 +6018,5 @@ mono_arch_find_imt_method (mgreg_t *regs, guint8 *code)
 MonoVTable*
 mono_arch_find_static_call_vtable (mgreg_t *regs, guint8 *code)
 {
-	NOT_IMPLEMENTED;
 	return (MonoVTable*) regs [MONO_ARCH_RGCTX_REG];
 }
