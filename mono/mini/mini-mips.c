@@ -528,7 +528,8 @@ mono_arch_get_argument_info (MonoMethodSignature *csig, int param_count, MonoJit
 	return frame_size;
 }
 
-#define MAX_ARCH_DELEGATE_PARAMS 4
+/* The delegate object plus 3 params */
+#define MAX_ARCH_DELEGATE_PARAMS (4 - 1)
 
 static gpointer
 get_delegate_invoke_impl (gboolean has_target, gboolean param_count, guint32 *code_size)
