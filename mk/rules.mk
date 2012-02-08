@@ -128,7 +128,12 @@ $(eval $(call add-cc-comp-rule,$(2)-%.o,$(srcdir)/%.c,$(2)_CFLAGS))
 # Add rules for source files in other directories
 $(foreach srcfile,$(filter ../%, $(filter-out %.h, $($(2)_SOURCES))),$(eval $(call add-cc-comp-rule,$(patsubst %.c,$(2)-%.o,$(notdir $(srcfile))),$(srcdir)/$(srcfile),$(2)_CFLAGS)))
 
+# FIXME: Link against the shared version if available unless -static is in LDFLAGS
 $(1)_REAL_LDADD := $(patsubst %.lo,%.o, $(patsubst %.la,%$(STATIC_LIB_SUFFIX),$($(2)_LDADD)))
+
+# automake uses -static to mark that the executable should be linked against
+# the static versions of libtool libs.
+$(2)_REAL_LDFLAGS := $(subst -static,,$($(2)_LDFLAGS))
 
 # Collect dependend libraries
 $(1)_LIB_DEPS := $(patsubst %.a,%$(STATIC_LIB_SUFFIX),$(filter %.a,$($(2)_LDADD)))
@@ -139,7 +144,7 @@ all-am: $(1)
 
 # The rule linking the executable
 $(1): $$($(1)_OBJECTS) $$($(1)_LIB_DEPS)
-	$(if $(V),,@echo -e "LD\\t$$@";) $(CC) -o $$@ $$($(1)_OBJECTS) $($(2)_LDFLAGS) $$($(1)_REAL_LDADD) $(LIBS)
+	$(if $(V),,@echo -e "LD\\t$$@";) $(CC) -o $$@ $$($(1)_OBJECTS) $$($(2)_REAL_LDFLAGS) $$($(1)_REAL_LDADD) $(LIBS)
 endef # add-program-rules
 
 # Add rules for each entry in $(bin/noinst_PROGRAMS)
