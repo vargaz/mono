@@ -12,9 +12,11 @@ endif
 if INCLUDED_LIBGC
 if ENABLE_MK
 libgc_libs=$(monodir)/libgc/.libs/libmonogc.a
+libgc_static_libs=$(monodir)/libgc/.libs/libmonogc-static.a
 else
 libgc_libs=$(monodir)/libgc/libmonogc.la
 libgc_static_libs=$(monodir)/libgc/libmonogc-static.la
+endif
 else
 libgc_libs=$(LIBGC_LIBS)
 libgc_static_libs=$(LIBGC_STATIC_LIBS)
@@ -178,7 +180,7 @@ buildver.h: libmini-static.$(STATIC_LIB_SUFFIX)
 mono-main.$(OBJEXT): buildver.h
 endif
 
-buildver-sgen.h: libmini-static.la
+buildver-sgen.h: libmini-static.$(STATIC_LIB_SUFFIX)
 	@echo "const char *build_date = \"`date`\";" > buildver-sgen.h
 mono_sgen-main.$(OBJEXT): buildver-sgen.h
 
