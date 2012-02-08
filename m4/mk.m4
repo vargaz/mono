@@ -47,6 +47,10 @@ echo "include @abs_top_srcdir@/mk/pre.mk"
 	# This will run after automake overriding the Makefiles	
 	AC_CONFIG_COMMANDS([mk], [
 	for file in $makefiles; do
+	   if test ! -f $file.am; then
+	   	  echo "$file has no corresponding $file.am."
+		  exit 1
+	   fi   
 	   # Convert automake conditionals to make conditionals
 	   rm -f mk.tmp
 	   sed -e 's,^if ,ifdef ,g' < $file.am > mk.tmp
