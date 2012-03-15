@@ -1028,7 +1028,9 @@ typedef enum {
 	MONO_RGCTX_INFO_METHOD_CONTEXT,
 	MONO_RGCTX_INFO_REMOTING_INVOKE_WITH_CHECK,
 	MONO_RGCTX_INFO_METHOD_DELEGATE_CODE,
-	MONO_RGCTX_INFO_CAST_CACHE
+	MONO_RGCTX_INFO_CAST_CACHE,
+	MONO_RGCTX_INFO_ARRAY_ELEMENT_SIZE,
+	MONO_RGCTX_INFO_VALUE_SIZE
 } MonoRgctxInfoType;
 
 typedef struct _MonoRuntimeGenericContextOtherInfoTemplate {
@@ -1259,6 +1261,8 @@ typedef struct {
 	guint32 next_vreg;
 
 	MonoGenericSharingContext *generic_sharing_context;
+
+	MonoGenericSharingContext gsctx;
 
 	/* For native-to-managed wrappers, the saved old domain */
 	MonoInst *orig_domain_var;
@@ -2390,6 +2394,7 @@ void mono_cfg_add_try_hole (MonoCompile *cfg, MonoExceptionClause *clause, guint
 
 void mono_cfg_set_exception (MonoCompile *cfg, int type) MONO_INTERNAL;
 gboolean mini_type_is_reference (MonoCompile *cfg, MonoType *type) MONO_INTERNAL;
+gboolean mini_type_var_is_vt (MonoCompile *cfg, MonoType *type) MONO_INTERNAL;
 
 
 /* wapihandles.c */

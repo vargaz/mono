@@ -2804,6 +2804,15 @@ mono_emit_wb_aware_memcpy (MonoCompile *cfg, MonoClass *klass, MonoInst *iargs[4
 	return TRUE;
 }
 
+static gboolean
+is_shared_vt (MonoCompile *cfg, MonoClass *klass)
+{
+	if (klass->byval_arg.type == MONO_TYPE_MVAR && cfg->gsctx.mvar_is_vt && cfg->gsctx.mvar_is_vt [klass->byval_arg.data.generic_param->num])
+		return TRUE;
+	else
+		return FALSE;
+}
+
 /*
  * Emit code to copy a valuetype of type @klass whose address is stored in
  * @src->dreg to memory whose address is stored at @dest->dreg.
@@ -2812,15 +2821,22 @@ void
 mini_emit_stobj (MonoCompile *cfg, MonoInst *dest, MonoInst *src, MonoClass *klass, gboolean native)
 {
 	MonoInst *iargs [4];
-	int n;
+	int context_used, n;
 	guint32 align = 0;
 	MonoMethod *memcpy_method;
+	MonoInst *size_ins = NULL;
 
 	g_assert (klass);
 	/*
 	 * This check breaks with spilled vars... need to handle it during verification anyway.
 	 * g_assert (klass && klass == src->klass && klass == dest->klass);
 	 */
+
+	if (is_shared_vt (cfg, klass)) {
+		g_assert (!native);
+		context_used = mono_class_check_context_used (klass);
+		size_ins = emit_get_rgctx_klass (cfg, context_used, klass, MONO_RGCTX_INFO_VALUE_SIZE);
+	} 
 
 	if (native)
 		n = mono_class_native_size (klass, &align);
@@ -2829,6 +2845,9 @@ mini_emit_stobj (MonoCompile *cfg, MonoInst *dest, MonoInst *src, MonoClass *kla
 
 	/* if native is true there should be no references in the struct */
 	if (cfg->gen_write_barriers && klass->has_references && !native) {
+		// FIXME-VT:
+		g_assert (!size_ins);
+
 		/* Avoid barriers when storing to the stack */
 		if (!((dest->opcode == OP_ADD_IMM && dest->sreg1 == cfg->frame_reg) ||
 			  (dest->opcode == OP_LDADDR))) {
@@ -2859,13 +2878,16 @@ mini_emit_stobj (MonoCompile *cfg, MonoInst *dest, MonoInst *src, MonoClass *kla
 		}
 	}
 
-	if ((cfg->opt & MONO_OPT_INTRINS) && n <= sizeof (gpointer) * 5) {
+	if (!size_ins && (cfg->opt & MONO_OPT_INTRINS) && n <= sizeof (gpointer) * 5) {
 		/* FIXME: Optimize the case when src/dest is OP_LDADDR */
 		mini_emit_memcpy (cfg, dest->dreg, 0, src->dreg, 0, n, align);
 	} else {
 		iargs [0] = dest;
 		iargs [1] = src;
-		EMIT_NEW_ICONST (cfg, iargs [2], n);
+		if (size_ins)
+			iargs [2] = size_ins;
+		else
+			EMIT_NEW_ICONST (cfg, iargs [2], n);
 		
 		memcpy_method = get_memcpy_method ();
 		mono_emit_method_call (cfg, memcpy_method, iargs, NULL);
@@ -4073,9 +4095,14 @@ mini_emit_ldelema_1_ins (MonoCompile *cfg, MonoClass *klass, MonoInst *arr, Mono
 	MonoInst *ins;
 	guint32 size;
 	int mult_reg, add_reg, array_reg, index_reg, index2_reg;
+	int context_used;
 
-	mono_class_init (klass);
-	size = mono_class_array_element_size (klass);
+	if (is_shared_vt (cfg, klass)) {
+		size = -1;
+	} else {
+		mono_class_init (klass);
+		size = mono_class_array_element_size (klass);
+	}
 
 	mult_reg = alloc_preg (cfg);
 	array_reg = arr->dreg;
@@ -4116,7 +4143,36 @@ mini_emit_ldelema_1_ins (MonoCompile *cfg, MonoClass *klass, MonoInst *arr, Mono
 
 	add_reg = alloc_ireg_mp (cfg);
 
-	MONO_EMIT_NEW_BIALU_IMM (cfg, OP_MUL_IMM, mult_reg, index2_reg, size);
+	if (size == -1) {
+		MonoInst *rgctx_ins;
+
+		/*
+		 * FIXME: Which one is faster, rgctx or this ? At least this doesn't
+		 * contain a call.
+		 */
+#if 0
+		int vtable_reg, klass_reg, size_reg;
+
+		vtable_reg = alloc_ireg (cfg);
+		klass_reg = alloc_ireg (cfg);
+		size_reg = alloc_ireg (cfg);
+		
+		MONO_EMIT_NEW_LOAD_MEMBASE_FAULT (cfg, vtable_reg, array_reg, G_STRUCT_OFFSET (MonoObject, vtable));
+		MONO_EMIT_NEW_LOAD_MEMBASE (cfg, klass_reg, vtable_reg, G_STRUCT_OFFSET (MonoVTable, klass));
+		MONO_EMIT_NEW_LOAD_MEMBASE_OP (cfg, OP_LOADI4_MEMBASE, size_reg, klass_reg, G_STRUCT_OFFSET (MonoClass, sizes));
+		MONO_EMIT_NEW_BIALU (cfg, OP_IMUL, mult_reg, index2_reg, size_reg);
+#endif
+
+		/* shared vtype */
+		g_assert (cfg->generic_sharing_context);
+		// FIXME:
+		context_used = MONO_GENERIC_CONTEXT_USED_METHOD; //mono_class_check_context_used (klass);
+		g_assert (context_used);
+		rgctx_ins = emit_get_rgctx_klass (cfg, context_used, klass, MONO_RGCTX_INFO_ARRAY_ELEMENT_SIZE);
+		MONO_EMIT_NEW_BIALU (cfg, OP_IMUL, mult_reg, index2_reg, rgctx_ins->dreg);
+	} else {
+		MONO_EMIT_NEW_BIALU_IMM (cfg, OP_MUL_IMM, mult_reg, index2_reg, size);
+	}
 	MONO_EMIT_NEW_BIALU (cfg, OP_PADD, add_reg, array_reg, mult_reg);
 	NEW_BIALU_IMM (cfg, ins, OP_PADD_IMM, add_reg, add_reg, G_STRUCT_OFFSET (MonoArray, vector));
 	ins->klass = mono_class_get_element_class (klass);
@@ -6922,14 +6978,18 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 			if (cmethod && mini_method_get_context (cmethod) &&
 					mini_method_get_context (cmethod)->method_inst) {
-				gboolean sharing_enabled = mono_class_generic_sharing_enabled (cmethod->klass);
-				MonoGenericContext *context = mini_method_get_context (cmethod);
-				gboolean context_sharable = mono_generic_context_is_sharable (context, TRUE);
-
 				g_assert (!pass_vtable);
 
-				if (sharing_enabled && context_sharable)
+				if (mono_method_is_generic_sharable_impl (cmethod, TRUE)) {
 					pass_mrgctx = TRUE;
+				} else {
+					gboolean sharing_enabled = mono_class_generic_sharing_enabled (cmethod->klass);
+					MonoGenericContext *context = mini_method_get_context (cmethod);
+					gboolean context_sharable = mono_generic_context_is_sharable (context, TRUE);
+
+					if (sharing_enabled && context_sharable)
+						pass_mrgctx = TRUE;
+				}
 			}
 
 			if (cfg->generic_sharing_context && cmethod) {
@@ -9431,7 +9491,12 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 			cfg->flags |= MONO_CFG_HAS_LDELEMA;
 
-			if (sp [1]->opcode == OP_ICONST) {
+			if (is_shared_vt (cfg, klass)) {
+				// FIXME: OP_ICONST optimization
+				addr = mini_emit_ldelema_1_ins (cfg, klass, sp [0], sp [1], TRUE);
+				EMIT_NEW_LOAD_MEMBASE_TYPE (cfg, ins, &klass->byval_arg, addr->dreg, 0);
+				ins->opcode = OP_LOADV_MEMBASE;
+			} else if (sp [1]->opcode == OP_ICONST && !is_shared_vt (cfg, klass)) {
 				int array_reg = sp [0]->dreg;
 				int index_reg = sp [1]->dreg;
 				int offset = (mono_class_array_element_size (klass) * sp [1]->inst_c0) + G_STRUCT_OFFSET (MonoArray, vector);
@@ -9500,7 +9565,12 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 				mono_emit_method_call (cfg, helper, iargs, sp [0]);
 			} else {
-				if (sp [1]->opcode == OP_ICONST) {
+				if (is_shared_vt (cfg, klass)) {
+					// FIXME: OP_ICONST optimization
+					addr = mini_emit_ldelema_1_ins (cfg, klass, sp [0], sp [1], TRUE);
+					EMIT_NEW_STORE_MEMBASE_TYPE (cfg, ins, &klass->byval_arg, addr->dreg, 0, sp [2]->dreg);
+					ins->opcode = OP_STOREV_MEMBASE;
+				} else if (sp [1]->opcode == OP_ICONST) {
 					int array_reg = sp [0]->dreg;
 					int index_reg = sp [1]->dreg;
 					int offset = (mono_class_array_element_size (klass) * sp [1]->inst_c0) + G_STRUCT_OFFSET (MonoArray, vector);

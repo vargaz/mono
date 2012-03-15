@@ -507,7 +507,9 @@ inflate_other_data (gpointer data, MonoRgctxInfoType info_type, MonoGenericConte
 	case MONO_RGCTX_INFO_VTABLE:
 	case MONO_RGCTX_INFO_TYPE:
 	case MONO_RGCTX_INFO_REFLECTION_TYPE:
-	case MONO_RGCTX_INFO_CAST_CACHE: {
+	case MONO_RGCTX_INFO_CAST_CACHE:
+	case MONO_RGCTX_INFO_ARRAY_ELEMENT_SIZE:
+	case MONO_RGCTX_INFO_VALUE_SIZE: {
 		gpointer result = mono_class_inflate_generic_type_with_mempool (temporary ? NULL : class->image,
 			data, context, &error);
 		g_assert (mono_error_ok (&error)); /*FIXME proper error handling*/
@@ -861,6 +863,10 @@ class_type_info (MonoDomain *domain, MonoClass *class, MonoRgctxInfoType info_ty
 		cache_data [1] = (gpointer)class;
 		return cache_data;
 	}
+	case MONO_RGCTX_INFO_ARRAY_ELEMENT_SIZE:
+		return GUINT_TO_POINTER (mono_class_array_element_size (class));
+	case MONO_RGCTX_INFO_VALUE_SIZE:
+		return GUINT_TO_POINTER (mono_class_value_size (class, NULL));
 	default:
 		g_assert_not_reached ();
 	}
@@ -895,7 +901,9 @@ instantiate_other_info (MonoDomain *domain, MonoRuntimeGenericContextOtherInfoTe
 	case MONO_RGCTX_INFO_STATIC_DATA:
 	case MONO_RGCTX_INFO_KLASS:
 	case MONO_RGCTX_INFO_VTABLE:
-	case MONO_RGCTX_INFO_CAST_CACHE: {
+	case MONO_RGCTX_INFO_CAST_CACHE:
+	case MONO_RGCTX_INFO_ARRAY_ELEMENT_SIZE:
+	case MONO_RGCTX_INFO_VALUE_SIZE: {
 		MonoClass *arg_class = mono_class_from_mono_type (data);
 
 		free_inflated_info (oti->info_type, data);
@@ -1043,6 +1051,8 @@ other_info_equal (gpointer data1, gpointer data2, MonoRgctxInfoType info_type)
 	case MONO_RGCTX_INFO_TYPE:
 	case MONO_RGCTX_INFO_REFLECTION_TYPE:
 	case MONO_RGCTX_INFO_CAST_CACHE:
+	case MONO_RGCTX_INFO_ARRAY_ELEMENT_SIZE:
+	case MONO_RGCTX_INFO_VALUE_SIZE:
 		return mono_class_from_mono_type (data1) == mono_class_from_mono_type (data2);
 	case MONO_RGCTX_INFO_METHOD:
 	case MONO_RGCTX_INFO_GENERIC_METHOD_CODE:
@@ -1498,6 +1508,10 @@ mono_method_is_generic_sharable_impl_full (MonoMethod *method, gboolean allow_ty
 	if (!mono_method_is_generic_impl (method))
 		return FALSE;
 
+	// FIXME:
+	if (!strcmp (method->klass->name, "Tests") && !strcmp (method->name, "swap"))
+		return TRUE;
+
 	if (method->is_inflated) {
 		MonoMethodInflated *inflated = (MonoMethodInflated*)method;
 		MonoGenericContext *context = &inflated->context;
@@ -1887,6 +1901,15 @@ mono_generic_sharing_cleanup (void)
 }
 
 gboolean
+mini_type_var_is_vt (MonoCompile *cfg, MonoType *type)
+{
+	if (cfg->gsctx.mvar_is_vt && cfg->gsctx.mvar_is_vt [type->data.generic_param->num])
+		return TRUE;
+	else
+		return FALSE;
+}
+
+gboolean
 mini_type_is_reference (MonoCompile *cfg, MonoType *type)
 {
 	if (mono_type_is_reference (type))
@@ -1894,5 +1917,5 @@ mini_type_is_reference (MonoCompile *cfg, MonoType *type)
 	if (!cfg->generic_sharing_context)
 		return FALSE;
 	/*FIXME the probably needs better handle under partial sharing*/
-	return type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR;
+	return ((type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR) && !mini_type_var_is_vt (cfg, type));
 }

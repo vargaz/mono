@@ -2040,6 +2040,7 @@ mono_allocate_stack_slots (MonoCompile *cfg, gboolean backward, guint32 *stack_s
 				}
 				/* Fall through */
 			case MONO_TYPE_VALUETYPE:
+handle_vt:
 				if (!vtype_stack_slots)
 					vtype_stack_slots = mono_mempool_alloc0 (cfg->mempool, sizeof (StackSlotInfo) * 256);
 				for (i = 0; i < nvtypes; ++i)
@@ -2081,7 +2082,15 @@ mono_allocate_stack_slots (MonoCompile *cfg, gboolean backward, guint32 *stack_s
 				if (cfg->disable_reuse_ref_stack_slots)
 					reuse_slot = FALSE;
 				break;
-
+			case MONO_TYPE_VAR:
+			case MONO_TYPE_MVAR:
+				if (mini_type_var_is_vt (cfg, t)) {
+					// FIXME-VT: the other allocation function
+					// FIXME-VT:
+					t = &mono_defaults.typed_reference_class->byval_arg;
+					goto handle_vt;
+				}
+				break;
 			default:
 				slot_info = &scalar_stack_slots [t->type];
 			}
@@ -4249,6 +4258,19 @@ mini_get_shared_method (MonoMethod *method)
 		}
 	}
 
+#if 0
+	if (!strcmp (method->klass->name, "Tests") && !strcmp (method->name, "swap")) {
+		MonoType **type_argv;
+
+		type_argv = g_new0 (MonoType*, 1);		
+		type_argv [0] = g_new0 (MonoType, 1);
+		type_argv [0]->type = MONO_TYPE_VALUETYPE;
+		// FIXME:
+		type_argv [0]->data.klass = mono_defaults.typed_reference_class;
+		shared_context.method_inst = mono_metadata_get_generic_inst (1, type_argv);
+	}
+#endif
+
     res = mono_class_inflate_generic_method (declaring_method, &shared_context);
 	if (!partial) {
 		/* The result should be an inflated method whose parent is not inflated */
@@ -4336,7 +4358,7 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 	cfg->explicit_null_checks = debug_options.explicit_null_checks;
 	cfg->soft_breakpoints = debug_options.soft_breakpoints;
 	if (try_generic_shared)
-		cfg->generic_sharing_context = (MonoGenericSharingContext*)&cfg->generic_sharing_context;
+		cfg->generic_sharing_context = (MonoGenericSharingContext*)&cfg->gsctx;
 	cfg->compile_llvm = try_llvm;
 	cfg->token_info_hash = g_hash_table_new (NULL, NULL);
 
@@ -4346,6 +4368,11 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 	if (cfg->compile_aot && !try_generic_shared && (method->is_generic || method->klass->generic_container)) {
 		cfg->exception_type = MONO_EXCEPTION_GENERIC_SHARING_FAILED;
 		return cfg;
+	}
+
+	if (!strcmp (method->klass->name, "Tests") && !strcmp (method->name, "swap")) {
+		cfg->gsctx.mvar_is_vt = g_new0 (gboolean, 1);
+		cfg->gsctx.mvar_is_vt [0] = TRUE;
 	}
 
 	if (cfg->generic_sharing_context) {

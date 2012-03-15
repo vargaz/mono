@@ -96,6 +96,7 @@ typedef struct {
  */
 typedef struct {
 	int dummy;
+	gboolean *mvar_is_vt;
 } MonoGenericSharingContext;
 
 /* Simplified DWARF location list entry */

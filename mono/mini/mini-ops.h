@@ -134,6 +134,9 @@ MINI_OP(OP_LOADX_ALIGNED_MEMBASE,  "loadx_aligned_membase", XREG, IREG, NONE)
 
 MINI_OP(OP_LOADV_MEMBASE,   "loadv_membase", VREG, IREG, NONE)
 
+/* Load a vtype of size ins->sreg2 from [base + offset] */
+MINI_OP(OP_LOADV_DYN_MEMBASE,   "loadv_dyn_membase", VREG, IREG, IREG)
+
 /* indexed loads: dreg = load at (sreg1 + sreg2)*/
 MINI_OP(OP_LOAD_MEMINDEX,  "load_memindex", IREG, IREG, IREG)
 MINI_OP(OP_LOADI1_MEMINDEX,"loadi1_memindex", IREG, IREG, IREG)
