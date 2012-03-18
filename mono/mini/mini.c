@@ -2090,9 +2090,11 @@ handle_vt:
 					t = &mono_defaults.typed_reference_class->byval_arg;
 					goto handle_vt;
 				}
+				slot_info = &scalar_stack_slots [t->type];
 				break;
 			default:
 				slot_info = &scalar_stack_slots [t->type];
+				break;
 			}
 		}
 
@@ -4373,6 +4375,7 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 	if (!strcmp (method->klass->name, "Tests") && !strcmp (method->name, "swap")) {
 		cfg->gsctx.mvar_is_vt = g_new0 (gboolean, 1);
 		cfg->gsctx.mvar_is_vt [0] = TRUE;
+		cfg->gsharedvt = TRUE;
 	}
 
 	if (cfg->generic_sharing_context) {

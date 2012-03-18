@@ -1264,6 +1264,8 @@ typedef struct {
 
 	MonoGenericSharingContext gsctx;
 
+	gboolean gsharedvt;
+
 	/* For native-to-managed wrappers, the saved old domain */
 	MonoInst *orig_domain_var;
 
@@ -2395,7 +2397,7 @@ void mono_cfg_add_try_hole (MonoCompile *cfg, MonoExceptionClause *clause, guint
 void mono_cfg_set_exception (MonoCompile *cfg, int type) MONO_INTERNAL;
 gboolean mini_type_is_reference (MonoCompile *cfg, MonoType *type) MONO_INTERNAL;
 gboolean mini_type_var_is_vt (MonoCompile *cfg, MonoType *type) MONO_INTERNAL;
-
+gboolean mini_is_gshared_vt (MonoCompile *cfg, MonoClass *klass) MONO_INTERNAL;
 
 /* wapihandles.c */
 int mini_wapi_hps (int argc, char **argv) MONO_INTERNAL;

@@ -1919,3 +1919,12 @@ mini_type_is_reference (MonoCompile *cfg, MonoType *type)
 	/*FIXME the probably needs better handle under partial sharing*/
 	return ((type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR) && !mini_type_var_is_vt (cfg, type));
 }
+
+gboolean
+mini_is_gshared_vt (MonoCompile *cfg, MonoClass *klass)
+{
+	if (klass->byval_arg.type == MONO_TYPE_MVAR && cfg->gsctx.mvar_is_vt && cfg->gsctx.mvar_is_vt [klass->byval_arg.data.generic_param->num])
+		return TRUE;
+	else
+		return FALSE;
+}

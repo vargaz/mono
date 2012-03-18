@@ -102,6 +102,14 @@
 			goto exception_exit;	\
 		}			\
 	} while (0)
+#define GSHAREDVT_FAILURE(opcode) do {		\
+		if (cfg->gsharedvt) {	\
+            if (cfg->verbose_level > 2) \
+			    printf ("gsharedvt failed for method %s.%s.%s/%d opcode %s line %d\n", method->klass->name_space, method->klass->name, method->name, method->signature->param_count, mono_opcode_name ((opcode)), __LINE__); \
+			mono_cfg_set_exception (cfg, MONO_EXCEPTION_GENERIC_SHARING_FAILED); \
+			goto exception_exit;	\
+		}			\
+	} while (0)
 #define OUT_OF_MEMORY_FAILURE do {	\
 		mono_cfg_set_exception (cfg, MONO_EXCEPTION_OUT_OF_MEMORY);		\
 		goto exception_exit;	\
@@ -2804,15 +2812,6 @@ mono_emit_wb_aware_memcpy (MonoCompile *cfg, MonoClass *klass, MonoInst *iargs[4
 	return TRUE;
 }
 
-static gboolean
-is_shared_vt (MonoCompile *cfg, MonoClass *klass)
-{
-	if (klass->byval_arg.type == MONO_TYPE_MVAR && cfg->gsctx.mvar_is_vt && cfg->gsctx.mvar_is_vt [klass->byval_arg.data.generic_param->num])
-		return TRUE;
-	else
-		return FALSE;
-}
-
 /*
  * Emit code to copy a valuetype of type @klass whose address is stored in
  * @src->dreg to memory whose address is stored at @dest->dreg.
@@ -2832,7 +2831,7 @@ mini_emit_stobj (MonoCompile *cfg, MonoInst *dest, MonoInst *src, MonoClass *kla
 	 * g_assert (klass && klass == src->klass && klass == dest->klass);
 	 */
 
-	if (is_shared_vt (cfg, klass)) {
+	if (mini_is_gshared_vt (cfg, klass)) {
 		g_assert (!native);
 		context_used = mono_class_check_context_used (klass);
 		size_ins = emit_get_rgctx_klass (cfg, context_used, klass, MONO_RGCTX_INFO_VALUE_SIZE);
@@ -4097,7 +4096,7 @@ mini_emit_ldelema_1_ins (MonoCompile *cfg, MonoClass *klass, MonoInst *arr, Mono
 	int mult_reg, add_reg, array_reg, index_reg, index2_reg;
 	int context_used;
 
-	if (is_shared_vt (cfg, klass)) {
+	if (mini_is_gshared_vt (cfg, klass)) {
 		size = -1;
 	} else {
 		mono_class_init (klass);
@@ -6657,6 +6656,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			sp--;
 			ins = *sp;
 
+			GSHAREDVT_FAILURE (*ip);
 			temp = mono_compile_create_var (cfg, type_from_stack_type (ins), OP_LOCAL);
 			EMIT_NEW_TEMPSTORE (cfg, store, temp->inst_c0, ins);
 
@@ -6685,6 +6685,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			MonoCallInst *call;
 
 			INLINE_FAILURE;
+			GSHAREDVT_FAILURE (*ip);
 
 			CHECK_OPSIZE (5);
 			if (stack_start != sp)
@@ -6753,6 +6754,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			gboolean check_this = FALSE;
 			gboolean supported_tail_call = FALSE;
 			gboolean need_seq_point = FALSE;
+
+			GSHAREDVT_FAILURE (*ip);
 
 			CHECK_OPSIZE (5);
 			token = read32 (ip + 1);
@@ -7485,6 +7488,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				if (cfg->ret) {
 					MonoType *ret_type = mono_method_signature (method)->ret;
 
+					GSHAREDVT_FAILURE (*ip);
+
 					if (seq_points && !sym_seq_points) {
 						/* 
 						 * Place a seq point here too even through the IL stack is not
@@ -8049,6 +8054,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			ip++;
 			break;
 		case CEE_CPOBJ:
+			GSHAREDVT_FAILURE (*ip);
+
 			CHECK_OPSIZE (5);
 			CHECK_STACK (2);
 			token = read32 (ip + 1);
@@ -8078,6 +8085,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 		case CEE_LDOBJ: {
 			int loc_index = -1;
 			int stloc_len = 0;
+
+			GSHAREDVT_FAILURE (*ip);
 
 			CHECK_OPSIZE (5);
 			CHECK_STACK (1);
@@ -8208,6 +8217,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			MonoInst this_ins;
 			MonoInst *alloc;
 			MonoInst *vtable_arg = NULL;
+
+			GSHAREDVT_FAILURE (*ip);
 
 			CHECK_OPSIZE (5);
 			token = read32 (ip + 1);
@@ -8441,6 +8452,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			CHECK_STACK (1);
 			--sp;
 			CHECK_OPSIZE (5);
+			GSHAREDVT_FAILURE (*ip);
 			token = read32 (ip + 1);
 			klass = mini_get_class (method, token, generic_context);
 			CHECK_TYPELOAD (klass);
@@ -8503,6 +8515,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			CHECK_STACK (1);
 			--sp;
 			CHECK_OPSIZE (5);
+			GSHAREDVT_FAILURE (*ip);
 			token = read32 (ip + 1);
 			klass = mini_get_class (method, token, generic_context);
 			CHECK_TYPELOAD (klass);
@@ -8565,6 +8578,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			CHECK_STACK (1);
 			--sp;
 			CHECK_OPSIZE (5);
+			GSHAREDVT_FAILURE (*ip);
 			token = read32 (ip + 1);
 			klass = mini_get_class (method, token, generic_context);
 			CHECK_TYPELOAD (klass);
@@ -8653,6 +8667,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			--sp;
 			val = *sp;
 			CHECK_OPSIZE (5);
+			GSHAREDVT_FAILURE (*ip);
 			token = read32 (ip + 1);
 			klass = mini_get_class (method, token, generic_context);
 			CHECK_TYPELOAD (klass);
@@ -8757,6 +8772,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			CHECK_STACK (1);
 			--sp;
 			CHECK_OPSIZE (5);
+			GSHAREDVT_FAILURE (*ip);
 			token = read32 (ip + 1);
 			klass = mini_get_class (method, token, generic_context);
 			CHECK_TYPELOAD (klass);
@@ -8796,6 +8812,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			gboolean is_special_static;
 			MonoType *ftype;
 			MonoInst *store_val = NULL;
+
+			GSHAREDVT_FAILURE (*ip);
 
 			op = *ip;
 			is_instance = (op == CEE_LDFLD || op == CEE_LDFLDA || op == CEE_STFLD);
@@ -9281,6 +9299,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			CHECK_STACK (2);
 			sp -= 2;
 			CHECK_OPSIZE (5);
+			GSHAREDVT_FAILURE (*ip);
 			token = read32 (ip + 1);
 			klass = mini_get_class (method, token, generic_context);
 			CHECK_TYPELOAD (klass);
@@ -9310,6 +9329,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 			CHECK_OPSIZE (5);
 			token = read32 (ip + 1);
+			GSHAREDVT_FAILURE (*ip);
 
 			klass = mini_get_class (method, token, generic_context);
 			CHECK_TYPELOAD (klass);
@@ -9440,6 +9460,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			if (sp [0]->type != STACK_OBJ)
 				UNVERIFIED;
 
+			GSHAREDVT_FAILURE (*ip);
+
 			cfg->flags |= MONO_CFG_HAS_LDELEMA;
 
 			klass = mini_get_class (method, read32 (ip + 1), generic_context);
@@ -9491,12 +9513,12 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 			cfg->flags |= MONO_CFG_HAS_LDELEMA;
 
-			if (is_shared_vt (cfg, klass)) {
+			if (mini_is_gshared_vt (cfg, klass)) {
 				// FIXME: OP_ICONST optimization
 				addr = mini_emit_ldelema_1_ins (cfg, klass, sp [0], sp [1], TRUE);
 				EMIT_NEW_LOAD_MEMBASE_TYPE (cfg, ins, &klass->byval_arg, addr->dreg, 0);
 				ins->opcode = OP_LOADV_MEMBASE;
-			} else if (sp [1]->opcode == OP_ICONST && !is_shared_vt (cfg, klass)) {
+			} else if (sp [1]->opcode == OP_ICONST) {
 				int array_reg = sp [0]->dreg;
 				int index_reg = sp [1]->dreg;
 				int offset = (mono_class_array_element_size (klass) * sp [1]->inst_c0) + G_STRUCT_OFFSET (MonoArray, vector);
@@ -9565,7 +9587,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 				mono_emit_method_call (cfg, helper, iargs, sp [0]);
 			} else {
-				if (is_shared_vt (cfg, klass)) {
+				if (mini_is_gshared_vt (cfg, klass)) {
 					// FIXME: OP_ICONST optimization
 					addr = mini_emit_ldelema_1_ins (cfg, klass, sp [0], sp [1], TRUE);
 					EMIT_NEW_STORE_MEMBASE_TYPE (cfg, ins, &klass->byval_arg, addr->dreg, 0, sp [2]->dreg);
@@ -9611,6 +9633,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			int klass_reg = alloc_preg (cfg);
 			int dreg = alloc_preg (cfg);
 
+			GSHAREDVT_FAILURE (*ip);
+
 			CHECK_STACK (1);
 			MONO_INST_NEW (cfg, ins, *ip);
 			--sp;
@@ -9649,6 +9673,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 		}
 		case CEE_MKREFANY: {
 			MonoInst *loc, *addr;
+
+			GSHAREDVT_FAILURE (*ip);
 
 			CHECK_STACK (1);
 			MONO_INST_NEW (cfg, ins, *ip);
@@ -9696,6 +9722,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 		case CEE_LDTOKEN: {
 			gpointer handle;
 			MonoClass *handle_class;
+
+			GSHAREDVT_FAILURE (*ip);
 
 			CHECK_STACK_OVF (1);
 
@@ -9970,6 +9998,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			 * Mono specific opcodes
 			 */
 		case MONO_CUSTOM_PREFIX: {
+
+			GSHAREDVT_FAILURE (*ip);
 
 			g_assert (method->wrapper_type != MONO_WRAPPER_NONE);
 
@@ -10385,6 +10415,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				MonoInst *argconst;
 				MonoMethod *cil_method;
 
+				GSHAREDVT_FAILURE (*ip);
+
 				CHECK_STACK_OVF (1);
 				CHECK_OPSIZE (6);
 				n = read32 (ip + 2);
@@ -10467,6 +10499,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			}
 			case CEE_LDVIRTFTN: {
 				MonoInst *args [2];
+
+				GSHAREDVT_FAILURE (*ip);
 
 				CHECK_STACK (1);
 				CHECK_OPSIZE (6);
@@ -10646,6 +10680,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				ip += 2;
 				break;
 			case CEE_INITOBJ:
+				GSHAREDVT_FAILURE (*ip);
 				CHECK_STACK (1);
 				--sp;
 				CHECK_OPSIZE (6);
@@ -10741,6 +10776,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				guint32 align;
 				int ialign;
 
+				GSHAREDVT_FAILURE (*ip);
+
 				CHECK_STACK_OVF (1);
 				CHECK_OPSIZE (6);
 				token = read32 (ip + 2);
@@ -10760,6 +10797,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			}
 			case CEE_REFANYTYPE: {
 				MonoInst *src_var, *src;
+
+				GSHAREDVT_FAILURE (*ip);
 
 				CHECK_STACK (1);
 				--sp;
