@@ -2086,8 +2086,7 @@ handle_vt:
 			case MONO_TYPE_MVAR:
 				if (mini_type_var_is_vt (cfg, t)) {
 					// FIXME-VT: the other allocation function
-					// FIXME-VT:
-					t = &mono_defaults.typed_reference_class->byval_arg;
+					t = &(mini_get_gsharedvt_alloc_type (cfg))->byval_arg;
 					goto handle_vt;
 				}
 				slot_info = &scalar_stack_slots [t->type];
@@ -4261,15 +4260,53 @@ mini_get_shared_method (MonoMethod *method)
 	}
 
 #if 0
-	if (!strcmp (method->klass->name, "Tests") && !strcmp (method->name, "swap")) {
+	if (mini_is_gsharedvt_method (method)) {
+		MonoMethodInflated *inflated;
+		MonoGenericContext *context;
+		MonoGenericInst *inst;
 		MonoType **type_argv;
+		int i;
 
-		type_argv = g_new0 (MonoType*, 1);		
-		type_argv [0] = g_new0 (MonoType, 1);
-		type_argv [0]->type = MONO_TYPE_VALUETYPE;
-		// FIXME:
-		type_argv [0]->data.klass = mono_defaults.typed_reference_class;
-		shared_context.method_inst = mono_metadata_get_generic_inst (1, type_argv);
+		g_assert (method->is_inflated);
+		inflated = (MonoMethodInflated*)method;
+		context = &inflated->context;
+
+		if (context->class_inst) {
+			inst = context->class_inst;
+			type_argv = g_new0 (MonoType*, inst->type_argc);
+			for (i = 0; i < inst->type_argc; ++i) {
+				MonoType *type = inst->type_argv [i];
+
+				if (MONO_TYPE_IS_REFERENCE (type) || (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)) {
+					type_argv [i] = shared_context.method_inst->type_argv [i];
+				} else {
+					type_argv [i] = g_new0 (MonoType, 1);
+					type_argv [i]->type = MONO_TYPE_VALUETYPE;
+					// FIXME:
+					type_argv [i]->data.klass = mono_defaults.typed_reference_class;
+				}
+			}
+			shared_context.class_inst = mono_metadata_get_generic_inst (inst->type_argc, type_argv);
+			g_free (type_argv);
+		}
+		if (context->method_inst) {
+			inst = context->method_inst;
+			type_argv = g_new0 (MonoType*, inst->type_argc);
+			for (i = 0; i < inst->type_argc; ++i) {
+				MonoType *type = inst->type_argv [i];
+
+				if (MONO_TYPE_IS_REFERENCE (type) || (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)) {
+					type_argv [i] = shared_context.method_inst->type_argv [i];
+				} else {
+					type_argv [i] = g_new0 (MonoType, 1);
+					type_argv [i]->type = MONO_TYPE_VALUETYPE;
+					// FIXME:
+					type_argv [i]->data.klass = mono_defaults.typed_reference_class;
+				}
+			}
+			shared_context.method_inst = mono_metadata_get_generic_inst (inst->type_argc, type_argv);
+			g_free (type_argv);
+		}
 	}
 #endif
 
@@ -4372,9 +4409,34 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 		return cfg;
 	}
 
-	if (!strcmp (method->klass->name, "Tests") && !strcmp (method->name, "swap")) {
-		cfg->gsctx.mvar_is_vt = g_new0 (gboolean, 1);
-		cfg->gsctx.mvar_is_vt [0] = TRUE;
+	if (cfg->generic_sharing_context && mini_is_gsharedvt_method (method)) {
+		MonoMethodInflated *inflated;
+		MonoGenericContext *context;
+		MonoGenericInst *inst;
+		int i;
+
+		g_assert (method->is_inflated);
+		inflated = (MonoMethodInflated*)method;
+		context = &inflated->context;
+
+		if (context->class_inst) {
+			// FIXME:
+			NOT_IMPLEMENTED;
+		}
+		if (context->method_inst) {
+			inst = context->method_inst;
+			cfg->gsctx.mvar_is_vt = g_new0 (gboolean, inst->type_argc);
+
+			for (i = 0; i < inst->type_argc; ++i) {
+				MonoType *type = inst->type_argv [i];
+
+				if (MONO_TYPE_IS_REFERENCE (type) || (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)) {
+				} else {
+					cfg->gsctx.mvar_is_vt [i] = TRUE;
+				}
+			}
+		}
+
 		cfg->gsharedvt = TRUE;
 	}
 

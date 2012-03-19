@@ -104,7 +104,7 @@
 	} while (0)
 #define GSHAREDVT_FAILURE(opcode) do {		\
 		if (cfg->gsharedvt) {	\
-            if (cfg->verbose_level > 2) \
+            if (TRUE || cfg->verbose_level > 2) \
 			    printf ("gsharedvt failed for method %s.%s.%s/%d opcode %s line %d\n", method->klass->name_space, method->klass->name, method->name, method->signature->param_count, mono_opcode_name ((opcode)), __LINE__); \
 			mono_cfg_set_exception (cfg, MONO_EXCEPTION_GENERIC_SHARING_FAILED); \
 			goto exception_exit;	\
@@ -2909,23 +2909,33 @@ void
 mini_emit_initobj (MonoCompile *cfg, MonoInst *dest, const guchar *ip, MonoClass *klass)
 {
 	MonoInst *iargs [3];
-	int n;
+	int n = -1, context_used;
 	guint32 align;
 	MonoMethod *memset_method;
+	MonoInst *size_ins = NULL;
 
 	/* FIXME: Optimize this for the case when dest is an LDADDR */
 
 	mono_class_init (klass);
-	n = mono_class_value_size (klass, &align);
 
-	if (n <= sizeof (gpointer) * 5) {
+	if (mini_is_gshared_vt (cfg, klass)) {
+		context_used = mono_class_check_context_used (klass);
+		size_ins = emit_get_rgctx_klass (cfg, context_used, klass, MONO_RGCTX_INFO_VALUE_SIZE);
+	} else {
+		n = mono_class_value_size (klass, &align);
+	}
+
+	if (!size_ins && n <= sizeof (gpointer) * 5) {
 		mini_emit_memset (cfg, dest->dreg, 0, n, 0, align);
 	}
 	else {
 		memset_method = get_memset_method ();
 		iargs [0] = dest;
 		EMIT_NEW_ICONST (cfg, iargs [1], 0);
-		EMIT_NEW_ICONST (cfg, iargs [2], n);
+		if (size_ins)
+			iargs [2] = size_ins;
+		else
+			EMIT_NEW_ICONST (cfg, iargs [2], n);
 		mono_emit_method_call (cfg, memset_method, iargs, NULL);
 	}
 }
@@ -3376,7 +3386,12 @@ handle_box (MonoCompile *cfg, MonoInst *val, MonoClass *klass, int context_used)
 	if (!alloc)
 		return NULL;
 
-	EMIT_NEW_STORE_MEMBASE_TYPE (cfg, ins, &klass->byval_arg, alloc->dreg, sizeof (MonoObject), val->dreg);
+	if (mini_is_gshared_vt (cfg, klass)) {
+		EMIT_NEW_STORE_MEMBASE_TYPE (cfg, ins, &klass->byval_arg, alloc->dreg, sizeof (MonoObject), val->dreg);
+		ins->opcode = OP_STOREV_MEMBASE;
+	} else {
+		EMIT_NEW_STORE_MEMBASE_TYPE (cfg, ins, &klass->byval_arg, alloc->dreg, sizeof (MonoObject), val->dreg);
+	}
 
 	return alloc;
 }
@@ -8515,7 +8530,6 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			CHECK_STACK (1);
 			--sp;
 			CHECK_OPSIZE (5);
-			GSHAREDVT_FAILURE (*ip);
 			token = read32 (ip + 1);
 			klass = mini_get_class (method, token, generic_context);
 			CHECK_TYPELOAD (klass);
@@ -8667,7 +8681,6 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			--sp;
 			val = *sp;
 			CHECK_OPSIZE (5);
-			GSHAREDVT_FAILURE (*ip);
 			token = read32 (ip + 1);
 			klass = mini_get_class (method, token, generic_context);
 			CHECK_TYPELOAD (klass);
@@ -8772,7 +8785,6 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			CHECK_STACK (1);
 			--sp;
 			CHECK_OPSIZE (5);
-			GSHAREDVT_FAILURE (*ip);
 			token = read32 (ip + 1);
 			klass = mini_get_class (method, token, generic_context);
 			CHECK_TYPELOAD (klass);
@@ -10680,7 +10692,6 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				ip += 2;
 				break;
 			case CEE_INITOBJ:
-				GSHAREDVT_FAILURE (*ip);
 				CHECK_STACK (1);
 				--sp;
 				CHECK_OPSIZE (6);

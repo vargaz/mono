@@ -1509,7 +1509,7 @@ mono_method_is_generic_sharable_impl_full (MonoMethod *method, gboolean allow_ty
 		return FALSE;
 
 	// FIXME:
-	if (!strcmp (method->klass->name, "Tests") && !strcmp (method->name, "swap"))
+	if (mini_is_gsharedvt_method (method))
 		return TRUE;
 
 	if (method->is_inflated) {
@@ -1927,4 +1927,35 @@ mini_is_gshared_vt (MonoCompile *cfg, MonoClass *klass)
 		return TRUE;
 	else
 		return FALSE;
+}
+
+/*
+ * mini_get_gsharedvt_alloc_type:
+ *
+ *   Return the type which is used to allocate locals whose type is a type param
+ * instantiated with the shared vtype.
+ */
+MonoClass*
+mini_get_gsharedvt_alloc_type (MonoCompile *cfg)
+{
+	// FIXME:
+	return mono_defaults.typed_reference_class;
+}
+
+gboolean
+mini_is_gsharedvt_method (MonoMethod *method)
+{
+	/*
+	 * A method is gshared vt if:
+	 * - it has type parameters instantiated with vtypes
+	 * - the size of the vtypes is smaller than the size of
+     *   mini_get_gsharedvt_alloc_type ().
+	 * - the vtype type params don't show up in the signature of the method, i.e.
+	 *   swap (T[] arr) is ok, while T return_t () and pass_t (T t) are not.
+	 *   This ensures that the caller doesn't have to know whenever the callee is
+	 *   gsharedvt or not, except for passing the rgctx.
+	 */
+
+	// FIXME:
+	return (!strcmp (method->klass->name, "Tests"));
 }
