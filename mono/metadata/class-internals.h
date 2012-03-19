@@ -718,6 +718,7 @@ typedef struct {
 	gulong generics_sharable_methods;
 	gulong generics_unsharable_methods;
 	gulong generics_shared_methods;
+	gulong gsharedvt_methods;
 	gulong minor_gc_count;
 	gulong major_gc_count;
 	gulong minor_gc_time_usecs;
