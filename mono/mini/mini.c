@@ -833,12 +833,11 @@ handle_enum:
 		goto handle_enum;
 	case MONO_TYPE_VAR:
 	case MONO_TYPE_MVAR:
-		/* FIXME: all the arguments must be references for now,
-		 * later look inside cfg and see if the arg num is
-		 * really a reference
-		 */
 		g_assert (cfg->generic_sharing_context);
-		return OP_STORE_MEMBASE_REG;
+		if (mini_type_var_is_vt (cfg, type))
+			return OP_STOREV_MEMBASE;
+		else
+			return OP_STORE_MEMBASE_REG;
 	default:
 		g_error ("unknown type 0x%02x in type_to_store_membase", type->type);
 	}
@@ -904,7 +903,10 @@ mono_type_to_load_membase (MonoCompile *cfg, MonoType *type)
 		 * really a reference
 		 */
 		g_assert (cfg->generic_sharing_context);
-		return OP_LOAD_MEMBASE;
+		if (mini_type_var_is_vt (cfg, type))
+			return OP_LOADV_MEMBASE;
+		else
+			return OP_LOAD_MEMBASE;
 	default:
 		g_error ("unknown type 0x%02x in type_to_load_membase", type->type);
 	}
@@ -2085,8 +2087,12 @@ handle_vt:
 			case MONO_TYPE_VAR:
 			case MONO_TYPE_MVAR:
 				if (mini_type_var_is_vt (cfg, t)) {
+					int ialign;
+
 					// FIXME-VT: the other allocation function
 					t = &(mini_get_gsharedvt_alloc_type (cfg))->byval_arg;
+					size = mono_type_size (t, &ialign);
+					align = ialign;
 					goto handle_vt;
 				}
 				slot_info = &scalar_stack_slots [t->type];
