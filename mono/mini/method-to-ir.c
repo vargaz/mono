@@ -7503,8 +7503,6 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				if (cfg->ret) {
 					MonoType *ret_type = mono_method_signature (method)->ret;
 
-					GSHAREDVT_FAILURE (*ip);
-
 					if (seq_points && !sym_seq_points) {
 						/* 
 						 * Place a seq point here too even through the IL stack is not

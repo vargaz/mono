@@ -1942,9 +1942,18 @@ mini_get_gsharedvt_alloc_type (MonoCompile *cfg)
 	return mono_defaults.typed_reference_class;
 }
 
+static gboolean
+is_variable_size (MonoType *t)
+{
+	return (t->type == MONO_TYPE_VAR || t->type == MONO_TYPE_MVAR || (t->type == MONO_TYPE_GENERICINST && t->data.generic_class->container_class->byval_arg.type == MONO_TYPE_VALUETYPE));
+}
+
 gboolean
 mini_is_gsharedvt_method (MonoMethod *method)
 {
+	MonoMethodSignature *sig;
+	int i;
+
 	/*
 	 * A method is gshared vt if:
 	 * - it has type parameters instantiated with vtypes
@@ -1955,7 +1964,53 @@ mini_is_gsharedvt_method (MonoMethod *method)
 	 *   This ensures that the caller doesn't have to know whenever the callee is
 	 *   gsharedvt or not, except for passing the rgctx.
 	 */
+	// FIXME: Relax the restrictions
+	if (method->is_inflated) {
+		MonoMethodInflated *inflated = (MonoMethodInflated*)method;
+		MonoGenericContext *context = &inflated->context;
+		MonoGenericInst *inst;
+		gboolean has_vt = FALSE;
+		gboolean large_size = FALSE;
 
-	// FIXME:
-	return (!strcmp (method->klass->name, "Tests"));
+		inst = context->class_inst;
+		if (inst)
+			return FALSE;
+
+		inst = context->method_inst;
+		if (inst) {
+			for (i = 0; i < inst->type_argc; ++i) {
+				MonoType *type = inst->type_argv [i];
+
+				if (MONO_TYPE_IS_REFERENCE (type) || (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)) {
+				} else {
+					if (mono_class_value_size (mono_class_from_mono_type (type), NULL) > mono_class_value_size (mini_get_gsharedvt_alloc_type (NULL), NULL))
+						large_size = TRUE;
+					has_vt = TRUE;
+				}
+			}
+		}
+
+		if (!has_vt || large_size)
+			return FALSE;
+	} else {
+		return FALSE;
+	}
+
+	sig = mono_method_signature (method);
+	if (!sig)
+		return FALSE;
+
+	// FIXME: Are these checks enough ?
+	if (sig->ret && is_variable_size (sig->ret))
+		return FALSE;
+	for (i = 0; i < sig->param_count; ++i) {
+		MonoType *t = sig->params [i];
+
+		if (is_variable_size (t))
+			return FALSE;
+	}
+
+	//printf ("HIT: %s\n", mono_method_full_name (method, TRUE));
+
+	return TRUE;
 }

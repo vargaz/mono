@@ -4581,6 +4581,8 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 		char *method_name;
 		if (COMPILE_LLVM (cfg))
 			g_print ("converting llvm method %s\n", method_name = mono_method_full_name (method, TRUE));
+		else if (cfg->gsharedvt)
+			g_print ("converting gsharedvt method %s\n", method_name = mono_method_full_name (method_to_compile, TRUE));
 		else if (cfg->generic_sharing_context)
 			g_print ("converting shared method %s\n", method_name = mono_method_full_name (method_to_compile, TRUE));
 		else
@@ -5486,6 +5488,8 @@ mono_jit_compile_method_inner (MonoMethod *method, MonoDomain *target_domain, in
 
 		if (cfg->generic_sharing_context && mono_method_is_generic_sharable_impl (method, FALSE))
 			mono_stats.generics_shared_methods++;
+		if (cfg->gsharedvt)
+			mono_stats.gsharedvt_methods++;
 	} else {
 		mono_domain_jit_code_hash_unlock (target_domain);
 	}
@@ -6890,6 +6894,7 @@ print_jit_stats (void)
 		g_print ("Sharable generic methods: %ld\n", mono_stats.generics_sharable_methods);
 		g_print ("Unsharable generic methods: %ld\n", mono_stats.generics_unsharable_methods);
 		g_print ("Shared generic methods: %ld\n", mono_stats.generics_shared_methods);
+		g_print ("Shared vtype generic methods: %ld\n", mono_stats.gsharedvt_methods);
 
 		g_print ("Dynamic code allocs:    %ld\n", mono_stats.dynamic_code_alloc_count);
 		g_print ("Dynamic code bytes:     %ld\n", mono_stats.dynamic_code_bytes_count);
