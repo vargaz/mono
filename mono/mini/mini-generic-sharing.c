@@ -1508,7 +1508,6 @@ mono_method_is_generic_sharable_impl_full (MonoMethod *method, gboolean allow_ty
 	if (!mono_method_is_generic_impl (method))
 		return FALSE;
 
-	// FIXME:
 	if (mini_is_gsharedvt_method (method))
 		return TRUE;
 
@@ -1948,6 +1947,27 @@ is_variable_size (MonoType *t)
 	return (t->type == MONO_TYPE_VAR || t->type == MONO_TYPE_MVAR || (t->type == MONO_TYPE_GENERICINST && t->data.generic_class->container_class->byval_arg.type == MONO_TYPE_VALUETYPE));
 }
 
+static gboolean
+inst_is_gsharedvt_sharable (MonoGenericInst *inst)
+{
+	int i;
+	gboolean has_vt = FALSE;
+	gboolean large_size = FALSE;
+
+	for (i = 0; i < inst->type_argc; ++i) {
+		MonoType *type = inst->type_argv [i];
+
+		if (MONO_TYPE_IS_REFERENCE (type) || (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)) {
+		} else {
+			if (mono_class_value_size (mono_class_from_mono_type (type), NULL) > mono_class_value_size (mini_get_gsharedvt_alloc_type (NULL), NULL))
+				large_size = TRUE;
+			has_vt = TRUE;
+		}
+	}
+
+	return has_vt && !large_size;
+}
+
 gboolean
 mini_is_gsharedvt_method (MonoMethod *method)
 {
@@ -1969,28 +1989,12 @@ mini_is_gsharedvt_method (MonoMethod *method)
 		MonoMethodInflated *inflated = (MonoMethodInflated*)method;
 		MonoGenericContext *context = &inflated->context;
 		MonoGenericInst *inst;
-		gboolean has_vt = FALSE;
-		gboolean large_size = FALSE;
 
 		inst = context->class_inst;
-		if (inst)
+		if (inst && !inst_is_gsharedvt_sharable (inst))
 			return FALSE;
-
 		inst = context->method_inst;
-		if (inst) {
-			for (i = 0; i < inst->type_argc; ++i) {
-				MonoType *type = inst->type_argv [i];
-
-				if (MONO_TYPE_IS_REFERENCE (type) || (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)) {
-				} else {
-					if (mono_class_value_size (mono_class_from_mono_type (type), NULL) > mono_class_value_size (mini_get_gsharedvt_alloc_type (NULL), NULL))
-						large_size = TRUE;
-					has_vt = TRUE;
-				}
-			}
-		}
-
-		if (!has_vt || large_size)
+		if (inst && !inst_is_gsharedvt_sharable (inst))
 			return FALSE;
 	} else {
 		return FALSE;

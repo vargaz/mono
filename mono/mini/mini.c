@@ -4259,6 +4259,7 @@ mini_get_shared_method (MonoMethod *method)
 		}
 	}
 
+	// FIXME: The gshared and gsharedvt cases map to the same method
 #if 0
 	if (mini_is_gsharedvt_method (method)) {
 		MonoMethodInflated *inflated;

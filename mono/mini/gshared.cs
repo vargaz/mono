@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
 struct Foo {
@@ -86,4 +87,9 @@ public class Tests
 		return 0;
 	}
 
+	public static int test_0_vtype_list () {
+		List<int> l = new List<int> ();
+
+		return 0;
+	}
 }
