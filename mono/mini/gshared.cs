@@ -11,6 +11,9 @@ struct GFoo<T> {
 	public T t;
 	public int i;
 	public Foo f;
+	public static T static_dummy;
+	public static T static_t;
+	public static Foo static_f;
 }
 
 //
@@ -161,13 +164,63 @@ public class Tests
 		return 0;
 	}
 
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static void stsfld<T> (T[] arr) {
+		GFoo<T>.static_t = arr [0];
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static void ldsfld<T> (T[] arr) {
+		arr [0] = GFoo<T>.static_t;
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static void ldsflda<T> (int[] iarr) {
+		iarr [0] = GFoo<T>.static_f.i;
+	}
+	
+	public static int test_0_stsfld () {
+		Foo[] farr = new Foo [] { new Foo () { i = 1, j = 2 } };
+		stsfld<Foo> (farr);
+
+		if (GFoo<Foo>.static_t.i != 1 || GFoo<Foo>.static_t.j != 2)
+			return 1;
+
+		Foo[] farr2 = new Foo [1];
+		ldsfld<Foo> (farr2);
+		if (farr2 [0].i != 1 || farr2 [0].j != 2)
+			return 2;
+
+		var iarr = new int [10];
+		GFoo<Foo>.static_f = new Foo () { i = 5, j = 6 };
+		ldsflda<Foo> (iarr);
+		if (iarr [0] != 5)
+			return 3;
+
+		return 0;
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static object newarr<T> () {
+		object o = new T[10];
+		return o;
+	}
+
+	public static int test_0_vt_newarr () {
+		object o = newarr<Foo> ();
+		if (!(o is Foo[]))
+			return 1;
+		return 0;
+	}
+
 	// FIXME: Add tests for more types to each method
 
 	public static int test_0_vtype_list () {
 		List<int> l = new List<int> ();
 
 		l.Add (5);
-		//Console.WriteLine (l.Count);
+		if (l.Count != 1)
+			return 1;
 		return 0;
 	}
 }

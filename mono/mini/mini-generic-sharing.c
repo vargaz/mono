@@ -937,7 +937,7 @@ instantiate_other_info (MonoDomain *domain, MonoRuntimeGenericContextOtherInfoTe
 	case MONO_RGCTX_INFO_FIELD_OFFSET: {
 		MonoClassField *field = data;
 
-		if (field->parent->valuetype)
+		if (field->parent->valuetype && !(field->type->attrs & FIELD_ATTRIBUTE_STATIC))
 			return GUINT_TO_POINTER (field->offset - sizeof (MonoObject));
 		else
 			return GUINT_TO_POINTER (field->offset);

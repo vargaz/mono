@@ -8898,8 +8898,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				is_instance = FALSE;
 			}
 
-			if (op != CEE_LDFLD && op != CEE_STFLD && op != CEE_LDFLDA)
-				GSHAREDVT_FAILURE (op);
+			if (cfg->generic_sharing_context)
+				context_used = mono_class_check_context_used (klass);
 
 			/* INSTANCE CASE */
 
@@ -8971,9 +8971,6 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				ip += 5;
 				break;
 			}
-
-			if (cfg->generic_sharing_context)
-				context_used = mono_class_check_context_used (klass);
 
 			if (is_instance && ((klass->marshalbyref && !MONO_CHECK_THIS (sp [0])) || klass->contextbound || klass == mono_defaults.marshalbyrefobject_class)) {
 				MonoMethod *wrapper = (op == CEE_LDFLDA) ? mono_marshal_get_ldflda_wrapper (field->type) : mono_marshal_get_ldfld_wrapper (field->type); 
@@ -9114,6 +9111,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				int idx, static_data_reg, array_reg, dreg;
 				MonoInst *thread_ins;
 
+				GSHAREDVT_FAILURE (op);
+
 				// offset &= 0x7fffffff;
 				// idx = (offset >> 24) - 1;
 				//	return ((char*) thread->static_data [idx]) + (offset & 0xffffff);
@@ -9184,7 +9183,13 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				static_data = emit_get_rgctx_klass (cfg, context_used,
 					klass, MONO_RGCTX_INFO_STATIC_DATA);
 
-				if (field->offset == 0) {
+				if (mini_is_gshared_vt (cfg, klass)) {
+					MonoInst *offset_ins;
+
+					offset_ins = emit_get_rgctx_field (cfg, context_used, field, MONO_RGCTX_INFO_FIELD_OFFSET);
+					dreg = alloc_ireg_mp (cfg);
+					EMIT_NEW_BIALU (cfg, ins, OP_PADD, dreg, static_data->dreg, offset_ins->dreg);
+				} else if (field->offset == 0) {
 					ins = static_data;
 				} else {
 					int addr_reg = mono_alloc_preg (cfg);
@@ -9265,6 +9270,9 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 					if (ro_type == MONO_TYPE_VALUETYPE && ftype->data.klass->enumtype) {
 						ro_type = mono_class_enum_basetype (ftype->data.klass)->type;
 					}
+
+					GSHAREDVT_FAILURE (op);
+
 					/* printf ("RO-FIELD %s.%s:%s\n", klass->name_space, klass->name, mono_field_get_name (field));*/
 					is_const = TRUE;
 					switch (ro_type) {
@@ -9379,7 +9387,6 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 			CHECK_OPSIZE (5);
 			token = read32 (ip + 1);
-			GSHAREDVT_FAILURE (*ip);
 
 			klass = mini_get_class (method, token, generic_context);
 			CHECK_TYPELOAD (klass);
