@@ -8849,9 +8849,6 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				}
 			}
 
-			if (*ip != CEE_LDFLD)
-				GSHAREDVT_FAILURE (op);
-
 			CHECK_OPSIZE (5);
 			token = read32 (ip + 1);
 			if (method->wrapper_type != MONO_WRAPPER_NONE) {
@@ -8901,6 +8898,9 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				is_instance = FALSE;
 			}
 
+			if (op != CEE_LDFLD && op != CEE_STFLD && op != CEE_LDFLDA)
+				GSHAREDVT_FAILURE (op);
+
 			/* INSTANCE CASE */
 
 			foffset = klass->valuetype? field->offset - sizeof (MonoObject): field->offset;
@@ -8910,6 +8910,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				if ((klass->marshalbyref && !MONO_CHECK_THIS (sp [0])) || klass->contextbound || klass == mono_defaults.marshalbyrefobject_class) {
 					MonoMethod *stfld_wrapper = mono_marshal_get_stfld_wrapper (field->type); 
 					MonoInst *iargs [5];
+
+					GSHAREDVT_FAILURE (op);
 
 					iargs [0] = sp [0];
 					EMIT_NEW_CLASSCONST (cfg, iargs [1], klass);
@@ -8936,7 +8938,20 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 					MONO_EMIT_NULL_CHECK (cfg, sp [0]->dreg);
 
-					EMIT_NEW_STORE_MEMBASE_TYPE (cfg, store, field->type, sp [0]->dreg, foffset, sp [1]->dreg);
+					if (mini_is_gshared_vt (cfg, klass)) {
+						MonoInst *offset_ins;
+
+						if (cfg->generic_sharing_context)
+							context_used = mono_class_check_context_used (klass);
+
+						offset_ins = emit_get_rgctx_field (cfg, context_used, field, MONO_RGCTX_INFO_FIELD_OFFSET);
+						dreg = alloc_ireg_mp (cfg);
+						EMIT_NEW_BIALU (cfg, ins, OP_PADD, dreg, sp [0]->dreg, offset_ins->dreg);
+						EMIT_NEW_STORE_MEMBASE_TYPE (cfg, store, field->type, dreg, 0, sp [1]->dreg);
+						// FIXME: wbarriers ?
+					} else {
+						EMIT_NEW_STORE_MEMBASE_TYPE (cfg, store, field->type, sp [0]->dreg, foffset, sp [1]->dreg);
+					}
 					if (sp [0]->opcode != OP_LDADDR)
 						store->flags |= MONO_INST_FAULT;
 
@@ -8956,6 +8971,9 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				ip += 5;
 				break;
 			}
+
+			if (cfg->generic_sharing_context)
+				context_used = mono_class_check_context_used (klass);
 
 			if (is_instance && ((klass->marshalbyref && !MONO_CHECK_THIS (sp [0])) || klass->contextbound || klass == mono_defaults.marshalbyrefobject_class)) {
 				MonoMethod *wrapper = (op == CEE_LDFLDA) ? mono_marshal_get_ldflda_wrapper (field->type) : mono_marshal_get_ldfld_wrapper (field->type); 
@@ -9011,7 +9029,14 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 						dreg = alloc_ireg_mp (cfg);
 
-						EMIT_NEW_BIALU_IMM (cfg, ins, OP_PADD_IMM, dreg, sp [0]->dreg, foffset);
+						if (mini_is_gshared_vt (cfg, klass)) {
+							MonoInst *offset_ins;
+
+							offset_ins = emit_get_rgctx_field (cfg, context_used, field, MONO_RGCTX_INFO_FIELD_OFFSET);
+							EMIT_NEW_BIALU (cfg, ins, OP_PADD, dreg, sp [0]->dreg, offset_ins->dreg);
+						} else {
+							EMIT_NEW_BIALU_IMM (cfg, ins, OP_PADD_IMM, dreg, sp [0]->dreg, foffset);
+						}
 						ins->klass = mono_class_from_mono_type (field->type);
 						ins->type = STACK_MP;
 						*sp++ = ins;
@@ -9021,13 +9046,9 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 					MONO_EMIT_NULL_CHECK (cfg, sp [0]->dreg);
 
-					if (cfg->generic_sharing_context)
-						context_used = mono_class_check_context_used (klass);
-
 					if (mini_is_gshared_vt (cfg, klass)) {
 						MonoInst *offset_ins;
 
-						g_assert (!mini_is_gshared_vt (cfg, mono_class_from_mono_type (field->type)));
 						offset_ins = emit_get_rgctx_field (cfg, context_used, field, MONO_RGCTX_INFO_FIELD_OFFSET);
 						dreg = alloc_ireg_mp (cfg);
 						EMIT_NEW_BIALU (cfg, ins, OP_PADD, dreg, sp [0]->dreg, offset_ins->dreg);

@@ -10,6 +10,7 @@ struct GFoo<T> {
 	public T dummy;
 	public T t;
 	public int i;
+	public Foo f;
 }
 
 //
@@ -114,22 +115,49 @@ public class Tests
 		arr [0] = foo [0].t;
 	}
 
-	public static int test_0_vt_ldfld () {
-		var foo = new GFoo<Foo> () { t = new Foo () { i = 1, j = 2 }, i = 5 };
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static void stfld_nongeneric<T> (GFoo<T>[] foo, int[] arr) {
+		foo [0].i = arr [0];
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static void stfld<T> (GFoo<T>[] foo, T[] arr) {
+		foo [0].t = arr [0];
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static void ldflda<T> (GFoo<T>[] foo, int[] arr) {
+		arr [0] = foo [0].f.i;
+	}
+
+	public static int test_0_vt_ldfld_stfld () {
+		var foo = new GFoo<Foo> () { t = new Foo () { i = 1, j = 2 }, i = 5, f = new Foo () { i = 5, j = 6 } };
 		var farr = new GFoo<Foo>[] { foo };
 
 		/* Normal fields with a variable offset */
 		var iarr = new int [10];
 		ldfld_nongeneric<Foo> (farr, iarr);
-		Console.WriteLine (iarr [0]);
+		if (iarr [0] != 5)
+			return 1;
+		iarr [0] = 16;
+		stfld_nongeneric<Foo> (farr, iarr);
+		if (farr [0].i != 16)
+			return 2;
 
-		/*
+		/* Variable type field with a variable offset */
 		var arr = new Foo [10];
+		ldfld<Foo> (farr, arr);
+		if (arr [0].i != 1 || arr [0].j != 2)
+			return 3;
+		arr [0] = new Foo () { i = 3, j = 4 };
+		stfld<Foo> (farr, arr);
+		if (farr [0].t.i != 3 || farr [0].t.j != 4)
+			return 4;
 
-		ldfld<Foo> (new GFoo<Foo> [] { foo }, arr);
-		Console.WriteLine (arr [0].i);
-		Console.WriteLine (arr [0].j);
-		*/
+		ldflda<Foo> (farr, iarr);
+		if (iarr [0] != 5)
+			return 5;
+
 		return 0;
 	}
 
