@@ -4613,8 +4613,14 @@ mono_metadata_generic_param_equal (MonoGenericParam *p1, MonoGenericParam *p2, g
 	 * types, so we only compare it when the owner is NULL.
 	 */
 	if (mono_generic_param_owner (p1) == mono_generic_param_owner (p2) &&
-	    (mono_generic_param_owner (p1) || p1->image == p2->image))
+	    (mono_generic_param_owner (p1) || p1->image == p2->image)) {
+		MonoGenericParamInfo *info1 = mono_generic_param_info (p1);
+		MonoGenericParamInfo *info2 = mono_generic_param_info (p2);
+
+		if (info1 && info2 && info1->serial != info2->serial)
+			return FALSE;
 		return TRUE;
+	}
 
 	/*
 	 * If `signature_only' is true, we're comparing two (method) signatures.

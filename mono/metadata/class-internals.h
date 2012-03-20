@@ -552,6 +552,8 @@ typedef struct {
 	guint16 flags;
 	guint32 token;
 	MonoClass** constraints; /* NULL means end of list */
+	/* For internal runtime use, used to make different versions of the same param */
+	int serial;
 } MonoGenericParamInfo;
 
 typedef struct {

@@ -670,6 +670,11 @@ get_shared_class (MonoClass *class)
 	 */
 	//g_assert_not_reached ();
 
+	/* The gsharedvt changes break this */
+	if (ALLOW_PARTIAL_SHARING)
+		g_assert_not_reached ();
+
+#if 0
 	if (class->is_inflated) {
 		MonoGenericContext *context = &class->generic_class->context;
 		MonoGenericContext *container_context;
@@ -699,6 +704,7 @@ get_shared_class (MonoClass *class)
 			return class;
 		}
 	}
+#endif
 
 	return class_uninstantiated (class);
 }
@@ -707,14 +713,16 @@ get_shared_class (MonoClass *class)
  * mono_class_get_runtime_generic_context_template:
  * @class: a class
  *
- * Looks up or constructs, if necessary, the runtime generic context
- * for class.
+ * Looks up or constructs, if necessary, the runtime generic context template for class. The template is the same for
+ * all instantiations of a class.
  */
 static MonoRuntimeGenericContextTemplate*
 mono_class_get_runtime_generic_context_template (MonoClass *class)
 {
 	MonoRuntimeGenericContextTemplate *parent_template, *template;
 	guint32 i;
+
+	class = get_shared_class (class);
 
 	mono_loader_lock ();
 	template = class_lookup_rgctx_template (class);
@@ -2048,7 +2056,7 @@ mini_is_gsharedvt_method (MonoMethod *method)
 		return FALSE;
 	}
 
-	sig = mono_method_signature (method);
+	sig = mono_method_signature (mono_method_get_declaring_generic_method (method));
 	if (!sig)
 		return FALSE;
 
@@ -2062,7 +2070,7 @@ mini_is_gsharedvt_method (MonoMethod *method)
 			return FALSE;
 	}
 
-	//printf ("HIT: %s\n", mono_method_full_name (method, TRUE));
+	//printf ("HITA: %s\n", mono_method_full_name (method, TRUE));
 
 	return TRUE;
 }

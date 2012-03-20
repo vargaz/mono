@@ -27,6 +27,32 @@ public class Tests
 		return TestDriver.RunTests (typeof (Tests), args);
 	}
 
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static void gshared<T> (T [] array, int i, int j) {
+		T tmp = array [i];
+		array [i] = array [j];
+		array [j] = tmp;
+	}
+
+	// Test that the gshared and gsharedvt versions don't mix
+	public static int test_0_vt_gshared () {
+		string[] sarr = new string [2] { "A", "B" };
+
+		gshared<string> (sarr, 0, 1);
+
+		Foo[] arr = new Foo [2];
+		arr [0] = new Foo () { i = 1, j = 2 };
+		arr [1] = new Foo () { i = 3, j = 4 };
+
+		gshared<Foo> (arr, 0, 1);
+		if (arr [0].i != 3 || arr [0].j != 4)
+			return 1;
+		if (arr [1].i != 1 || arr [1].j != 2)
+			return 2;
+
+		return 0;
+	}
+
 	static void ldelem_stelem<T> (T [] array, int i, int j) {
 		T tmp = array [i];
 		array [i] = array [j];
@@ -229,7 +255,6 @@ public class Tests
 		return 0;
 	}
 
-	/*
 	public static int test_0_vtype_list () {
 		List<int> l = new List<int> ();
 
@@ -238,5 +263,4 @@ public class Tests
 			return 1;
 		return 0;
 	}
-	*/
 }

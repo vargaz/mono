@@ -4202,6 +4202,25 @@ create_jit_info (MonoCompile *cfg, MonoMethod *method_to_compile)
 }
 #endif
 
+static MonoType*
+get_gsharedvt_type (MonoType *t)
+{
+	MonoGenericParam *par = t->data.generic_param;
+	MonoType *res;
+
+	/* 
+	 * Make a copy of the param with a different serial so normal gshared and gsharedvt methods have
+	 * a different instantiation.
+	 */
+	g_assert (mono_generic_param_info (par));
+	par = g_memdup (par, sizeof (MonoGenericParamFull));
+	mono_generic_param_info (par)->serial = 1;
+	res = mono_metadata_type_dup (NULL, t);
+	res->data.generic_param = par;
+
+	return res;
+}
+
 /*
  * mini_get_shared_method:
  *
@@ -4232,6 +4251,9 @@ mini_get_shared_method (MonoMethod *method)
 		MonoGenericContext *context = mono_method_get_context (method);
 		MonoGenericInst *inst;
 		MonoType **type_argv;
+		gboolean gsharedvt;
+
+		gsharedvt = mini_is_gsharedvt_method (method);
 
 		/* 
 		 * Create the shared context by replacing the ref type arguments with
@@ -4244,9 +4266,8 @@ mini_get_shared_method (MonoMethod *method)
 			for (i = 0; i < inst->type_argc; ++i) {
 				if (MONO_TYPE_IS_REFERENCE (inst->type_argv [i]) || inst->type_argv [i]->type == MONO_TYPE_VAR || inst->type_argv [i]->type == MONO_TYPE_MVAR)
 					type_argv [i] = shared_context.class_inst->type_argv [i];
-				else if (mini_is_gsharedvt_method (method))
-					// FIXME:
-					type_argv [i] = shared_context.class_inst->type_argv [i];
+				else if (gsharedvt)
+					type_argv [i] = get_gsharedvt_type (shared_context.class_inst->type_argv [i]);
 				else
 					type_argv [i] = inst->type_argv [i];
 			}
@@ -4261,9 +4282,8 @@ mini_get_shared_method (MonoMethod *method)
 			for (i = 0; i < inst->type_argc; ++i) {
 				if (MONO_TYPE_IS_REFERENCE (inst->type_argv [i]) || inst->type_argv [i]->type == MONO_TYPE_VAR || inst->type_argv [i]->type == MONO_TYPE_MVAR)
 					type_argv [i] = shared_context.method_inst->type_argv [i];
-				else if (mini_is_gsharedvt_method (method))
-					// FIXME:
-					type_argv [i] = shared_context.method_inst->type_argv [i];
+				else if (gsharedvt)
+					type_argv [i] = get_gsharedvt_type (shared_context.method_inst->type_argv [i]);
 				else
 					type_argv [i] = inst->type_argv [i];
 			}

@@ -8246,8 +8246,6 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			MonoInst *alloc;
 			MonoInst *vtable_arg = NULL;
 
-			GSHAREDVT_FAILURE (*ip);
-
 			CHECK_OPSIZE (5);
 			token = read32 (ip + 1);
 			cmethod = mini_get_method (cfg, method, token, NULL, generic_context);
@@ -8276,6 +8274,22 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			if (cfg->generic_sharing_context && cmethod && cmethod->klass != method->klass && cmethod->klass->generic_class && mono_method_is_generic_sharable_impl (cmethod, TRUE) && mono_class_needs_cctor_run (cmethod->klass, method)) {
 				emit_generic_class_init (cfg, cmethod->klass);
 				CHECK_TYPELOAD (cmethod->klass);
+			}
+
+			if (cmethod->klass->valuetype)
+				GSHAREDVT_FAILURE (*ip);
+
+			if (cfg->gsharedvt) {
+				/* Don't support calls made using type arguments for now */
+				// FIXME: Relax these
+				// FIXME: Put this into a function
+				if (fsig->ret && (fsig->ret->type == MONO_TYPE_VAR || fsig->ret->type == MONO_TYPE_MVAR || fsig->ret->type == MONO_TYPE_GENERICINST))
+					GSHAREDVT_FAILURE (*ip);
+				for (i = 0; i < fsig->param_count; ++i) {
+					MonoType *t = fsig->params [i];
+					if (t->type == MONO_TYPE_VAR || t->type == MONO_TYPE_MVAR || t->type == MONO_TYPE_GENERICINST)
+						GSHAREDVT_FAILURE (*ip);
+				}
 			}
 
 			if (cmethod->klass->valuetype && mono_class_generic_sharing_enabled (cmethod->klass) &&
