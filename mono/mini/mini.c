@@ -4244,6 +4244,9 @@ mini_get_shared_method (MonoMethod *method)
 			for (i = 0; i < inst->type_argc; ++i) {
 				if (MONO_TYPE_IS_REFERENCE (inst->type_argv [i]) || inst->type_argv [i]->type == MONO_TYPE_VAR || inst->type_argv [i]->type == MONO_TYPE_MVAR)
 					type_argv [i] = shared_context.class_inst->type_argv [i];
+				else if (mini_is_gsharedvt_method (method))
+					// FIXME:
+					type_argv [i] = shared_context.class_inst->type_argv [i];
 				else
 					type_argv [i] = inst->type_argv [i];
 			}
@@ -4258,10 +4261,10 @@ mini_get_shared_method (MonoMethod *method)
 			for (i = 0; i < inst->type_argc; ++i) {
 				if (MONO_TYPE_IS_REFERENCE (inst->type_argv [i]) || inst->type_argv [i]->type == MONO_TYPE_VAR || inst->type_argv [i]->type == MONO_TYPE_MVAR)
 					type_argv [i] = shared_context.method_inst->type_argv [i];
-				else if (mini_is_gsharedvt_method (method)) {
+				else if (mini_is_gsharedvt_method (method))
 					// FIXME:
 					type_argv [i] = shared_context.method_inst->type_argv [i];
-				} else
+				else
 					type_argv [i] = inst->type_argv [i];
 			}
 

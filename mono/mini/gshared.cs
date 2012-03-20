@@ -229,8 +229,7 @@ public class Tests
 		return 0;
 	}
 
-	// FIXME: Add tests for more types to each method
-
+	/*
 	public static int test_0_vtype_list () {
 		List<int> l = new List<int> ();
 
@@ -239,4 +238,5 @@ public class Tests
 			return 1;
 		return 0;
 	}
+	*/
 }

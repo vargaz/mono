@@ -6674,7 +6674,6 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			sp--;
 			ins = *sp;
 
-			GSHAREDVT_FAILURE (*ip);
 			temp = mono_compile_create_var (cfg, type_from_stack_type (ins), OP_LOCAL);
 			EMIT_NEW_TEMPSTORE (cfg, store, temp->inst_c0, ins);
 
@@ -6773,12 +6772,11 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			gboolean supported_tail_call = FALSE;
 			gboolean need_seq_point = FALSE;
 
-			GSHAREDVT_FAILURE (*ip);
-
 			CHECK_OPSIZE (5);
 			token = read32 (ip + 1);
 
 			if (calli) {
+				GSHAREDVT_FAILURE (*ip);
 				cmethod = NULL;
 				CHECK_STACK (1);
 				--sp;
@@ -6806,7 +6804,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				}
 			} else {
 				MonoMethod *cil_method;
-				
+
 				if (method->wrapper_type != MONO_WRAPPER_NONE) {
 					if (constrained_call && cfg->verbose_level > 2)
 						printf ("DM Constrained call to %s\n", mono_type_get_full_name (constrained_call));
@@ -6820,6 +6818,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				} else if (constrained_call) {
 					if (cfg->verbose_level > 2)
 						printf ("Constrained call to %s\n", mono_type_get_full_name (constrained_call));
+
+					GSHAREDVT_FAILURE (*ip);
 
 					if ((constrained_call->byval_arg.type == MONO_TYPE_VAR || constrained_call->byval_arg.type == MONO_TYPE_MVAR) && cfg->generic_sharing_context) {
 						/* 
@@ -6914,6 +6914,18 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				}
 
 				n = fsig->param_count + fsig->hasthis;
+
+				if (cfg->gsharedvt) {
+					/* Don't support calls made using type arguments for now */
+					/* FIXME: Relax these */
+					if (sig->ret && (sig->ret->type == MONO_TYPE_VAR || sig->ret->type == MONO_TYPE_MVAR || sig->ret->type == MONO_TYPE_GENERICINST))
+						GSHAREDVT_FAILURE (*ip);
+					for (i = 0; i < sig->param_count; ++i) {
+						MonoType *t = sig->params [i];
+						if (t->type == MONO_TYPE_VAR || t->type == MONO_TYPE_MVAR || t->type == MONO_TYPE_GENERICINST)
+							GSHAREDVT_FAILURE (*ip);
+					}
+				}
 
 				if (mono_security_get_mode () == MONO_SECURITY_MODE_CAS) {
 					if (check_linkdemand (cfg, method, cmethod))
