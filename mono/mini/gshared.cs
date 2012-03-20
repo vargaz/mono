@@ -263,4 +263,9 @@ public class Tests
 			return 1;
 		return 0;
 	}
+
+	public static int test_0_regress () {
+		var cmp = System.Collections.Generic.Comparer<int>.Default ;
+		return 0;
+	}
 }

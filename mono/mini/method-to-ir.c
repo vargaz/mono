@@ -6993,9 +6993,17 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 			if (cmethod && ((cmethod->flags & METHOD_ATTRIBUTE_STATIC) || cmethod->klass->valuetype) &&
 					(cmethod->klass->generic_class || cmethod->klass->generic_container)) {
-				gboolean sharing_enabled = mono_class_generic_sharing_enabled (cmethod->klass);
-				MonoGenericContext *context = mini_class_get_context (cmethod->klass);
-				gboolean context_sharable = mono_generic_context_is_sharable (context, TRUE);
+				gboolean sharable = FALSE;
+
+				if (mono_method_is_generic_sharable_impl (cmethod, TRUE)) {
+					sharable = TRUE;
+				} else {
+					gboolean sharing_enabled = mono_class_generic_sharing_enabled (cmethod->klass);
+					MonoGenericContext *context = mini_class_get_context (cmethod->klass);
+					gboolean context_sharable = mono_generic_context_is_sharable (context, TRUE);
+
+					sharable = sharing_enabled && context_sharable;
+				}
 
 				/*
 				 * Pass vtable iff target method might
@@ -7004,8 +7012,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				 * context is sharable (and it's not a
 				 * generic method).
 				 */
-				if (sharing_enabled && context_sharable &&
-					!(mini_method_get_context (cmethod) && mini_method_get_context (cmethod)->method_inst))
+				if (sharable && !(mini_method_get_context (cmethod) && mini_method_get_context (cmethod)->method_inst))
 					pass_vtable = TRUE;
 			}
 
@@ -8494,7 +8501,6 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			CHECK_STACK (1);
 			--sp;
 			CHECK_OPSIZE (5);
-			GSHAREDVT_FAILURE (*ip);
 			token = read32 (ip + 1);
 			klass = mini_get_class (method, token, generic_context);
 			CHECK_TYPELOAD (klass);
@@ -8619,7 +8625,6 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			CHECK_STACK (1);
 			--sp;
 			CHECK_OPSIZE (5);
-			GSHAREDVT_FAILURE (*ip);
 			token = read32 (ip + 1);
 			klass = mini_get_class (method, token, generic_context);
 			CHECK_TYPELOAD (klass);
