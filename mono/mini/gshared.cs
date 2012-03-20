@@ -213,6 +213,22 @@ public class Tests
 		return 0;
 	}
 
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static Type ldtoken<T> () {
+		return typeof (GFoo<T>);
+	}
+
+	public static int test_0_vt_ldtoken () {
+		Type t = ldtoken<Foo> ();
+		if (t != typeof (GFoo<Foo>))
+			return 1;
+		t = ldtoken<int> ();
+		if (t != typeof (GFoo<int>))
+			return 2;
+
+		return 0;
+	}
+
 	// FIXME: Add tests for more types to each method
 
 	public static int test_0_vtype_list () {

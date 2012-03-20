@@ -9778,8 +9778,6 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			gpointer handle;
 			MonoClass *handle_class;
 
-			GSHAREDVT_FAILURE (*ip);
-
 			CHECK_STACK_OVF (1);
 
 			CHECK_OPSIZE (5);
