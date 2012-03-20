@@ -4226,7 +4226,9 @@ mini_get_shared_method (MonoMethod *method)
 		shared_context = declaring_method->klass->generic_container->context;
 
 	/* Handle partial sharing */
-	if (method != declaring_method && method->is_inflated && !mono_method_is_generic_sharable_impl_full (method, FALSE, FALSE)) {
+	// FIXME: The gshared and gsharedvt cases map to the same method
+	if ((method != declaring_method && method->is_inflated && !mono_method_is_generic_sharable_impl_full (method, FALSE, FALSE)) ||
+		mini_is_gsharedvt_method (method)) {
 		MonoGenericContext *context = mono_method_get_context (method);
 		MonoGenericInst *inst;
 		MonoType **type_argv;
@@ -4256,7 +4258,10 @@ mini_get_shared_method (MonoMethod *method)
 			for (i = 0; i < inst->type_argc; ++i) {
 				if (MONO_TYPE_IS_REFERENCE (inst->type_argv [i]) || inst->type_argv [i]->type == MONO_TYPE_VAR || inst->type_argv [i]->type == MONO_TYPE_MVAR)
 					type_argv [i] = shared_context.method_inst->type_argv [i];
-				else
+				else if (mini_is_gsharedvt_method (method)) {
+					// FIXME:
+					type_argv [i] = shared_context.method_inst->type_argv [i];
+				} else
 					type_argv [i] = inst->type_argv [i];
 			}
 
@@ -4265,7 +4270,6 @@ mini_get_shared_method (MonoMethod *method)
 		}
 	}
 
-	// FIXME: The gshared and gsharedvt cases map to the same method
 #if 0
 	if (mini_is_gsharedvt_method (method)) {
 		MonoMethodInflated *inflated;
@@ -4427,8 +4431,17 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 		context = &inflated->context;
 
 		if (context->class_inst) {
-			// FIXME:
-			NOT_IMPLEMENTED;
+			inst = context->class_inst;
+			cfg->gsctx.var_is_vt = g_new0 (gboolean, inst->type_argc);
+
+			for (i = 0; i < inst->type_argc; ++i) {
+				MonoType *type = inst->type_argv [i];
+
+				if (MONO_TYPE_IS_REFERENCE (type) || (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)) {
+				} else {
+					cfg->gsctx.var_is_vt [i] = TRUE;
+				}
+			}
 		}
 		if (context->method_inst) {
 			inst = context->method_inst;
@@ -5139,6 +5152,9 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 			mono_dynamic_code_hash_lookup (cfg->domain, cfg->method)->ji = cfg->jit_info;
 		mono_domain_unlock (cfg->domain);
 	}
+
+	if (cfg->gsharedvt)
+		printf ("HIT: %s\n", mono_method_full_name (cfg->method, TRUE));
 
 	/* collect statistics */
 	mono_perfcounters->jit_methods++;

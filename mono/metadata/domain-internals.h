@@ -96,6 +96,7 @@ typedef struct {
  */
 typedef struct {
 	int dummy;
+	gboolean *var_is_vt;
 	gboolean *mvar_is_vt;
 } MonoGenericSharingContext;
 

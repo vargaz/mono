@@ -545,7 +545,8 @@ inflate_other_data (gpointer data, MonoRgctxInfoType info_type, MonoGenericConte
 		return inflated_method;
 	}
 
-	case MONO_RGCTX_INFO_CLASS_FIELD: {
+	case MONO_RGCTX_INFO_CLASS_FIELD:
+	case MONO_RGCTX_INFO_FIELD_OFFSET: {
 		MonoClassField *field = data;
 		MonoType *inflated_type = mono_class_inflate_generic_type (&field->parent->byval_arg, context);
 		MonoClass *inflated_class = mono_class_from_mono_type (inflated_type);
@@ -559,7 +560,6 @@ inflate_other_data (gpointer data, MonoRgctxInfoType info_type, MonoGenericConte
 
 		return &inflated_class->fields [i];
 	}
-
 	default:
 		g_assert_not_reached ();
 	}
@@ -934,6 +934,14 @@ instantiate_other_info (MonoDomain *domain, MonoRuntimeGenericContextOtherInfoTe
 		return mono_domain_alloc0 (domain, sizeof (gpointer));
 	case MONO_RGCTX_INFO_CLASS_FIELD:
 		return data;
+	case MONO_RGCTX_INFO_FIELD_OFFSET: {
+		MonoClassField *field = data;
+
+		if (field->parent->valuetype)
+			return GUINT_TO_POINTER (field->offset - sizeof (MonoObject));
+		else
+			return GUINT_TO_POINTER (field->offset);
+	}
 	case MONO_RGCTX_INFO_METHOD_RGCTX: {
 		MonoMethodInflated *method = data;
 		MonoVTable *vtable;
@@ -1902,10 +1910,19 @@ mono_generic_sharing_cleanup (void)
 gboolean
 mini_type_var_is_vt (MonoCompile *cfg, MonoType *type)
 {
-	if (cfg->gsctx.mvar_is_vt && cfg->gsctx.mvar_is_vt [type->data.generic_param->num])
-		return TRUE;
-	else
-		return FALSE;
+	if (type->type == MONO_TYPE_VAR) {
+		if (cfg->gsctx.var_is_vt && cfg->gsctx.var_is_vt [type->data.generic_param->num])
+			return TRUE;
+		else
+			return FALSE;
+	} else if (type->type == MONO_TYPE_MVAR) {
+		if (cfg->gsctx.mvar_is_vt && cfg->gsctx.mvar_is_vt [type->data.generic_param->num])
+			return TRUE;
+		else
+			return FALSE;
+	} else {
+		g_assert_not_reached ();
+	}
 }
 
 gboolean
@@ -1919,13 +1936,43 @@ mini_type_is_reference (MonoCompile *cfg, MonoType *type)
 	return ((type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR) && !mini_type_var_is_vt (cfg, type));
 }
 
+static gboolean
+mini_is_gshared_vt_type (MonoCompile *cfg, MonoType *t)
+{
+	int i;
+
+	if (t->type == MONO_TYPE_VAR && cfg->gsctx.var_is_vt && cfg->gsctx.var_is_vt [t->data.generic_param->num])
+		return TRUE;
+	else if (t->type == MONO_TYPE_MVAR && cfg->gsctx.mvar_is_vt && cfg->gsctx.mvar_is_vt [t->data.generic_param->num])
+		return TRUE;
+	else if (t->type == MONO_TYPE_GENERICINST) {
+		MonoGenericClass *gclass = t->data.generic_class;
+		MonoGenericContext *context = &gclass->context;
+		MonoGenericInst *inst;
+
+		inst = context->class_inst;
+		if (inst) {
+			for (i = 0; i < inst->type_argc; ++i)
+				if (mini_is_gshared_vt_type (cfg, inst->type_argv [i]))
+					return TRUE;
+		}
+		inst = context->method_inst;
+		if (inst) {
+			for (i = 0; i < inst->type_argc; ++i)
+				if (mini_is_gshared_vt_type (cfg, inst->type_argv [i]))
+					return TRUE;
+		}
+
+		return FALSE;
+	} else {
+		return FALSE;
+	}
+}
+
 gboolean
 mini_is_gshared_vt (MonoCompile *cfg, MonoClass *klass)
 {
-	if (klass->byval_arg.type == MONO_TYPE_MVAR && cfg->gsctx.mvar_is_vt && cfg->gsctx.mvar_is_vt [klass->byval_arg.data.generic_param->num])
-		return TRUE;
-	else
-		return FALSE;
+	return mini_is_gshared_vt_type (cfg, &klass->byval_arg);
 }
 
 /*

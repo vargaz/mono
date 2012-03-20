@@ -8826,8 +8826,6 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			MonoType *ftype;
 			MonoInst *store_val = NULL;
 
-			GSHAREDVT_FAILURE (*ip);
-
 			op = *ip;
 			is_instance = (op == CEE_LDFLD || op == CEE_LDFLDA || op == CEE_STFLD);
 			if (is_instance) {
@@ -8850,6 +8848,9 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 					store_val = sp [0];
 				}
 			}
+
+			if (*ip != CEE_LDFLD)
+				GSHAREDVT_FAILURE (op);
 
 			CHECK_OPSIZE (5);
 			token = read32 (ip + 1);
@@ -8960,6 +8961,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				MonoMethod *wrapper = (op == CEE_LDFLDA) ? mono_marshal_get_ldflda_wrapper (field->type) : mono_marshal_get_ldfld_wrapper (field->type); 
 				MonoInst *iargs [4];
 
+				GSHAREDVT_FAILURE (op);
+
 				iargs [0] = sp [0];
 				EMIT_NEW_CLASSCONST (cfg, iargs [1], klass);
 				EMIT_NEW_FIELDCONST (cfg, iargs [2], field);
@@ -9018,7 +9021,20 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 					MONO_EMIT_NULL_CHECK (cfg, sp [0]->dreg);
 
-					EMIT_NEW_LOAD_MEMBASE_TYPE (cfg, load, field->type, sp [0]->dreg, foffset);
+					if (cfg->generic_sharing_context)
+						context_used = mono_class_check_context_used (klass);
+
+					if (mini_is_gshared_vt (cfg, klass)) {
+						MonoInst *offset_ins;
+
+						g_assert (!mini_is_gshared_vt (cfg, mono_class_from_mono_type (field->type)));
+						offset_ins = emit_get_rgctx_field (cfg, context_used, field, MONO_RGCTX_INFO_FIELD_OFFSET);
+						dreg = alloc_ireg_mp (cfg);
+						EMIT_NEW_BIALU (cfg, ins, OP_PADD, dreg, sp [0]->dreg, offset_ins->dreg);
+						EMIT_NEW_LOAD_MEMBASE_TYPE (cfg, load, field->type, dreg, 0);
+					} else {
+						EMIT_NEW_LOAD_MEMBASE_TYPE (cfg, load, field->type, sp [0]->dreg, foffset);
+					}
 					load->flags |= ins_flag;
 					if (sp [0]->opcode != OP_LDADDR)
 						load->flags |= MONO_INST_FAULT;
@@ -9472,8 +9488,6 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			CHECK_OPSIZE (5);
 			if (sp [0]->type != STACK_OBJ)
 				UNVERIFIED;
-
-			GSHAREDVT_FAILURE (*ip);
 
 			cfg->flags |= MONO_CFG_HAS_LDELEMA;
 
