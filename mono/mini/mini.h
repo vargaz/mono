@@ -2401,8 +2401,8 @@ void mono_cfg_add_try_hole (MonoCompile *cfg, MonoExceptionClause *clause, guint
 void mono_cfg_set_exception (MonoCompile *cfg, int type) MONO_INTERNAL;
 gboolean mini_type_is_reference (MonoCompile *cfg, MonoType *type) MONO_INTERNAL;
 gboolean mini_type_var_is_vt (MonoCompile *cfg, MonoType *type) MONO_INTERNAL;
-gboolean mini_is_gshared_vt (MonoCompile *cfg, MonoClass *klass) MONO_INTERNAL;
-gboolean mini_is_gshared_vt_type (MonoCompile *cfg, MonoType *t) MONO_INTERNAL;
+gboolean mini_is_gsharedvt_klass (MonoCompile *cfg, MonoClass *klass) MONO_INTERNAL;
+gboolean mini_is_gsharedvt_type (MonoCompile *cfg, MonoType *t) MONO_INTERNAL;
 MonoClass* mini_get_gsharedvt_alloc_type (MonoCompile *cfg) MONO_INTERNAL;
 gboolean mini_is_gsharedvt_method (MonoMethod *method) MONO_INTERNAL;
 

@@ -2834,7 +2834,7 @@ mini_emit_stobj (MonoCompile *cfg, MonoInst *dest, MonoInst *src, MonoClass *kla
 	 * g_assert (klass && klass == src->klass && klass == dest->klass);
 	 */
 
-	if (mini_is_gshared_vt (cfg, klass)) {
+	if (mini_is_gsharedvt_klass (cfg, klass)) {
 		g_assert (!native);
 		context_used = mono_class_check_context_used (klass);
 		size_ins = emit_get_rgctx_klass (cfg, context_used, klass, MONO_RGCTX_INFO_VALUE_SIZE);
@@ -2921,7 +2921,7 @@ mini_emit_initobj (MonoCompile *cfg, MonoInst *dest, const guchar *ip, MonoClass
 
 	mono_class_init (klass);
 
-	if (mini_is_gshared_vt (cfg, klass)) {
+	if (mini_is_gsharedvt_klass (cfg, klass)) {
 		context_used = mono_class_check_context_used (klass);
 		size_ins = emit_get_rgctx_klass (cfg, context_used, klass, MONO_RGCTX_INFO_VALUE_SIZE);
 	} else {
@@ -3389,7 +3389,7 @@ handle_box (MonoCompile *cfg, MonoInst *val, MonoClass *klass, int context_used)
 	if (!alloc)
 		return NULL;
 
-	if (mini_is_gshared_vt (cfg, klass)) {
+	if (mini_is_gsharedvt_klass (cfg, klass)) {
 		EMIT_NEW_STORE_MEMBASE_TYPE (cfg, ins, &klass->byval_arg, alloc->dreg, sizeof (MonoObject), val->dreg);
 		ins->opcode = OP_STOREV_MEMBASE;
 	} else {
@@ -4114,7 +4114,7 @@ mini_emit_ldelema_1_ins (MonoCompile *cfg, MonoClass *klass, MonoInst *arr, Mono
 	int mult_reg, add_reg, array_reg, index_reg, index2_reg;
 	int context_used;
 
-	if (mini_is_gshared_vt (cfg, klass)) {
+	if (mini_is_gsharedvt_klass (cfg, klass)) {
 		size = -1;
 	} else {
 		mono_class_init (klass);
@@ -6916,10 +6916,10 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 				if (cfg->gsharedvt) {
 					/* Don't support calls made using type arguments for now */
-					if (mini_is_gshared_vt_type (cfg, fsig->ret))
+					if (mini_is_gsharedvt_type (cfg, fsig->ret))
 						GSHAREDVT_FAILURE (*ip);
 					for (i = 0; i < fsig->param_count; ++i) {
-						if (mini_is_gshared_vt_type (cfg, fsig->params [i]))
+						if (mini_is_gsharedvt_type (cfg, fsig->params [i]))
 							GSHAREDVT_FAILURE (*ip);
 					}
 				}
@@ -8285,14 +8285,11 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 			if (cfg->gsharedvt) {
 				/* Don't support calls made using type arguments for now */
-				// FIXME: Relax these
 				// FIXME: Put this into a function
-				if (mini_is_gshared_vt_type (cfg, fsig->ret)) {
-					printf ("BOO: %d\n", mini_is_gshared_vt_type (cfg, fsig->ret));
+				if (mini_is_gsharedvt_type (cfg, fsig->ret))
 					GSHAREDVT_FAILURE (*ip);
-				}
 				for (i = 0; i < fsig->param_count; ++i) {
-					if (mini_is_gshared_vt_type (cfg, fsig->params [i]))
+					if (mini_is_gsharedvt_type (cfg, fsig->params [i]))
 						GSHAREDVT_FAILURE (*ip);
 				}
 			}
@@ -8967,7 +8964,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 					MONO_EMIT_NULL_CHECK (cfg, sp [0]->dreg);
 
-					if (mini_is_gshared_vt (cfg, klass)) {
+					if (mini_is_gsharedvt_klass (cfg, klass)) {
 						MonoInst *offset_ins;
 
 						if (cfg->generic_sharing_context)
@@ -9055,7 +9052,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 						dreg = alloc_ireg_mp (cfg);
 
-						if (mini_is_gshared_vt (cfg, klass)) {
+						if (mini_is_gsharedvt_klass (cfg, klass)) {
 							MonoInst *offset_ins;
 
 							offset_ins = emit_get_rgctx_field (cfg, context_used, field, MONO_RGCTX_INFO_FIELD_OFFSET);
@@ -9072,7 +9069,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 					MONO_EMIT_NULL_CHECK (cfg, sp [0]->dreg);
 
-					if (mini_is_gshared_vt (cfg, klass)) {
+					if (mini_is_gsharedvt_klass (cfg, klass)) {
 						MonoInst *offset_ins;
 
 						offset_ins = emit_get_rgctx_field (cfg, context_used, field, MONO_RGCTX_INFO_FIELD_OFFSET);
@@ -9212,7 +9209,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				static_data = emit_get_rgctx_klass (cfg, context_used,
 					klass, MONO_RGCTX_INFO_STATIC_DATA);
 
-				if (mini_is_gshared_vt (cfg, klass)) {
+				if (mini_is_gsharedvt_klass (cfg, klass)) {
 					MonoInst *offset_ins;
 
 					offset_ins = emit_get_rgctx_field (cfg, context_used, field, MONO_RGCTX_INFO_FIELD_OFFSET);
@@ -9597,7 +9594,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 			cfg->flags |= MONO_CFG_HAS_LDELEMA;
 
-			if (mini_is_gshared_vt (cfg, klass)) {
+			if (mini_is_gsharedvt_klass (cfg, klass)) {
 				// FIXME: OP_ICONST optimization
 				addr = mini_emit_ldelema_1_ins (cfg, klass, sp [0], sp [1], TRUE);
 				EMIT_NEW_LOAD_MEMBASE_TYPE (cfg, ins, &klass->byval_arg, addr->dreg, 0);
@@ -9671,7 +9668,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 				mono_emit_method_call (cfg, helper, iargs, sp [0]);
 			} else {
-				if (mini_is_gshared_vt (cfg, klass)) {
+				if (mini_is_gsharedvt_klass (cfg, klass)) {
 					// FIXME: OP_ICONST optimization
 					addr = mini_emit_ldelema_1_ins (cfg, klass, sp [0], sp [1], TRUE);
 					EMIT_NEW_STORE_MEMBASE_TYPE (cfg, ins, &klass->byval_arg, addr->dreg, 0, sp [2]->dreg);

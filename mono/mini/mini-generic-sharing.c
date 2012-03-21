@@ -1953,7 +1953,7 @@ mini_type_is_reference (MonoCompile *cfg, MonoType *type)
 }
 
 gboolean
-mini_is_gshared_vt_type (MonoCompile *cfg, MonoType *t)
+mini_is_gsharedvt_type (MonoCompile *cfg, MonoType *t)
 {
 	int i;
 
@@ -1969,13 +1969,13 @@ mini_is_gshared_vt_type (MonoCompile *cfg, MonoType *t)
 		inst = context->class_inst;
 		if (inst) {
 			for (i = 0; i < inst->type_argc; ++i)
-				if (mini_is_gshared_vt_type (cfg, inst->type_argv [i]))
+				if (mini_is_gsharedvt_type (cfg, inst->type_argv [i]))
 					return TRUE;
 		}
 		inst = context->method_inst;
 		if (inst) {
 			for (i = 0; i < inst->type_argc; ++i)
-				if (mini_is_gshared_vt_type (cfg, inst->type_argv [i]))
+				if (mini_is_gsharedvt_type (cfg, inst->type_argv [i]))
 					return TRUE;
 		}
 
@@ -1986,9 +1986,9 @@ mini_is_gshared_vt_type (MonoCompile *cfg, MonoType *t)
 }
 
 gboolean
-mini_is_gshared_vt (MonoCompile *cfg, MonoClass *klass)
+mini_is_gsharedvt_klass (MonoCompile *cfg, MonoClass *klass)
 {
-	return mini_is_gshared_vt_type (cfg, &klass->byval_arg);
+	return mini_is_gsharedvt_type (cfg, &klass->byval_arg);
 }
 
 /*
