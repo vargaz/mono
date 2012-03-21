@@ -7061,8 +7061,7 @@ void
 mono_set_defaults (int verbose_level, guint32 opts)
 {
 	mini_verbose = verbose_level;
-	default_opt = opts;
-	default_opt_set = TRUE;
+	mono_set_optimizations (opts);
 }
 
 void
@@ -7076,6 +7075,7 @@ mono_set_optimizations (guint32 opts)
 {
 	default_opt = opts;
 	default_opt_set = TRUE;
+	mono_set_generic_sharing_vt_supported ((default_opt & MONO_OPT_GSHAREDVT) != 0);
 }
 
 void

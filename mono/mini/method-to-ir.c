@@ -104,7 +104,7 @@
 	} while (0)
 #define GSHAREDVT_FAILURE(opcode) do {		\
 		if (cfg->gsharedvt) {	\
-            if (TRUE || cfg->verbose_level > 2) \
+            if (cfg->verbose_level > 2) \
 			    printf ("gsharedvt failed for method %s.%s.%s/%d opcode %s line %d\n", method->klass->name_space, method->klass->name, method->name, method->signature->param_count, mono_opcode_name ((opcode)), __LINE__); \
 			mono_cfg_set_exception (cfg, MONO_EXCEPTION_GENERIC_SHARING_FAILED); \
 			goto exception_exit;	\
@@ -4182,8 +4182,7 @@ mini_emit_ldelema_1_ins (MonoCompile *cfg, MonoClass *klass, MonoInst *arr, Mono
 
 		/* shared vtype */
 		g_assert (cfg->generic_sharing_context);
-		// FIXME:
-		context_used = MONO_GENERIC_CONTEXT_USED_METHOD; //mono_class_check_context_used (klass);
+		context_used = mono_class_check_context_used (klass);
 		g_assert (context_used);
 		rgctx_ins = emit_get_rgctx_klass (cfg, context_used, klass, MONO_RGCTX_INFO_ARRAY_ELEMENT_SIZE);
 		MONO_EMIT_NEW_BIALU (cfg, OP_IMUL, mult_reg, index2_reg, rgctx_ins->dreg);
@@ -6917,12 +6916,10 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 				if (cfg->gsharedvt) {
 					/* Don't support calls made using type arguments for now */
-					/* FIXME: Relax these */
-					if (sig->ret && (sig->ret->type == MONO_TYPE_VAR || sig->ret->type == MONO_TYPE_MVAR || sig->ret->type == MONO_TYPE_GENERICINST))
+					if (mini_is_gshared_vt_type (cfg, fsig->ret))
 						GSHAREDVT_FAILURE (*ip);
-					for (i = 0; i < sig->param_count; ++i) {
-						MonoType *t = sig->params [i];
-						if (t->type == MONO_TYPE_VAR || t->type == MONO_TYPE_MVAR || t->type == MONO_TYPE_GENERICINST)
+					for (i = 0; i < fsig->param_count; ++i) {
+						if (mini_is_gshared_vt_type (cfg, fsig->params [i]))
 							GSHAREDVT_FAILURE (*ip);
 					}
 				}
@@ -8290,11 +8287,12 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				/* Don't support calls made using type arguments for now */
 				// FIXME: Relax these
 				// FIXME: Put this into a function
-				if (fsig->ret && (fsig->ret->type == MONO_TYPE_VAR || fsig->ret->type == MONO_TYPE_MVAR || fsig->ret->type == MONO_TYPE_GENERICINST))
+				if (mini_is_gshared_vt_type (cfg, fsig->ret)) {
+					printf ("BOO: %d\n", mini_is_gshared_vt_type (cfg, fsig->ret));
 					GSHAREDVT_FAILURE (*ip);
+				}
 				for (i = 0; i < fsig->param_count; ++i) {
-					MonoType *t = fsig->params [i];
-					if (t->type == MONO_TYPE_VAR || t->type == MONO_TYPE_MVAR || t->type == MONO_TYPE_GENERICINST)
+					if (mini_is_gshared_vt_type (cfg, fsig->params [i]))
 						GSHAREDVT_FAILURE (*ip);
 				}
 			}

@@ -21,6 +21,8 @@ struct GFoo<T> {
 // The tests use arrays to pass/receive values to keep the calling convention of the methods stable, which is a current limitation of the runtime support for gsharedvt.
 //
 
+// FIXME: Add mixed ref/noref tests, i.e. Dictionary<string, int>
+
 public class Tests
 {
 	public static int Main (String[] args) {

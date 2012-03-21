@@ -1632,11 +1632,18 @@ mono_method_construct_object_context (MonoMethod *method)
 }
 
 static gboolean gshared_supported;
+static gboolean gsharedvt_supported;
 
 void
 mono_set_generic_sharing_supported (gboolean supported)
 {
 	gshared_supported = supported;
+}
+
+void
+mono_set_generic_sharing_vt_supported (gboolean supported)
+{
+	gsharedvt_supported = supported;
 }
 
 /*
@@ -1945,7 +1952,7 @@ mini_type_is_reference (MonoCompile *cfg, MonoType *type)
 	return ((type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR) && !mini_type_var_is_vt (cfg, type));
 }
 
-static gboolean
+gboolean
 mini_is_gshared_vt_type (MonoCompile *cfg, MonoType *t)
 {
 	int i;
@@ -2041,6 +2048,8 @@ mini_is_gsharedvt_method (MonoMethod *method)
 	 *   gsharedvt or not, except for passing the rgctx.
 	 */
 	// FIXME: Relax the restrictions
+	if (!gsharedvt_supported)
+		return FALSE;
 	if (method->is_inflated) {
 		MonoMethodInflated *inflated = (MonoMethodInflated*)method;
 		MonoGenericContext *context = &inflated->context;

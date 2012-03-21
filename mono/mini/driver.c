@@ -133,8 +133,9 @@ extern char *nacl_mono_path;
 	MONO_OPT_INTRINS |  \
 	MONO_OPT_LOOP |  \
 	MONO_OPT_EXCEPTION |  \
-    MONO_OPT_CMOV |  \
+	MONO_OPT_CMOV |		  \
 	MONO_OPT_GSHARED |	\
+	MONO_OPT_GSHAREDVT |	\
 	MONO_OPT_SIMD |	\
 	MONO_OPT_AOT)
 
