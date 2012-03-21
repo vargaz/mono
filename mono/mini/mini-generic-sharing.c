@@ -2055,12 +2055,25 @@ mini_is_gsharedvt_method (MonoMethod *method)
 		MonoGenericContext *context = &inflated->context;
 		MonoGenericInst *inst;
 
-		inst = context->class_inst;
-		if (inst && !inst_is_gsharedvt_sharable (inst))
-			return FALSE;
-		inst = context->method_inst;
-		if (inst && !inst_is_gsharedvt_sharable (inst))
-			return FALSE;
+		if (context->class_inst && context->method_inst) {
+			/* At least one inst has to be gsharedvt sharable, and the other normal or gsharedvt sharable */
+			gboolean vt1 = inst_is_gsharedvt_sharable (context->class_inst);
+			gboolean vt2 = inst_is_gsharedvt_sharable (context->method_inst);
+
+			if ((vt1 && vt2) ||
+				(vt1 && generic_inst_is_sharable (context->method_inst, TRUE, FALSE)) ||
+				(vt2 && generic_inst_is_sharable (context->class_inst, TRUE, FALSE)))
+				;
+			else
+				return FALSE;
+		} else {
+			inst = context->class_inst;
+			if (inst && !inst_is_gsharedvt_sharable (inst))
+				return FALSE;
+			inst = context->method_inst;
+			if (inst && !inst_is_gsharedvt_sharable (inst))
+				return FALSE;
+		}
 	} else {
 		return FALSE;
 	}
