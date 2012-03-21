@@ -2083,3 +2083,12 @@ mini_is_gsharedvt_method (MonoMethod *method)
 
 	return TRUE;
 }
+
+//
+// GSHAREDVT FIXME:
+// - more testing
+// - AOT/debugging support
+// - support for calling methods with variable signatures using trampolines
+// - support more opcodes
+//
+
