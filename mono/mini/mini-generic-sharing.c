@@ -18,6 +18,12 @@
 //#define ALLOW_PARTIAL_SHARING TRUE
 #define ALLOW_PARTIAL_SHARING FALSE
 
+#if 0
+#define DEBUG(...) g_message(__VA_ARGS__)
+#else
+#define DEBUG(...)
+#endif
+
 static void
 mono_class_unregister_image_generic_subclasses (MonoImage *image, gpointer user_data);
 
@@ -491,8 +497,11 @@ mono_class_get_method_generic (MonoClass *klass, MonoMethod *method)
 }
 
 static gpointer
-inflate_other_data (gpointer data, MonoRgctxInfoType info_type, MonoGenericContext *context, MonoClass *class, gboolean temporary)
+inflate_other_info (MonoRuntimeGenericContextOtherInfoTemplate *oti,
+	MonoGenericContext *context, MonoClass *class, gboolean temporary)
 {
+	gpointer data = oti->data;
+	MonoRgctxInfoType info_type = oti->info_type;
 	MonoError error;
 
 	g_assert (data);
@@ -565,13 +574,6 @@ inflate_other_data (gpointer data, MonoRgctxInfoType info_type, MonoGenericConte
 	}
 	/* Not reached, quiet compiler */
 	return NULL;
-}
-
-static gpointer
-inflate_other_info (MonoRuntimeGenericContextOtherInfoTemplate *oti,
-	MonoGenericContext *context, MonoClass *class, gboolean temporary)
-{
-	return inflate_other_data (oti->data, oti->info_type, context, class, temporary);
 }
 
 static void
@@ -816,6 +818,8 @@ class_get_rgctx_template_oti (MonoClass *class, int type_argc, guint32 slot, gbo
 {
 	g_assert ((temporary && do_free) || (!temporary && !do_free));
 
+	DEBUG (printf ("GET: %s %d\n", mono_type_full_name (&class->byval_arg), slot));
+
 	if (class->generic_class && !shared) {
 		MonoRuntimeGenericContextOtherInfoTemplate oti;
 		gboolean tmp_do_free;
@@ -1054,6 +1058,8 @@ register_other_info (MonoClass *class, int type_argc, gpointer data, MonoRgctxIn
 	   recursively. */
 	fill_in_rgctx_template_slot (class, type_argc, i, data, info_type);
 
+	DEBUG (printf ("SET: %s %d\n", mono_type_full_name (&class->byval_arg), i));
+
 	return i;
 }
 
@@ -1092,11 +1098,12 @@ lookup_or_register_other_info (MonoClass *class, int type_argc, gpointer data, M
 {
 	static gboolean inited = FALSE;
 	static int max_slot = 0;
-
 	MonoRuntimeGenericContextTemplate *rgctx_template =
 		mono_class_get_runtime_generic_context_template (class);
 	MonoRuntimeGenericContextOtherInfoTemplate *oti_list, *oti;
 	int i;
+
+	class = get_shared_class (class);
 
 	mono_loader_lock ();
 
