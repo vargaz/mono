@@ -124,8 +124,6 @@ int mono_op_to_op_imm (int opcode);
 int mono_op_to_op_imm_noemul (int opcode);
 
 MonoInst* mono_emit_native_call (MonoCompile *cfg, gconstpointer func, MonoMethodSignature *sig, MonoInst **args);
-void mini_emit_stobj (MonoCompile *cfg, MonoInst *dest, MonoInst *src, MonoClass *klass, gboolean native);
-void mini_emit_initobj (MonoCompile *cfg, MonoInst *dest, const guchar *ip, MonoClass *klass);
 
 /* helper methods signatures */
 static MonoMethodSignature *helper_sig_class_init_trampoline = NULL;
@@ -355,7 +353,20 @@ mono_create_helper_signatures (void)
  */
 #ifndef DISABLE_JIT
 
-#define UNVERIFIED do { if (mini_get_debug_options ()->break_on_unverified) G_BREAKPOINT (); else goto unverified; } while (0)
+/*
+ * When using gsharedvt, some instatiations might be verifiable, and so not. i.e. 
+ * foo<T> (int i) { ldarg.0; box T; }
+ */
+#define UNVERIFIED do { \
+	if (cfg->gsharedvt) { \
+			mono_cfg_set_exception (cfg, MONO_EXCEPTION_GENERIC_SHARING_FAILED); \
+			goto exception_exit;	\
+			} \
+	if (mini_get_debug_options ()->break_on_unverified) \
+		G_BREAKPOINT (); \
+	else \
+		goto unverified; \
+} while (0)
 
 #define LOAD_ERROR do { if (mini_get_debug_options ()->break_on_unverified) G_BREAKPOINT (); else goto load_error; } while (0)
 
@@ -697,7 +708,12 @@ handle_enum:
 		 * really a reference
 		 */
 		g_assert (cfg->generic_sharing_context);
-		inst->type = STACK_OBJ;
+		if (mini_is_gsharedvt_type (cfg, type)) {
+			g_assert (cfg->gsharedvt);
+			inst->type = STACK_VTYPE;
+		} else {
+			inst->type = STACK_OBJ;
+		}
 		return;
 	default:
 		g_error ("unknown type 0x%02x in eval stack type", type->type);
@@ -5303,6 +5319,7 @@ get_basic_blocks (MonoCompile *cfg, MonoMethodHeader* header, guint real_offset,
 	}
 	return 0;
 unverified:
+exception_exit:
 	*pos = ip;
 	return 1;
 }

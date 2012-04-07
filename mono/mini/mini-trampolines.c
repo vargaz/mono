@@ -567,8 +567,15 @@ common_call_trampoline (mgreg_t *regs, guint8 *code, MonoMethod *m, guint8* tram
 				if (!ji)
 					ji = mono_jit_info_table_find (mono_get_root_domain (), (char*)code);
 
-				if (mono_method_same_domain (ji, target_ji))
+				if (ji && target_ji && generic_shared && ji->has_generic_jit_info && !target_ji->has_generic_jit_info) {
+					/* 
+					 * Can't patch the call as the caller is gshared, but the callee is not. Happens when
+					 * generic sharing fails.
+					 * FIXME: Performance problem.
+					 */
+				} else if (mono_method_same_domain (ji, target_ji)) {
 					mono_arch_patch_callsite (ji->code_start, code, addr);
+				}
 			}
 		}
 	}

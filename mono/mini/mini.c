@@ -601,6 +601,35 @@ mono_tramp_info_free (MonoTrampInfo *info)
 	g_free (info);
 }
 
+G_GNUC_UNUSED static void
+break_count (void)
+{
+}
+
+/*
+ * Runtime debugging tool, use if (debug_count ()) <x> else <y> to do <x> the first COUNT times, then do <y> afterwards.
+ * Set a breakpoint in break_count () to break the last time <x> is done.
+ */
+G_GNUC_UNUSED gboolean
+mono_debug_count (void)
+{
+	static int count = 0;
+	count ++;
+
+	if (!getenv ("COUNT"))
+		return TRUE;
+
+	if (count == atoi (getenv ("COUNT"))) {
+		break_count ();
+	}
+
+	if (count > atoi (getenv ("COUNT"))) {
+		return FALSE;
+	}
+
+	return TRUE;
+}
+
 #define MONO_INIT_VARINFO(vi,id) do { \
 	(vi)->range.first_use.pos.bid = 0xffff; \
 	(vi)->reg = -1; \
@@ -3237,14 +3266,14 @@ mono_resolve_patch_target (MonoMethod *method, MonoDomain *domain, guint8 *code,
 
 		switch (entry->data->type) {
 		case MONO_PATCH_INFO_CLASS:
-			slot = mono_method_lookup_or_register_other_info (entry->method, entry->in_mrgctx, &entry->data->data.klass->byval_arg, entry->info_type, mono_method_get_context (entry->method));
+			slot = mono_method_lookup_or_register_info (entry->method, entry->in_mrgctx, &entry->data->data.klass->byval_arg, entry->info_type, mono_method_get_context (entry->method));
 			break;
 		case MONO_PATCH_INFO_METHOD:
 		case MONO_PATCH_INFO_METHODCONST:
-			slot = mono_method_lookup_or_register_other_info (entry->method, entry->in_mrgctx, entry->data->data.method, entry->info_type, mono_method_get_context (entry->method));
+			slot = mono_method_lookup_or_register_info (entry->method, entry->in_mrgctx, entry->data->data.method, entry->info_type, mono_method_get_context (entry->method));
 			break;
 		case MONO_PATCH_INFO_FIELD:
-			slot = mono_method_lookup_or_register_other_info (entry->method, entry->in_mrgctx, entry->data->data.field, entry->info_type, mono_method_get_context (entry->method));
+			slot = mono_method_lookup_or_register_info (entry->method, entry->in_mrgctx, entry->data->data.field, entry->info_type, mono_method_get_context (entry->method));
 			break;
 		default:
 			g_assert_not_reached ();
@@ -4401,6 +4430,11 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 			mono_stats.generics_sharable_methods++;
 		else if (mono_method_is_generic_impl (method))
 			mono_stats.generics_unsharable_methods++;
+	}
+
+	if (mini_is_gsharedvt_method (method)) {
+		if (!mono_debug_count ())
+			try_generic_shared = FALSE;
 	}
 
 #ifdef ENABLE_LLVM

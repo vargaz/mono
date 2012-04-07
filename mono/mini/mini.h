@@ -1034,15 +1034,15 @@ typedef enum {
 	MONO_RGCTX_INFO_FIELD_OFFSET
 } MonoRgctxInfoType;
 
-typedef struct _MonoRuntimeGenericContextOtherInfoTemplate {
+typedef struct _MonoRuntimeGenericContextInfoTemplate {
 	MonoRgctxInfoType info_type;
 	gpointer data;
-	struct _MonoRuntimeGenericContextOtherInfoTemplate *next;
-} MonoRuntimeGenericContextOtherInfoTemplate;
+	struct _MonoRuntimeGenericContextInfoTemplate *next;
+} MonoRuntimeGenericContextInfoTemplate;
 
 typedef struct {
 	MonoClass *next_subclass;
-	MonoRuntimeGenericContextOtherInfoTemplate *other_infos;
+	MonoRuntimeGenericContextInfoTemplate *infos;
 	GSList *method_templates;
 } MonoRuntimeGenericContextTemplate;
 
@@ -1812,6 +1812,7 @@ void      mono_print_bb                     (MonoBasicBlock *bb, const char *msg
 void      mono_print_code                   (MonoCompile *cfg, const char *msg) MONO_INTERNAL;
 void      mono_print_method_from_ip         (void *ip);
 char     *mono_pmip                         (void *ip);
+gboolean mono_debug_count                   (void) MONO_INTERNAL;
 const char* mono_inst_name                  (int op);
 void      mono_inst_set_src_registers       (MonoInst *ins, int *regs) MONO_INTERNAL;
 int       mono_op_to_op_imm                 (int opcode) MONO_INTERNAL;
@@ -2335,7 +2336,7 @@ int
 mono_class_rgctx_get_array_size (int n, gboolean mrgctx) MONO_INTERNAL;
 
 guint32
-mono_method_lookup_or_register_other_info (MonoMethod *method, gboolean in_mrgctx, gpointer data,
+mono_method_lookup_or_register_info (MonoMethod *method, gboolean in_mrgctx, gpointer data,
 	MonoRgctxInfoType info_type, MonoGenericContext *generic_context) MONO_INTERNAL;
 
 MonoGenericContext
