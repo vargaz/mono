@@ -1101,3 +1101,83 @@ mono_arch_get_plt_info_offset (guint8 *plt_entry, mgreg_t *regs, guint8 *code)
 {
 	return *(guint32*)(plt_entry + NACL_SIZE (6, 12));
 }
+
+static gpointer
+x86_start_gsharedvt_call (GSharedVtInCallInfo *info, gpointer *caller, gpointer *callee)
+{
+	int i;
+	int *map = info->map;
+
+	/* Copy data from the caller argument area to the callee */
+	for (i = 0; i < info->map_count; ++i)
+		callee [map [i * 2 + 1]] = caller [map [i * 2]];
+
+	return info->addr;
+}
+
+gpointer
+mono_arch_get_gsharedvt_in_trampoline (void)
+{
+	guint8 *code, *start;
+	int buf_len;
+	int this_offset;
+
+	// FIXME: Cache
+	// FIXME: Length
+	buf_len = 1024;
+	start = code = mono_global_codeman_reserve (buf_len);
+
+	/*
+	 * This trampoline is responsible for marshalling calls between normal code and gsharedvt code. The
+	 * caller is a normal or gshared method which uses the signature of the inflated method to make the call, while
+	 * the callee is a gsharedvt method which has a signature which uses valuetypes in place of type parameters, i.e.
+	 * caller:
+	 * foo<bool> (bool b)
+	 * callee:
+	 * T=<type used to represent vtype type arguments, currently TypedByRef>
+	 * foo<T> (T b)
+	 * The trampoline is responsible for marshalling the arguments and marshalling the result back. To simplify
+	 * things, we create our own stack frame, and do most of the work in a C function, which receives a
+	 * GSharedVtInCallInfo structure as an argument. The structure should contain information to execute the C function to
+	 * be as fast as possible. The argument is received in the RGCTX_REG from a static rgctx trampoline. So the real
+	 * call sequence looks like this:
+	 * caller -> static rgctx trampoline -> gsharevt in trampoline -> start_gsharedvt_call
+	 * FIXME: Optimize this.
+	 */
+
+	x86_push_reg (code, X86_EBP);
+	x86_mov_reg_reg (code, X86_EBP, X86_ESP, sizeof (gpointer));
+	/* Align the stack */
+	x86_alu_reg_imm (code, X86_SUB, X86_ESP, 8);
+
+	x86_mov_reg_membase (code, X86_EAX, MONO_ARCH_RGCTX_REG, G_STRUCT_OFFSET (GSharedVtInCallInfo, stack_usage), sizeof (gpointer));
+	x86_alu_reg_reg (code, X86_SUB, X86_ESP, X86_EAX);
+
+	/* ecx = caller argument area */
+	x86_mov_reg_reg (code, X86_ECX, X86_EBP, 4);
+	x86_alu_reg_imm (code, X86_ADD, X86_ECX, 8);
+	/* eax = caller argument area */
+	x86_mov_reg_reg (code, X86_EAX, X86_ESP, 4);
+
+	/* Call start_gsharedvt_call */
+	// FIXME: Use moves
+	/* Alignment */
+	x86_push_reg (code, X86_EAX);
+	/* Arg3 */
+	x86_push_reg (code, X86_EAX);
+	/* Arg2 */
+	x86_push_reg (code, X86_ECX);
+	/* Arg1 */
+	x86_push_reg (code, MONO_ARCH_RGCTX_REG);
+	x86_call_code (code, x86_start_gsharedvt_call);
+	x86_alu_reg_imm (code, X86_ADD, X86_ESP, 4 * 4);
+
+	/* The stack is now setup for the real call, the address is in EAX */
+	x86_call_reg (code, X86_EAX);
+
+	x86_leave (code);
+	x86_ret (code);
+
+	mono_arch_flush_icache (start, code - start);
+	return start;
+}

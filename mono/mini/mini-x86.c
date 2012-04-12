@@ -357,6 +357,7 @@ get_call_info_internal (MonoGenericSharingContext *gsctx, CallInfo *cinfo, MonoM
 
 	gr = 0;
 	fr = 0;
+	cinfo->nargs = n;
 
 	/* return value */
 	{
@@ -567,6 +568,50 @@ get_call_info (MonoGenericSharingContext *gsctx, MonoMemPool *mp, MonoMethodSign
 	return get_call_info_internal (gsctx, cinfo, sig);
 }
 
+gpointer
+mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m)
+{
+	GSharedVtInCallInfo *info;
+	MonoJitInfo *ji;
+	CallInfo *cinfo, *gcinfo;
+	int i, index;
+
+	ji = mini_jit_info_table_find (mono_domain_get (), addr, NULL);
+	g_assert (ji);
+
+	cinfo = get_call_info (NULL, NULL, mono_method_signature (m));
+	gcinfo = get_call_info (mono_jit_info_get_generic_sharing_context (ji), NULL, mono_method_signature (ji->method));
+
+	info = g_new0 (GSharedVtInCallInfo, 1);
+	info->addr = addr;
+
+	/*
+	 * The stack looks like this:
+	 * <arguments>
+	 * <ret addr>
+	 * <saved ebp>
+	 * <call area>
+	 * We have to map the stack slots in <arguments> to the stack slots in <call area>.
+	 */
+	printf ("D: %d %d\n", cinfo->stack_usage, gcinfo->stack_usage);
+	// FIXME:
+	info->stack_usage = 16;
+	// FIXME: Embed map into the structure
+	// FIXME:
+	info->map = g_malloc0 (sizeof (int) * 256);
+	index = 0;
+	g_assert (cinfo->ret.storage == ArgNone);
+	for (i = 0; i < cinfo->nargs; ++i) {
+		// FIXME: vtype args
+		g_assert (cinfo->args [i].storage == ArgOnStack);
+		info->map [index ++] = cinfo->args [i].offset / sizeof (gpointer);
+		info->map [index ++] = gcinfo->args [i].offset / sizeof (gpointer);
+	}
+	info->map_count = index / 2;
+
+	return info;
+}
+
 /*
  * mono_arch_get_argument_info:
  * @csig:  a method signature
@@ -582,7 +627,7 @@ get_call_info (MonoGenericSharingContext *gsctx, MonoMemPool *mp, MonoMethodSign
  * FIXME: The metadata calls might not be signal safe.
  */
 int
-mono_arch_get_argument_info (MonoMethodSignature *csig, int param_count, MonoJitArgumentInfo *arg_info)
+mono_arch_get_argument_info (MonoGenericSharingContext *gsctx, MonoMethodSignature *csig, int param_count, MonoJitArgumentInfo *arg_info)
 {
 	int len, k, args_size = 0;
 	int size, pad;
@@ -595,7 +640,7 @@ mono_arch_get_argument_info (MonoMethodSignature *csig, int param_count, MonoJit
 	cinfo = (CallInfo*)g_newa (guint8*, len);
 	memset (cinfo, 0, len);
 
-	cinfo = get_call_info_internal (NULL, cinfo, csig);
+	cinfo = get_call_info_internal (gsctx, cinfo, csig);
 
 	arg_info [0].offset = offset;
 
@@ -5441,7 +5486,7 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 	if (CALLCONV_IS_STDCALL (sig)) {
 		MonoJitArgumentInfo *arg_info = alloca (sizeof (MonoJitArgumentInfo) * (sig->param_count + 1));
 
-		stack_to_pop = mono_arch_get_argument_info (sig, sig->param_count, arg_info);
+		stack_to_pop = mono_arch_get_argument_info (NULL, sig, sig->param_count, arg_info);
 	} else if (MONO_TYPE_ISSTRUCT (mono_method_signature (cfg->method)->ret) && (cinfo->ret.storage == ArgOnStack))
 		stack_to_pop = 4;
 	else

@@ -287,6 +287,13 @@ typedef struct {
 
 extern MonoBreakpointInfo mono_breakpoint_info [MONO_BREAKPOINT_ARRAY_SIZE];
 
+typedef struct {
+	/* Method address to call */
+	gpointer addr;
+	int stack_usage, map_count;
+	int *map;
+} GSharedVtInCallInfo;
+
 guint8*
 mono_x86_emit_tls_get (guint8* code, int dreg, int tls_offset) MONO_INTERNAL;
 

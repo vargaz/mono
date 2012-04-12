@@ -488,6 +488,22 @@ common_call_trampoline (mgreg_t *regs, guint8 *code, MonoMethod *m, guint8* tram
 	if (need_rgctx_tramp)
 		addr = mono_create_static_rgctx_trampoline (m, addr);
 
+	if (!strcmp (m->name, "foo")) {
+		gpointer addr2;
+		gpointer info;
+
+		info = mono_arch_get_gsharedvt_in_call_info (addr, m);
+
+		/* FIXME: Make stack walks work */
+		addr = mono_arch_get_gsharedvt_in_trampoline ();
+		g_assert (addr);
+
+		/* Reuse static rgctx trampolines for passing the call info */
+		addr = mono_arch_get_static_rgctx_trampoline (m, info, addr);
+
+		printf ("HIT!\n");
+	}
+
 	if (generic_virtual || variant_iface) {
 		MonoMethod *target = generic_virtual ? generic_virtual : variant_iface;
 
