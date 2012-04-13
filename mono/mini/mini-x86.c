@@ -596,11 +596,12 @@ mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m)
 	printf ("D: %d %d\n", cinfo->stack_usage, gcinfo->stack_usage);
 	// FIXME:
 	info->stack_usage = 16;
+	info->rgctx = mini_method_get_rgctx (m);
 	// FIXME: Embed map into the structure
 	// FIXME:
 	info->map = g_malloc0 (sizeof (int) * 256);
 	index = 0;
-	g_assert (cinfo->ret.storage == ArgNone);
+	g_assert (cinfo->ret.storage == ArgNone || cinfo->ret.storage == ArgInIReg);
 	for (i = 0; i < cinfo->nargs; ++i) {
 		// FIXME: vtype args
 		g_assert (cinfo->args [i].storage == ArgOnStack);

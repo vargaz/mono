@@ -1102,7 +1102,7 @@ mono_arch_get_plt_info_offset (guint8 *plt_entry, mgreg_t *regs, guint8 *code)
 	return *(guint32*)(plt_entry + NACL_SIZE (6, 12));
 }
 
-static gpointer
+static void
 x86_start_gsharedvt_call (GSharedVtInCallInfo *info, gpointer *caller, gpointer *callee)
 {
 	int i;
@@ -1111,8 +1111,6 @@ x86_start_gsharedvt_call (GSharedVtInCallInfo *info, gpointer *caller, gpointer 
 	/* Copy data from the caller argument area to the callee */
 	for (i = 0; i < info->map_count; ++i)
 		callee [map [i * 2 + 1]] = caller [map [i * 2]];
-
-	return info->addr;
 }
 
 gpointer
@@ -1147,6 +1145,8 @@ mono_arch_get_gsharedvt_in_trampoline (void)
 
 	x86_push_reg (code, X86_EBP);
 	x86_mov_reg_reg (code, X86_EBP, X86_ESP, sizeof (gpointer));
+	/* Save info struct addr */
+	x86_mov_membase_reg (code, X86_EBP, -4, MONO_ARCH_RGCTX_REG, 4);
 	/* Align the stack */
 	x86_alu_reg_imm (code, X86_SUB, X86_ESP, 8);
 
@@ -1172,8 +1172,17 @@ mono_arch_get_gsharedvt_in_trampoline (void)
 	x86_call_code (code, x86_start_gsharedvt_call);
 	x86_alu_reg_imm (code, X86_ADD, X86_ESP, 4 * 4);
 
-	/* The stack is now setup for the real call, the address is in EAX */
+	/* The stack is now setup for the real call */
+	/* Load info struct */
+	x86_mov_reg_membase (code, X86_ECX, X86_EBP, -4, 4);
+	/* Load real rgctx */
+	x86_mov_reg_membase (code, MONO_ARCH_RGCTX_REG, X86_ECX, G_STRUCT_OFFSET (GSharedVtInCallInfo, rgctx), sizeof (gpointer));
+	/* Load method addr */
+	x86_mov_reg_membase (code, X86_EAX, X86_ECX, G_STRUCT_OFFSET (GSharedVtInCallInfo, addr), sizeof (gpointer));
+	/* Make the call */
 	x86_call_reg (code, X86_EAX);
+
+	/* No need to marshal return value yet */
 
 	x86_leave (code);
 	x86_ret (code);

@@ -4010,7 +4010,9 @@ create_jit_info (MonoCompile *cfg, MonoMethod *method_to_compile)
 		gi = mono_jit_info_get_generic_jit_info (jinfo);
 		g_assert (gi);
 
-		gi->generic_sharing_context = cfg->generic_sharing_context;
+		// FIXME:
+		gi->generic_sharing_context = g_new0 (MonoGenericSharingContext, 1);
+		memcpy (gi->generic_sharing_context, cfg->generic_sharing_context, sizeof (MonoGenericSharingContext));
 
 		if ((method_to_compile->flags & METHOD_ATTRIBUTE_STATIC) ||
 				mini_method_get_context (method_to_compile)->method_inst ||

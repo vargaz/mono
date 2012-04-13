@@ -290,6 +290,8 @@ extern MonoBreakpointInfo mono_breakpoint_info [MONO_BREAKPOINT_ARRAY_SIZE];
 typedef struct {
 	/* Method address to call */
 	gpointer addr;
+	/* RGCTX to pass to the method */
+	gpointer rgctx;
 	int stack_usage, map_count;
 	int *map;
 } GSharedVtInCallInfo;

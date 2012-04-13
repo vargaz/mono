@@ -266,8 +266,35 @@ public class Tests
 		return 0;
 	}
 
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static int args_simple<T> (T t, int i) {
+		return i;
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static Type args_rgctx<T> (T t, int i) {
+		return typeof (T);
+	}
+
+	public static int test_0_gsharedvt_in () {
+		// Check that the non-generic argument is passed at the correct stack position
+		int r = args_simple<bool> (true, 42);
+		if (r != 42)
+			return 1;
+		r = args_simple<Foo> (new Foo (), 43);
+		if (r != 43)
+			return 2;
+		// Check that the proper rgctx is passed to the method
+		Type t = args_rgctx<int> (5, 42);
+		if (t != typeof (int))
+			return 3;
+		return 0;
+	}
+
 	public static int test_0_regress () {
 		var cmp = System.Collections.Generic.Comparer<int>.Default ;
+		if (cmp == null)
+			return 1;
 		return 0;
 	}
 }

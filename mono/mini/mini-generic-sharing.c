@@ -2112,12 +2112,12 @@ mini_is_gsharedvt_method (MonoMethod *method)
 	if (!sig)
 		return FALSE;
 
-	if (!strcmp (method->klass->name, "Tests") && !strcmp (method->name, "foo"))
-		return TRUE;
-
 	// FIXME: Are these checks enough ?
 	if (sig->ret && is_variable_size (sig->ret))
 		return FALSE;
+	// FIXME:
+	if (!strcmp (method->klass->name, "Tests"))
+		return TRUE;
 	for (i = 0; i < sig->param_count; ++i) {
 		MonoType *t = sig->params [i];
 
@@ -2128,6 +2128,36 @@ mini_is_gsharedvt_method (MonoMethod *method)
 	//printf ("HITA: %s\n", mono_method_full_name (method, TRUE));
 
 	return TRUE;
+}
+
+gboolean
+mini_is_gsharedvt_signature (MonoMethodSignature *sig)
+{
+	int i;
+
+	if (sig->ret && is_variable_size (sig->ret))
+		return TRUE;
+	for (i = 0; i < sig->param_count; ++i) {
+		MonoType *t = sig->params [i];
+
+		if (is_variable_size (t))
+			return TRUE;
+	}
+	return FALSE;
+}
+
+/*
+ * mini_method_get_rgctx:
+ *
+ *  Return the RGCTX which needs to be passed to M when it is called.
+ */
+gpointer
+mini_method_get_rgctx (MonoMethod *m)
+{
+	if (mini_method_get_context (m)->method_inst)
+		return mono_method_lookup_rgctx (mono_class_vtable (mono_domain_get (), m->klass), mini_method_get_context (m)->method_inst);
+	else
+		return mono_class_vtable (mono_domain_get (), m->klass);
 }
 
 //
