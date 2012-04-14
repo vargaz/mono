@@ -1118,7 +1118,6 @@ mono_arch_get_gsharedvt_in_trampoline (void)
 {
 	guint8 *code, *start;
 	int buf_len;
-	int this_offset;
 
 	// FIXME: Cache
 	// FIXME: Length

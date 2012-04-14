@@ -495,7 +495,6 @@ common_call_trampoline (mgreg_t *regs, guint8 *code, MonoMethod *m, guint8* tram
 		if (ji && ji->has_generic_jit_info && (mono_jit_info_get_generic_sharing_context (ji)->var_is_vt ||
 											   mono_jit_info_get_generic_sharing_context (ji)->mvar_is_vt) &&
 			mini_is_gsharedvt_signature (mono_method_signature (ji->method))) {
-			gpointer addr2;
 			gpointer info;
 
 			/* Call from normal/gshared code to gsharedvt code */

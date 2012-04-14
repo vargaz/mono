@@ -2024,6 +2024,8 @@ MonoInst         *mono_branch_optimize_exception_target (MonoCompile *cfg, MonoB
 void              mono_remove_critical_edges (MonoCompile *cfg) MONO_INTERNAL;
 gboolean          mono_is_regsize_var (MonoType *t) MONO_INTERNAL;
 void              mini_emit_memcpy (MonoCompile *cfg, int destreg, int doffset, int srcreg, int soffset, int size, int align) MONO_INTERNAL;
+void              mini_emit_stobj (MonoCompile *cfg, MonoInst *dest, MonoInst *src, MonoClass *klass, gboolean native) MONO_INTERNAL;
+void              mini_emit_initobj (MonoCompile *cfg, MonoInst *dest, const guchar *ip, MonoClass *klass) MONO_INTERNAL;
 CompRelation      mono_opcode_to_cond (int opcode) MONO_LLVM_INTERNAL;
 CompType          mono_opcode_to_type (int opcode, int cmp_opcode) MONO_INTERNAL;
 CompRelation      mono_negate_cond (CompRelation cond) MONO_INTERNAL;
@@ -2111,6 +2113,8 @@ guint8*   mono_arch_emit_load_got_addr          (guint8 *start, guint8 *code, Mo
 guint8*   mono_arch_emit_load_aotconst          (guint8 *start, guint8 *code, MonoJumpInfo **ji, int tramp_type, gconstpointer target) MONO_INTERNAL;
 GSList*   mono_arch_get_cie_program             (void) MONO_INTERNAL;
 void      mono_arch_set_target                  (char *mtriple) MONO_INTERNAL;
+gpointer  mono_arch_get_gsharedvt_in_trampoline (void) MONO_INTERNAL;
+gpointer  mono_arch_get_gsharedvt_in_call_info  (gpointer addr, MonoMethod *m) MONO_INTERNAL;
 
 /* Soft Debug support */
 #ifdef MONO_ARCH_SOFT_DEBUG_SUPPORTED
@@ -2406,6 +2410,8 @@ gboolean mini_is_gsharedvt_klass (MonoCompile *cfg, MonoClass *klass) MONO_INTER
 gboolean mini_is_gsharedvt_type (MonoCompile *cfg, MonoType *t) MONO_INTERNAL;
 MonoClass* mini_get_gsharedvt_alloc_type (MonoCompile *cfg) MONO_INTERNAL;
 gboolean mini_is_gsharedvt_method (MonoMethod *method) MONO_INTERNAL;
+gboolean mini_is_gsharedvt_signature (MonoMethodSignature *sig) MONO_INTERNAL;
+gpointer mini_method_get_rgctx (MonoMethod *m) MONO_INTERNAL;
 
 /* wapihandles.c */
 int mini_wapi_hps (int argc, char **argv) MONO_INTERNAL;

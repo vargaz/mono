@@ -1018,7 +1018,7 @@ info_type_to_str (MonoRgctxInfoType type)
 	}
 }
 
-G_GNUC_UNUSED char*
+G_GNUC_UNUSED static char*
 rgctx_info_to_str (MonoRgctxInfoType info_type, gpointer data)
 {
 	switch (info_type) {
