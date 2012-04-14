@@ -2044,6 +2044,7 @@ static gboolean
 inst_is_gsharedvt_sharable (MonoGenericInst *inst)
 {
 	int i;
+	guint32 align1, align2;
 	gboolean has_vt = FALSE;
 	gboolean large_size = FALSE;
 
@@ -2052,7 +2053,7 @@ inst_is_gsharedvt_sharable (MonoGenericInst *inst)
 
 		if (MONO_TYPE_IS_REFERENCE (type) || (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)) {
 		} else {
-			if (mono_class_value_size (mono_class_from_mono_type (type), NULL) > mono_class_value_size (mini_get_gsharedvt_alloc_type (NULL), NULL))
+			if (mono_class_value_size (mono_class_from_mono_type (type), &align1) > mono_class_value_size (mini_get_gsharedvt_alloc_type (NULL), &align2))
 				large_size = TRUE;
 			has_vt = TRUE;
 		}
@@ -2115,14 +2116,20 @@ mini_is_gsharedvt_method (MonoMethod *method)
 	// FIXME: Are these checks enough ?
 	if (sig->ret && is_variable_size (sig->ret))
 		return FALSE;
+	/*
 	// FIXME:
 	if (!strcmp (method->klass->name, "Tests"))
 		return TRUE;
-	for (i = 0; i < sig->param_count; ++i) {
-		MonoType *t = sig->params [i];
+	*/
+	// FIXME: This is arch specific
+	if (TRUE) {
+	} else {
+		for (i = 0; i < sig->param_count; ++i) {
+			MonoType *t = sig->params [i];
 
-		if (is_variable_size (t))
-			return FALSE;
+			if (is_variable_size (t))
+				return FALSE;
+		}
 	}
 
 	//printf ("HITA: %s\n", mono_method_full_name (method, TRUE));

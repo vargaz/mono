@@ -492,8 +492,8 @@ common_call_trampoline (mgreg_t *regs, guint8 *code, MonoMethod *m, guint8* tram
 		MonoJitInfo *ji = 
 			mini_jit_info_table_find (mono_domain_get (), mono_get_addr_from_ftnptr (compiled_method), NULL);
 
-		if (ji->has_generic_jit_info && (mono_jit_info_get_generic_sharing_context (ji)->var_is_vt ||
-										 mono_jit_info_get_generic_sharing_context (ji)->mvar_is_vt) &&
+		if (ji && ji->has_generic_jit_info && (mono_jit_info_get_generic_sharing_context (ji)->var_is_vt ||
+											   mono_jit_info_get_generic_sharing_context (ji)->mvar_is_vt) &&
 			mini_is_gsharedvt_signature (mono_method_signature (ji->method))) {
 			gpointer addr2;
 			gpointer info;
@@ -508,7 +508,7 @@ common_call_trampoline (mgreg_t *regs, guint8 *code, MonoMethod *m, guint8* tram
 			/* Reuse static rgctx trampolines for passing the call info */
 			addr = mono_arch_get_static_rgctx_trampoline (m, info, addr);
 
-			printf ("HIT2: %s\n", mono_method_full_name (m, TRUE));
+			printf ("HIT2: %s %s\n", mono_method_full_name (m, TRUE), mono_method_full_name (ji->method, TRUE));
 		}
 	}
 

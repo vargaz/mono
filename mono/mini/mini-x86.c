@@ -204,6 +204,7 @@ typedef struct {
 	gint16 offset;
 	gint8  reg;
 	ArgStorage storage;
+	int nslots;
 
 	/* Only if storage == ArgValuetypeInReg */
 	ArgStorage pair_storage [2];
@@ -261,6 +262,7 @@ add_general_pair (guint32 *gr, guint32 *stack_size, ArgInfo *ainfo)
 	
 	ainfo->storage = ArgOnStack;
 	(*stack_size) += sizeof (gpointer) * 2;
+	ainfo->nslots = 2;
 }
 
 static void inline
@@ -271,6 +273,7 @@ add_float (guint32 *gr, guint32 *stack_size, ArgInfo *ainfo, gboolean is_double)
     if (*gr >= FLOAT_PARAM_REGS) {
 		ainfo->storage = ArgOnStack;
 		(*stack_size) += is_double ? 8 : 4;
+		ainfo->nslots = is_double ? 2 : 1;
     }
     else {
 		/* A double register */
@@ -335,6 +338,7 @@ add_valuetype (MonoGenericSharingContext *gsctx, MonoMethodSignature *sig, ArgIn
 	ainfo->offset = *stack_size;
 	ainfo->storage = ArgOnStack;
 	*stack_size += ALIGN_TO (size, sizeof (gpointer));
+	ainfo->nslots = ALIGN_TO (size, sizeof (gpointer)) / sizeof (gpointer);
 }
 
 /*
@@ -512,11 +516,8 @@ get_call_info_internal (MonoGenericSharingContext *gsctx, CallInfo *cinfo, MonoM
 			}
 			/* Fall through */
 		case MONO_TYPE_VALUETYPE:
-			add_valuetype (gsctx, sig, ainfo, sig->params [i], FALSE, &gr, &fr, &stack_size);
-			break;
 		case MONO_TYPE_TYPEDBYREF:
-			stack_size += sizeof (MonoTypedRef);
-			ainfo->storage = ArgOnStack;
+			add_valuetype (gsctx, sig, ainfo, sig->params [i], FALSE, &gr, &fr, &stack_size);
 			break;
 		case MONO_TYPE_U8:
 		case MONO_TYPE_I8:
@@ -574,7 +575,7 @@ mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m)
 	GSharedVtInCallInfo *info;
 	MonoJitInfo *ji;
 	CallInfo *cinfo, *gcinfo;
-	int i, index;
+	int i, j, index;
 
 	ji = mini_jit_info_table_find (mono_domain_get (), addr, NULL);
 	g_assert (ji);
@@ -593,9 +594,7 @@ mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m)
 	 * <call area>
 	 * We have to map the stack slots in <arguments> to the stack slots in <call area>.
 	 */
-	printf ("D: %d %d\n", cinfo->stack_usage, gcinfo->stack_usage);
-	// FIXME:
-	info->stack_usage = 16;
+	info->stack_usage = gcinfo->stack_usage;
 	info->rgctx = mini_method_get_rgctx (m);
 	// FIXME: Embed map into the structure
 	// FIXME:
@@ -603,10 +602,15 @@ mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m)
 	index = 0;
 	g_assert (cinfo->ret.storage == ArgNone || cinfo->ret.storage == ArgInIReg);
 	for (i = 0; i < cinfo->nargs; ++i) {
-		// FIXME: vtype args
-		g_assert (cinfo->args [i].storage == ArgOnStack);
-		info->map [index ++] = cinfo->args [i].offset / sizeof (gpointer);
-		info->map [index ++] = gcinfo->args [i].offset / sizeof (gpointer);
+		ArgInfo *ainfo = &cinfo->args [i];
+		ArgInfo *gainfo = &gcinfo->args [i];
+		int nslots = ainfo->nslots ? ainfo->nslots : 1;
+
+		g_assert (ainfo->storage == ArgOnStack);
+		for (j = 0; j < nslots; ++j) {
+			info->map [index ++] = (ainfo->offset / sizeof (gpointer)) + j;
+			info->map [index ++] = (gainfo->offset / sizeof (gpointer)) + j;
+		}
 	}
 	info->map_count = index / 2;
 
