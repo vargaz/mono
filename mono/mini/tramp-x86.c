@@ -1114,15 +1114,16 @@ x86_start_gsharedvt_call (GSharedVtInCallInfo *info, gpointer *caller, gpointer 
 }
 
 gpointer
-mono_arch_get_gsharedvt_in_trampoline (void)
+mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 {
-	guint8 *code, *start;
-	int buf_len;
+	guint8 *code, *buf;
+	int buf_len, cfa_offset;
+	GSList *unwind_ops = NULL;
+	MonoJumpInfo *ji = NULL;
 
-	// FIXME: Cache
 	// FIXME: Length
-	buf_len = 1024;
-	start = code = mono_global_codeman_reserve (buf_len);
+	buf_len = 256;
+	buf = code = mono_global_codeman_reserve (buf_len);
 
 	/*
 	 * This trampoline is responsible for marshalling calls between normal code and gsharedvt code. The
@@ -1142,8 +1143,15 @@ mono_arch_get_gsharedvt_in_trampoline (void)
 	 * FIXME: Optimize this.
 	 */
 
+	cfa_offset = sizeof (gpointer);
+	mono_add_unwind_op_def_cfa (unwind_ops, code, buf, X86_ESP, cfa_offset);
+	mono_add_unwind_op_offset (unwind_ops, code, buf, X86_NREG, -cfa_offset);
 	x86_push_reg (code, X86_EBP);
+	cfa_offset += sizeof (gpointer);
+	mono_add_unwind_op_def_cfa_offset (unwind_ops, code, buf, cfa_offset);
+	mono_add_unwind_op_offset (unwind_ops, code, buf, X86_EBP, - cfa_offset);
 	x86_mov_reg_reg (code, X86_EBP, X86_ESP, sizeof (gpointer));
+	mono_add_unwind_op_def_cfa_reg (unwind_ops, code, buf, X86_EBP);
 	/* Save info struct addr */
 	x86_mov_membase_reg (code, X86_EBP, -4, MONO_ARCH_RGCTX_REG, 4);
 	/* Align the stack */
@@ -1168,7 +1176,10 @@ mono_arch_get_gsharedvt_in_trampoline (void)
 	x86_push_reg (code, X86_ECX);
 	/* Arg1 */
 	x86_push_reg (code, MONO_ARCH_RGCTX_REG);
-	x86_call_code (code, x86_start_gsharedvt_call);
+	if (aot)
+		NOT_IMPLEMENTED;
+	else
+		x86_call_code (code, x86_start_gsharedvt_call);
 	x86_alu_reg_imm (code, X86_ADD, X86_ESP, 4 * 4);
 
 	/* The stack is now setup for the real call */
@@ -1180,12 +1191,13 @@ mono_arch_get_gsharedvt_in_trampoline (void)
 	x86_mov_reg_membase (code, X86_EAX, X86_ECX, G_STRUCT_OFFSET (GSharedVtInCallInfo, addr), sizeof (gpointer));
 	/* Make the call */
 	x86_call_reg (code, X86_EAX);
-
 	/* No need to marshal return value yet */
-
 	x86_leave (code);
 	x86_ret (code);
 
-	mono_arch_flush_icache (start, code - start);
-	return start;
+	if (info)
+		*info = mono_tramp_info_create ("gsharedvt_in_trampoline", buf, code - buf, ji, unwind_ops);
+
+	mono_arch_flush_icache (buf, code - buf);
+	return buf;
 }

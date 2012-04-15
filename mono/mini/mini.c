@@ -3921,6 +3921,25 @@ mono_handle_out_of_line_bblock (MonoCompile *cfg)
 }
 
 static MonoJitInfo*
+create_jit_info_for_trampoline (MonoMethod *wrapper, MonoTrampInfo *info)
+{
+	MonoDomain *domain = mono_get_root_domain ();
+	MonoJitInfo *jinfo;
+	guint8 *uw_info;
+	guint32 info_len;
+
+	uw_info = mono_unwind_ops_encode (info->unwind_ops, &info_len);
+
+	jinfo = mono_domain_alloc0 (domain, MONO_SIZEOF_JIT_INFO);
+	jinfo->method = wrapper;
+	jinfo->code_start = info->code;
+	jinfo->code_size = info->code_size;
+	jinfo->used_regs = mono_cache_unwind_info (uw_info, info_len);
+
+	return jinfo;
+}
+
+static MonoJitInfo*
 create_jit_info (MonoCompile *cfg, MonoMethod *method_to_compile)
 {
 	GSList *tmp;
@@ -5442,6 +5461,28 @@ mono_jit_compile_method_inner (MonoMethod *method, MonoDomain *target_domain, in
 		g_free (full_name);
 		g_free (msg);
 		return NULL;
+	}
+
+	if (method->wrapper_type == MONO_WRAPPER_UNKNOWN) {
+		WrapperInfo *info = mono_marshal_get_wrapper_info (method);
+
+		if (info->subtype == WRAPPER_SUBTYPE_GSHAREDVT_IN) {
+			static MonoTrampInfo *tinfo;
+			MonoJitInfo *jinfo;
+
+			if (tinfo)
+				return tinfo->code;
+
+			/*
+			 * This is a special wrapper whose body is implemented in assembly, like a trampoline. We use a wrapper so EH
+			 * works.
+			 * FIXME: The caller signature doesn't match the callee, which might cause problems on some platforms
+			 */
+			mono_arch_get_gsharedvt_in_trampoline (&tinfo, FALSE);
+			jinfo = create_jit_info_for_trampoline (method, tinfo);
+			mono_jit_info_table_add (mono_get_root_domain (), jinfo);
+			return tinfo->code;
+		}
 	}
 
 	if (mono_aot_only) {

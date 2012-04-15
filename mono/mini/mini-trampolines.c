@@ -496,13 +496,13 @@ common_call_trampoline (mgreg_t *regs, guint8 *code, MonoMethod *m, guint8* tram
 											   mono_jit_info_get_generic_sharing_context (ji)->mvar_is_vt) &&
 			mini_is_gsharedvt_signature (mono_method_signature (ji->method))) {
 			gpointer info;
+			MonoMethod *wrapper;
 
 			/* Call from normal/gshared code to gsharedvt code */
 			info = mono_arch_get_gsharedvt_in_call_info (compiled_method, m);
 
-			/* FIXME: Make stack walks work */
-			addr = mono_arch_get_gsharedvt_in_trampoline ();
-			g_assert (addr);
+			wrapper = mono_marshal_get_gsharedvt_in_wrapper ();
+			addr = mono_compile_method (wrapper);
 
 			/* Reuse static rgctx trampolines for passing the call info */
 			addr = mono_arch_get_static_rgctx_trampoline (m, info, addr);

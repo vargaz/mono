@@ -276,6 +276,11 @@ public class Tests
 		return typeof (T);
 	}
 
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static Type eh_in<T> (T t, int i) {
+		throw new OverflowException ();
+	}
+
 	public static int test_0_gsharedvt_in () {
 		// Check that the non-generic argument is passed at the correct stack position
 		int r = args_simple<bool> (true, 42);
@@ -288,6 +293,11 @@ public class Tests
 		Type t = args_rgctx<int> (5, 42);
 		if (t != typeof (int))
 			return 3;
+		// Check that EH works properly
+		try {
+			eh_in<int> (1, 2);
+		} catch (OverflowException) {
+		}
 		return 0;
 	}
 
