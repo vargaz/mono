@@ -1108,6 +1108,10 @@ x86_start_gsharedvt_call (GSharedVtInCallInfo *info, gpointer *caller, gpointer 
 	int i;
 	int *map = info->map;
 
+	/* Set vtype ret arg */
+	if (info->vret_arg_slot != -1) {
+		callee [info->vret_arg_slot] = &callee [info->vret_slot];
+	}
 	/* Copy data from the caller argument area to the callee */
 	for (i = 0; i < info->map_count; ++i)
 		callee [map [i * 2 + 1]] = caller [map [i * 2]];
@@ -1120,6 +1124,7 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	int buf_len, cfa_offset;
 	GSList *unwind_ops = NULL;
 	MonoJumpInfo *ji = NULL;
+	guint8 *br [16];
 
 	// FIXME: Length
 	buf_len = 256;
@@ -1191,7 +1196,25 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	x86_mov_reg_membase (code, X86_EAX, X86_ECX, G_STRUCT_OFFSET (GSharedVtInCallInfo, addr), sizeof (gpointer));
 	/* Make the call */
 	x86_call_reg (code, X86_EAX);
-	/* No need to marshal return value yet */
+	/* The return value is either in registers, or stored to an area beginning at sp [info->vret_slot] */
+	/* Load info struct */
+	x86_mov_reg_membase (code, X86_ECX, X86_EBP, -4, 4);
+	/* Load 'vret_slot' */
+	x86_mov_reg_membase (code, X86_ECX, X86_ECX, G_STRUCT_OFFSET (GSharedVtInCallInfo, vret_slot), 4);
+	x86_alu_reg_imm (code, X86_CMP, X86_ECX, -1);
+	br [0] = code;
+	/* Skip return value marshalling if -1 */
+	x86_branch8 (code, X86_CC_E, 0, TRUE);
+	/* Compute ret area address */
+	x86_shift_reg_imm (code, X86_SHL, X86_ECX, 2);
+	x86_alu_reg_reg (code, X86_ADD, X86_ECX, X86_ESP);
+	/* Load both eax and edx for simplicity */
+	x86_mov_reg_membase (code, X86_EAX, X86_ECX, 0, sizeof (gpointer));
+	x86_mov_reg_membase (code, X86_EDX, X86_ECX, sizeof (gpointer), sizeof (gpointer));
+	/* FIXME: fp */
+
+	/* Return */
+	x86_patch (br [0], code);
 	x86_leave (code);
 	x86_ret (code);
 

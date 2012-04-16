@@ -292,6 +292,10 @@ typedef struct {
 	gpointer addr;
 	/* RGCTX to pass to the method */
 	gpointer rgctx;
+	/* If the gsharedvt method expects a vret_arg, this is its stack slot, else -1 */
+	int vret_arg_slot;
+	/* The stack slot where the return value will be stored */
+	int vret_slot;
 	int stack_usage, map_count;
 	int *map;
 } GSharedVtInCallInfo;

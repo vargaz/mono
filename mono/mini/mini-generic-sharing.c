@@ -2113,17 +2113,15 @@ mini_is_gsharedvt_method (MonoMethod *method)
 	if (!sig)
 		return FALSE;
 
-	// FIXME: Are these checks enough ?
-	if (sig->ret && is_variable_size (sig->ret))
-		return FALSE;
 	/*
 	// FIXME:
 	if (!strcmp (method->klass->name, "Tests"))
 		return TRUE;
 	*/
-	// FIXME: This is arch specific
-	if (TRUE) {
+	if (mono_arch_gsharedvt_sig_supported (sig)) {
 	} else {
+		if (sig->ret && is_variable_size (sig->ret))
+			return FALSE;
 		for (i = 0; i < sig->param_count; ++i) {
 			MonoType *t = sig->params [i];
 

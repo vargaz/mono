@@ -359,9 +359,12 @@ mono_create_helper_signatures (void)
  */
 #define UNVERIFIED do { \
 	if (cfg->gsharedvt) { \
+		if (cfg->verbose_level > 2) {									\
+			printf ("gsharedvt method failed to verify, falling back to instantiation.\n"); \
 			mono_cfg_set_exception (cfg, MONO_EXCEPTION_GENERIC_SHARING_FAILED); \
-			goto exception_exit;	\
-			} \
+			goto exception_exit;										\
+		}																\
+	}																	\
 	if (mini_get_debug_options ()->break_on_unverified) \
 		G_BREAKPOINT (); \
 	else \
@@ -701,12 +704,8 @@ handle_enum:
 	case MONO_TYPE_GENERICINST:
 		type = &type->data.generic_class->container_class->byval_arg;
 		goto handle_enum;
-	case MONO_TYPE_VAR :
-	case MONO_TYPE_MVAR :
-		/* FIXME: all the arguments must be references for now,
-		 * later look inside cfg and see if the arg num is
-		 * really a reference
-		 */
+	case MONO_TYPE_VAR:
+	case MONO_TYPE_MVAR:
 		g_assert (cfg->generic_sharing_context);
 		if (mini_is_gsharedvt_type (cfg, type)) {
 			g_assert (cfg->gsharedvt);
@@ -2028,13 +2027,14 @@ target_type_is_incompatible (MonoCompile *cfg, MonoType *target, MonoInst *arg)
 		}
 	case MONO_TYPE_VAR:
 	case MONO_TYPE_MVAR:
-		/* FIXME: all the arguments must be references for now,
-		 * later look inside cfg and see if the arg num is
-		 * really a reference
-		 */
 		g_assert (cfg->generic_sharing_context);
-		if (arg->type != STACK_OBJ)
-			return 1;
+		if (mini_type_var_is_vt (cfg, simple_type)) {
+			if (arg->type != STACK_VTYPE)
+				return 1;
+		} else {
+			if (arg->type != STACK_OBJ)
+				return 1;
+		}
 		return 0;
 	default:
 		g_error ("unknown type 0x%02x in target_type_is_incompatible", simple_type->type);

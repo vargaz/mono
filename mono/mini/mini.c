@@ -946,12 +946,12 @@ static guint
 mini_type_to_ldind (MonoCompile* cfg, MonoType *type)
 {
 	if (cfg->generic_sharing_context && !type->byref) {
-		/* FIXME: all the arguments must be references for now,
-		 * later look inside cfg and see if the arg num is
-		 * really a reference
-		 */
-		if (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)
-			return CEE_LDIND_REF;
+		if (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR) {
+			if (mini_type_var_is_vt (cfg, type))
+				return CEE_LDOBJ;
+			else
+				return CEE_LDIND_REF;
+		}
 	}
 	return mono_type_to_ldind (type);
 }
@@ -960,12 +960,12 @@ guint
 mini_type_to_stind (MonoCompile* cfg, MonoType *type)
 {
 	if (cfg->generic_sharing_context && !type->byref) {
-		/* FIXME: all the arguments must be references for now,
-		 * later look inside cfg and see if the arg num is
-		 * really a reference
-		 */
-		if (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)
-			return CEE_STIND_REF;
+		if (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR) {
+			if (mini_type_var_is_vt (cfg, type))
+				return CEE_STOBJ;
+			else
+				return CEE_STIND_REF;
+		}
 	}
 	return mono_type_to_stind (type);
 }

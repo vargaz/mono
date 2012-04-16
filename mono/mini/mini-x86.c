@@ -205,6 +205,7 @@ typedef struct {
 	gint8  reg;
 	ArgStorage storage;
 	int nslots;
+	gboolean is_pair;
 
 	/* Only if storage == ArgValuetypeInReg */
 	ArgStorage pair_storage [2];
@@ -391,6 +392,7 @@ get_call_info_internal (MonoGenericSharingContext *gsctx, CallInfo *cinfo, MonoM
 		case MONO_TYPE_I8:
 			cinfo->ret.storage = ArgInIReg;
 			cinfo->ret.reg = X86_EAX;
+			cinfo->ret.is_pair = TRUE;
 			break;
 		case MONO_TYPE_R4:
 			cinfo->ret.storage = ArgOnFloatFpStack;
@@ -567,54 +569,6 @@ get_call_info (MonoGenericSharingContext *gsctx, MonoMemPool *mp, MonoMethodSign
 		cinfo = g_malloc0 (sizeof (CallInfo) + (sizeof (ArgInfo) * n));
 
 	return get_call_info_internal (gsctx, cinfo, sig);
-}
-
-gpointer
-mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m)
-{
-	GSharedVtInCallInfo *info;
-	MonoJitInfo *ji;
-	CallInfo *cinfo, *gcinfo;
-	int i, j, index;
-
-	ji = mini_jit_info_table_find (mono_domain_get (), addr, NULL);
-	g_assert (ji);
-
-	cinfo = get_call_info (NULL, NULL, mono_method_signature (m));
-	gcinfo = get_call_info (mono_jit_info_get_generic_sharing_context (ji), NULL, mono_method_signature (ji->method));
-
-	info = g_new0 (GSharedVtInCallInfo, 1);
-	info->addr = addr;
-
-	/*
-	 * The stack looks like this:
-	 * <arguments>
-	 * <ret addr>
-	 * <saved ebp>
-	 * <call area>
-	 * We have to map the stack slots in <arguments> to the stack slots in <call area>.
-	 */
-	info->stack_usage = gcinfo->stack_usage;
-	info->rgctx = mini_method_get_rgctx (m);
-	// FIXME: Embed map into the structure
-	// FIXME:
-	info->map = g_malloc0 (sizeof (int) * 256);
-	index = 0;
-	g_assert (cinfo->ret.storage == ArgNone || cinfo->ret.storage == ArgInIReg);
-	for (i = 0; i < cinfo->nargs; ++i) {
-		ArgInfo *ainfo = &cinfo->args [i];
-		ArgInfo *gainfo = &gcinfo->args [i];
-		int nslots = ainfo->nslots ? ainfo->nslots : 1;
-
-		g_assert (ainfo->storage == ArgOnStack);
-		for (j = 0; j < nslots; ++j) {
-			info->map [index ++] = (ainfo->offset / sizeof (gpointer)) + j;
-			info->map [index ++] = (gainfo->offset / sizeof (gpointer)) + j;
-		}
-	}
-	info->map_count = index / 2;
-
-	return info;
 }
 
 /*
@@ -1233,7 +1187,7 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 
 	switch (cinfo->ret.storage) {
 	case ArgOnStack:
-		if (MONO_TYPE_ISSTRUCT (sig->ret)) {
+		if (cfg->vret_addr) {
 			/* 
 			 * In the new IR, the cfg->vret_addr variable represents the
 			 * vtype return value.
@@ -1296,7 +1250,7 @@ mono_arch_create_vars (MonoCompile *cfg)
 
 	if (cinfo->ret.storage == ArgValuetypeInReg)
 		cfg->ret_var_is_local = TRUE;
-	if ((cinfo->ret.storage != ArgValuetypeInReg) && MONO_TYPE_ISSTRUCT (sig->ret)) {
+	if ((cinfo->ret.storage != ArgValuetypeInReg) && (MONO_TYPE_ISSTRUCT (sig->ret) || mini_is_gsharedvt_type (cfg, sig->ret))) {
 		cfg->vret_addr = mono_compile_create_var (cfg, &mono_defaults.int_class->byval_arg, OP_ARG);
 	}
 
@@ -6691,3 +6645,92 @@ mono_arch_get_seq_point_info (MonoDomain *domain, guint8 *code)
 
 #endif
 
+/*
+ * GSHAREDVT
+ */
+
+static gboolean
+is_variable_size (MonoType *t)
+{
+	return (t->type == MONO_TYPE_VAR || t->type == MONO_TYPE_MVAR || (t->type == MONO_TYPE_GENERICINST && t->data.generic_class->container_class->byval_arg.type == MONO_TYPE_VALUETYPE));
+}
+
+gboolean
+mono_arch_gsharedvt_sig_supported (MonoMethodSignature *sig)
+{
+	/*
+	if (sig->ret && is_variable_size (sig->ret))
+		return FALSE;
+	*/
+	return TRUE;
+}
+
+gpointer
+mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m)
+{
+	GSharedVtInCallInfo *info;
+	MonoJitInfo *ji;
+	CallInfo *cinfo, *gcinfo;
+	int i, j, index;
+	MonoMethodSignature *sig, *gsig;
+
+	ji = mini_jit_info_table_find (mono_domain_get (), addr, NULL);
+	g_assert (ji);
+
+	sig = mono_method_signature (m);
+	gsig = mono_method_signature (ji->method);
+	cinfo = get_call_info (NULL, NULL, sig);
+	gcinfo = get_call_info (mono_jit_info_get_generic_sharing_context (ji), NULL, gsig);
+
+	info = g_new0 (GSharedVtInCallInfo, 1);
+	info->addr = addr;
+
+	/*
+	 * The stack looks like this:
+	 * <arguments>
+	 * <ret addr>
+	 * <saved ebp>
+	 * <call area>
+	 * We have to map the stack slots in <arguments> to the stack slots in <call area>.
+	 */
+	info->stack_usage = gcinfo->stack_usage;
+	info->rgctx = mini_method_get_rgctx (m);
+	info->vret_arg_slot = -1;
+	info->vret_slot = -1;
+	// FIXME: Embed map into the structure
+	// FIXME:
+	info->map = g_malloc0 (sizeof (int) * 256);
+	index = 0;
+	g_assert (cinfo->ret.storage == ArgNone || cinfo->ret.storage == ArgInIReg);
+	if (gcinfo->vtype_retaddr && gcinfo->vret_arg_index == 0) {
+		info->vret_arg_slot = 0;
+	}
+	for (i = 0; i < cinfo->nargs; ++i) {
+		ArgInfo *ainfo = &cinfo->args [i];
+		ArgInfo *gainfo = &gcinfo->args [i];
+		int nslots = ainfo->nslots ? ainfo->nslots : 1;
+
+		g_assert (ainfo->storage == ArgOnStack);
+		for (j = 0; j < nslots; ++j) {
+			info->map [index ++] = (ainfo->offset / sizeof (gpointer)) + j;
+			info->map [index ++] = (gainfo->offset / sizeof (gpointer)) + j;
+		}
+
+		if (gcinfo->vtype_retaddr && gcinfo->vret_arg_index == 1 && i == 0) {
+			//info->vret_arg_slot = index ++;
+			NOT_IMPLEMENTED;
+		}
+	}
+
+	if (gcinfo->vtype_retaddr) {
+		/* Allocate stack space for the return value */
+		info->vret_slot = info->stack_usage;
+		// FIXME:
+		info->stack_usage += sizeof (gpointer) * 3;
+	}
+
+	info->stack_usage = ALIGN_TO (info->stack_usage, MONO_ARCH_FRAME_ALIGNMENT);
+	info->map_count = index / 2;
+
+	return info;
+}
