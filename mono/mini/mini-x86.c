@@ -6782,7 +6782,7 @@ mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m)
 
 	if (var_ret && !cinfo->vtype_retaddr) {
 		/* Allocate stack space for the return value */
-		info->vret_slot = info->stack_usage;
+		info->vret_slot = info->stack_usage / sizeof (gpointer);
 		// FIXME:
 		info->stack_usage += sizeof (gpointer) * 3;
 	}
