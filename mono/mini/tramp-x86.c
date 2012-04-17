@@ -1204,9 +1204,14 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	x86_mov_reg_membase (code, X86_ECX, X86_ECX, G_STRUCT_OFFSET (GSharedVtInCallInfo, ret_marshal), 4);
 	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_IN_RET_NONE);
 	br [0] = code;
-	x86_branch8 (code, X86_CC_E, 0, TRUE);
+	x86_branch8 (code, X86_CC_NE, 0, TRUE);
+
+	/* Normal return, no marshalling required */
+	x86_leave (code);
+	x86_ret (code);
 
 	/* Return value marshalling */
+	x86_patch (br [0], code);
 	/* Load info struct */
 	x86_mov_reg_membase (code, X86_EAX, X86_EBP, -4, 4);
 	/* Load 'vret_slot' */
@@ -1222,27 +1227,30 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_IN_RET_FLOAT_FPSTACK);
 	br [2] = code;
 	x86_branch8 (code, X86_CC_E, 0, TRUE);
+	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_IN_RET_STACK_POP);
+	br [3] = code;
+	x86_branch8 (code, X86_CC_E, 0, TRUE);
 	/* IREGS case */
 	/* Load both eax and edx for simplicity */
 	x86_mov_reg_membase (code, X86_EDX, X86_EAX, sizeof (gpointer), sizeof (gpointer));
 	x86_mov_reg_membase (code, X86_EAX, X86_EAX, 0, sizeof (gpointer));
-	br [3] = code;
-	x86_jump8 (code, 0);
+	x86_leave (code);
+	x86_ret (code);
 	/* DOUBLE_FPSTACK case */
 	x86_patch (br [1], code);
 	x86_fld_membase (code, X86_EAX, 0, TRUE);
-	br [4] = code;
 	x86_jump8 (code, 0);
+	x86_leave (code);
+	x86_ret (code);
 	/* FLOAT_FPSTACK case */
 	x86_patch (br [2], code);
 	x86_fld_membase (code, X86_EAX, 0, FALSE);
-
-	/* Return */
-	x86_patch (br [0], code);
-	x86_patch (br [3], code);
-	x86_patch (br [4], code);
 	x86_leave (code);
 	x86_ret (code);
+	/* STACK_POP case */
+	x86_patch (br [3], code);
+	x86_leave (code);
+	x86_ret_imm (code, 4);
 
 	g_assert ((code - buf) < buf_len);
 

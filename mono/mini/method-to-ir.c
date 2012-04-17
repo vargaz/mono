@@ -359,11 +359,10 @@ mono_create_helper_signatures (void)
  */
 #define UNVERIFIED do { \
 	if (cfg->gsharedvt) { \
-		if (cfg->verbose_level > 2) {									\
+		if (cfg->verbose_level > 2)									\
 			printf ("gsharedvt method failed to verify, falling back to instantiation.\n"); \
-			mono_cfg_set_exception (cfg, MONO_EXCEPTION_GENERIC_SHARING_FAILED); \
-			goto exception_exit;										\
-		}																\
+		mono_cfg_set_exception (cfg, MONO_EXCEPTION_GENERIC_SHARING_FAILED); \
+		goto exception_exit;											\
 	}																	\
 	if (mini_get_debug_options ()->break_on_unverified) \
 		G_BREAKPOINT (); \

@@ -521,7 +521,7 @@ get_call_info_internal (MonoGenericSharingContext *gsctx, CallInfo *cinfo, MonoM
 			/* Fall through */
 		case MONO_TYPE_VALUETYPE:
 		case MONO_TYPE_TYPEDBYREF:
-			add_valuetype (gsctx, sig, ainfo, sig->params [i], FALSE, &gr, &fr, &stack_size);
+			add_valuetype (gsctx, sig, ainfo, ptype, FALSE, &gr, &fr, &stack_size);
 			break;
 		case MONO_TYPE_U8:
 		case MONO_TYPE_I8:
@@ -4996,6 +4996,13 @@ mono_arch_patch_code (MonoMethod *method, MonoDomain *domain, guint8 *code, Mono
 	}
 }
 
+static G_GNUC_UNUSED void
+stack_unaligned (MonoMethod *m, gpointer caller)
+{
+	printf ("%s\n", mono_method_full_name (m, TRUE));
+	g_assert_not_reached ();
+}
+
 guint8 *
 mono_arch_emit_prolog (MonoCompile *cfg)
 {
@@ -5029,6 +5036,24 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 
 	alignment_check = (guint)cfg->native_code & kNaClAlignmentMask;
   	g_assert(alignment_check == 0);
+#endif
+
+#if 0
+	{
+		guint8 *br [16];
+
+	/* Check that the stack is aligned on osx */
+	x86_mov_reg_reg (code, X86_EAX, X86_ESP, sizeof (mgreg_t));
+	x86_alu_reg_imm (code, X86_AND, X86_EAX, 15);
+	x86_alu_reg_imm (code, X86_CMP, X86_EAX, 0xc);
+	br [0] = code;
+	x86_branch_disp (code, X86_CC_Z, 0, FALSE);
+	x86_push_membase (code, X86_ESP, 0);
+	x86_push_imm (code, cfg->method);
+	x86_mov_reg_imm (code, X86_EAX, stack_unaligned);
+	x86_call_reg (code, X86_EAX);
+	x86_patch (br [0], code);
+	}
 #endif
 
 	/* Offset between RSP and the CFA */
@@ -6684,7 +6709,7 @@ mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m)
 
 	if (gcinfo->vtype_retaddr && gsig->ret && mini_is_gsharedvt_type_gsctx (mono_jit_info_get_generic_sharing_context (ji), gsig->ret)) {
 		/*
-		 * The callee returns the gsharedvt alloc type, by receiving its address as the first argument.
+		 * The callee returns a gsharedvt vtype, by receiving its address as the first argument.
 		 */
 		var_ret = TRUE;
 	}
@@ -6723,8 +6748,10 @@ mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m)
 			info->ret_marshal = GSHAREDVT_IN_RET_FLOAT_FPSTACK;
 			break;
 		case ArgOnStack:
-			/* The caller passes in a vtype ret arg as well, no marshalling needed */
+			/* The caller passes in a vtype ret arg as well */
 			g_assert (cinfo->vtype_retaddr);
+			/* Just have to pop the arg, as done by normal methods in their epilog */
+			info->ret_marshal = GSHAREDVT_IN_RET_STACK_POP;
 			break;
 		default:
 			g_assert_not_reached ();

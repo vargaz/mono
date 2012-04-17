@@ -276,6 +276,11 @@ public class Tests
 	}
 
 	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static int args_simple<T> (T t, int i, T t2) {
+		return i;
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
 	static Type args_rgctx<T> (T t, int i) {
 		return typeof (T);
 	}
@@ -307,6 +312,9 @@ public class Tests
 		Type t = args_rgctx<int> (5, 42);
 		if (t != typeof (int))
 			return 3;
+		var v = args_simple<GFoo2<int>> (new GFoo2<int> () { t = 11, t2 = 12 }, 44, new GFoo2<int> () { t = 11, t2 = 12 });
+		if (v != 44)
+			return 4;
 		// Check that EH works properly
 		try {
 			eh_in<int> (1, 2);
@@ -338,9 +346,9 @@ public class Tests
 		return 0;
 	}
 
-	public static int test_0_regress () {
-		var cmp = System.Collections.Generic.Comparer<int>.Default ;
-		if (cmp == null)
+	public static int test_0_gsharedvt_in_delegates () {
+		Func<int, int> f = new Func<int, int> (return_t<int>);
+		if (f (42) != 42)
 			return 1;
 		return 0;
 	}
