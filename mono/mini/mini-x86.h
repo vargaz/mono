@@ -287,12 +287,22 @@ typedef struct {
 
 extern MonoBreakpointInfo mono_breakpoint_info [MONO_BREAKPOINT_ARRAY_SIZE];
 
+/* Return value marshalling for gsharedvt in calls */
+typedef enum {
+	GSHAREDVT_IN_RET_NONE = 0,
+	GSHAREDVT_IN_RET_IREGS = 1,
+	GSHAREDVT_IN_RET_DOUBLE_FPSTACK = 2,
+	GSHAREDVT_IN_RET_FLOAT_FPSTACK = 3,
+} GSharedVtInRetMarshal;
+
 typedef struct {
 	/* Method address to call */
 	gpointer addr;
 	/* RGCTX to pass to the method */
 	gpointer rgctx;
-	/* If the gsharedvt method expects a vret_arg, this is its stack slot, else -1 */
+	/* The trampoline reads this, so keep the size explicit */
+	int ret_marshal;
+	/* If ret_marshal != NONE, this is the stack slot of the vret arg, else -1 */
 	int vret_arg_slot;
 	/* The stack slot where the return value will be stored */
 	int vret_slot;

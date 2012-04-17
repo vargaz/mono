@@ -1197,26 +1197,54 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	/* Make the call */
 	x86_call_reg (code, X86_EAX);
 	/* The return value is either in registers, or stored to an area beginning at sp [info->vret_slot] */
+	/* EAX/EDX might contain the return value, only ECX is free */
 	/* Load info struct */
 	x86_mov_reg_membase (code, X86_ECX, X86_EBP, -4, 4);
-	/* Load 'vret_slot' */
-	x86_mov_reg_membase (code, X86_ECX, X86_ECX, G_STRUCT_OFFSET (GSharedVtInCallInfo, vret_slot), 4);
-	x86_alu_reg_imm (code, X86_CMP, X86_ECX, -1);
+	/* Load ret marshal type */
+	x86_mov_reg_membase (code, X86_ECX, X86_ECX, G_STRUCT_OFFSET (GSharedVtInCallInfo, ret_marshal), 4);
+	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_IN_RET_NONE);
 	br [0] = code;
-	/* Skip return value marshalling if -1 */
 	x86_branch8 (code, X86_CC_E, 0, TRUE);
+
+	/* Return value marshalling */
+	/* Load info struct */
+	x86_mov_reg_membase (code, X86_EAX, X86_EBP, -4, 4);
+	/* Load 'vret_slot' */
+	x86_mov_reg_membase (code, X86_EAX, X86_EAX, G_STRUCT_OFFSET (GSharedVtInCallInfo, vret_slot), 4);
 	/* Compute ret area address */
-	x86_shift_reg_imm (code, X86_SHL, X86_ECX, 2);
-	x86_alu_reg_reg (code, X86_ADD, X86_ECX, X86_ESP);
+	x86_shift_reg_imm (code, X86_SHL, X86_EAX, 2);
+	x86_alu_reg_reg (code, X86_ADD, X86_EAX, X86_ESP);
+
+	/* Branch to specific marshalling code */
+	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_IN_RET_DOUBLE_FPSTACK);
+	br [1] = code;
+	x86_branch8 (code, X86_CC_E, 0, TRUE);
+	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_IN_RET_FLOAT_FPSTACK);
+	br [2] = code;
+	x86_branch8 (code, X86_CC_E, 0, TRUE);
+	/* IREGS case */
 	/* Load both eax and edx for simplicity */
-	x86_mov_reg_membase (code, X86_EAX, X86_ECX, 0, sizeof (gpointer));
-	x86_mov_reg_membase (code, X86_EDX, X86_ECX, sizeof (gpointer), sizeof (gpointer));
-	/* FIXME: fp */
+	x86_mov_reg_membase (code, X86_EDX, X86_EAX, sizeof (gpointer), sizeof (gpointer));
+	x86_mov_reg_membase (code, X86_EAX, X86_EAX, 0, sizeof (gpointer));
+	br [3] = code;
+	x86_jump8 (code, 0);
+	/* DOUBLE_FPSTACK case */
+	x86_patch (br [1], code);
+	x86_fld_membase (code, X86_EAX, 0, TRUE);
+	br [4] = code;
+	x86_jump8 (code, 0);
+	/* FLOAT_FPSTACK case */
+	x86_patch (br [2], code);
+	x86_fld_membase (code, X86_EAX, 0, FALSE);
 
 	/* Return */
 	x86_patch (br [0], code);
+	x86_patch (br [3], code);
+	x86_patch (br [4], code);
 	x86_leave (code);
 	x86_ret (code);
+
+	g_assert ((code - buf) < buf_len);
 
 	if (info)
 		*info = mono_tramp_info_create ("gsharedvt_in_trampoline", buf, code - buf, ji, unwind_ops);

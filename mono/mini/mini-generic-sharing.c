@@ -27,9 +27,6 @@
 static void
 mono_class_unregister_image_generic_subclasses (MonoImage *image, gpointer user_data);
 
-static gboolean
-mini_is_gsharedvt_type_gsctx (MonoGenericSharingContext *gsctx, MonoType *t);
-
 static int
 type_check_context_used (MonoType *type, gboolean recursive)
 {
@@ -1976,7 +1973,7 @@ mini_type_is_reference (MonoCompile *cfg, MonoType *type)
 	return ((type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR) && !mini_type_var_is_vt (cfg, type));
 }
 
-static gboolean
+gboolean
 mini_is_gsharedvt_type_gsctx (MonoGenericSharingContext *gsctx, MonoType *t)
 {
 	int i;
@@ -2037,6 +2034,7 @@ mini_get_gsharedvt_alloc_type (MonoCompile *cfg)
 static gboolean
 is_variable_size (MonoType *t)
 {
+	// FIXME: Implement the GENERICINST case properly
 	return (t->type == MONO_TYPE_VAR || t->type == MONO_TYPE_MVAR || (t->type == MONO_TYPE_GENERICINST && t->data.generic_class->container_class->byval_arg.type == MONO_TYPE_VALUETYPE));
 }
 

@@ -507,6 +507,8 @@ common_call_trampoline (mgreg_t *regs, guint8 *code, MonoMethod *m, guint8* tram
 			/* Reuse static rgctx trampolines for passing the call info */
 			addr = mono_arch_get_static_rgctx_trampoline (m, info, addr);
 
+			if (strstr (m->name, "get_Current"))
+				printf ("DOH!\n");
 			printf ("HIT2: %s %s\n", mono_method_full_name (m, TRUE), mono_method_full_name (ji->method, TRUE));
 		}
 	}

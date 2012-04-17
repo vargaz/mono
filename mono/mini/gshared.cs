@@ -16,6 +16,10 @@ struct GFoo<T> {
 	public static Foo static_f;
 }
 
+struct GFoo2<T> {
+	public T t, t2;
+}
+
 //
 // Tests for generic sharing of vtypes.
 // The tests use arrays to pass/receive values to keep the calling convention of the methods stable, which is a current limitation of the runtime support for gsharedvt.
@@ -281,6 +285,16 @@ public class Tests
 		throw new OverflowException ();
 	}
 
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static T return_t<T> (T t) {
+		return t;
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	T return_this_t<T> (T t) {
+		return t;
+	}
+
 	public static int test_0_gsharedvt_in () {
 		// Check that the non-generic argument is passed at the correct stack position
 		int r = args_simple<bool> (true, 42);
@@ -298,6 +312,29 @@ public class Tests
 			eh_in<int> (1, 2);
 		} catch (OverflowException) {
 		}
+		return 0;
+	}
+
+	public static int test_0_gsharedvt_in_ret () {
+		int i = return_t<int> (42);
+		if (i != 42)
+			return 1;
+		long l = return_t<long> (Int64.MaxValue);
+		if (l != Int64.MaxValue)
+			return 2;
+		double d = return_t<double> (3.0);
+		if (d != 3.0)
+			return 3;
+		float f = return_t<float> (3.0f);
+		if (f != 3.0f)
+			return 4;
+		var v = new GFoo2<int> () { t = 55, t2 = 32 };
+		var v2 = return_t<GFoo2<int>> (v);
+		if (v2.t != 55 || v2.t2 != 32)
+			return 5;
+		i = new Tests ().return_this_t<int> (42);
+		if (i != 42)
+			return 6;
 		return 0;
 	}
 

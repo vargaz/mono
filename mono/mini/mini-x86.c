@@ -222,6 +222,7 @@ typedef struct {
 	gboolean vtype_retaddr;
 	/* The index of the vret arg in the argument list */
 	int vret_arg_index;
+	int vret_arg_offset;
 	ArgInfo ret;
 	ArgInfo sig_cookie;
 	ArgInfo args [1];
@@ -444,6 +445,7 @@ get_call_info_internal (MonoGenericSharingContext *gsctx, CallInfo *cinfo, MonoM
 			add_general (&gr, &stack_size, &cinfo->args [sig->hasthis + 0]);
 			pstart = 1;
 		}
+		cinfo->vret_arg_offset = stack_size;
 		add_general (&gr, &stack_size, &cinfo->ret);
 		cinfo->vret_arg_index = 1;
 	} else {
@@ -6649,12 +6651,6 @@ mono_arch_get_seq_point_info (MonoDomain *domain, guint8 *code)
  * GSHAREDVT
  */
 
-static gboolean
-is_variable_size (MonoType *t)
-{
-	return (t->type == MONO_TYPE_VAR || t->type == MONO_TYPE_MVAR || (t->type == MONO_TYPE_GENERICINST && t->data.generic_class->container_class->byval_arg.type == MONO_TYPE_VALUETYPE));
-}
-
 gboolean
 mono_arch_gsharedvt_sig_supported (MonoMethodSignature *sig)
 {
@@ -6673,6 +6669,7 @@ mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m)
 	CallInfo *cinfo, *gcinfo;
 	int i, j, index;
 	MonoMethodSignature *sig, *gsig;
+	gboolean var_ret = FALSE;
 
 	ji = mini_jit_info_table_find (mono_domain_get (), addr, NULL);
 	g_assert (ji);
@@ -6685,6 +6682,13 @@ mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m)
 	info = g_new0 (GSharedVtInCallInfo, 1);
 	info->addr = addr;
 
+	if (gcinfo->vtype_retaddr && gsig->ret && mini_is_gsharedvt_type_gsctx (mono_jit_info_get_generic_sharing_context (ji), gsig->ret)) {
+		/*
+		 * The callee returns the gsharedvt alloc type, by receiving its address as the first argument.
+		 */
+		var_ret = TRUE;
+	}
+
 	/*
 	 * The stack looks like this:
 	 * <arguments>
@@ -6695,16 +6699,48 @@ mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m)
 	 */
 	info->stack_usage = gcinfo->stack_usage;
 	info->rgctx = mini_method_get_rgctx (m);
-	info->vret_arg_slot = -1;
+	info->ret_marshal = GSHAREDVT_IN_RET_NONE;
 	info->vret_slot = -1;
+	if (var_ret)
+		info->vret_arg_slot = gcinfo->vret_arg_offset / sizeof (gpointer);
+	else
+		info->vret_arg_slot = -1;
 	// FIXME: Embed map into the structure
 	// FIXME:
 	info->map = g_malloc0 (sizeof (int) * 256);
 	index = 0;
-	g_assert (cinfo->ret.storage == ArgNone || cinfo->ret.storage == ArgInIReg);
-	if (gcinfo->vtype_retaddr && gcinfo->vret_arg_index == 0) {
-		info->vret_arg_slot = 0;
+
+	/* Compute return value marshalling */
+	if (var_ret) {
+		switch (cinfo->ret.storage) {
+		case ArgInIReg:
+			info->ret_marshal = GSHAREDVT_IN_RET_IREGS;
+			break;
+		case ArgOnDoubleFpStack:
+			info->ret_marshal = GSHAREDVT_IN_RET_DOUBLE_FPSTACK;
+			break;
+		case ArgOnFloatFpStack:
+			info->ret_marshal = GSHAREDVT_IN_RET_FLOAT_FPSTACK;
+			break;
+		case ArgOnStack:
+			/* The caller passes in a vtype ret arg as well, no marshalling needed */
+			g_assert (cinfo->vtype_retaddr);
+			break;
+		default:
+			g_assert_not_reached ();
+		}
 	}
+
+	if (cinfo->vtype_retaddr) {
+		/*
+		 * Map ret arg.
+		 * This handles the case when the method returns a normal vtype, and when it returns a type arg, and its instantiated
+		 * with a vtype.
+		 */		
+		info->map [index ++] = cinfo->vret_arg_offset / sizeof (gpointer);
+		info->map [index ++] = gcinfo->vret_arg_offset / sizeof (gpointer);
+	}
+
 	for (i = 0; i < cinfo->nargs; ++i) {
 		ArgInfo *ainfo = &cinfo->args [i];
 		ArgInfo *gainfo = &gcinfo->args [i];
@@ -6715,14 +6751,9 @@ mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m)
 			info->map [index ++] = (ainfo->offset / sizeof (gpointer)) + j;
 			info->map [index ++] = (gainfo->offset / sizeof (gpointer)) + j;
 		}
-
-		if (gcinfo->vtype_retaddr && gcinfo->vret_arg_index == 1 && i == 0) {
-			//info->vret_arg_slot = index ++;
-			NOT_IMPLEMENTED;
-		}
 	}
 
-	if (gcinfo->vtype_retaddr) {
+	if (var_ret && !cinfo->vtype_retaddr) {
 		/* Allocate stack space for the return value */
 		info->vret_slot = info->stack_usage;
 		// FIXME:
