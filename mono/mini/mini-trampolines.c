@@ -278,9 +278,17 @@ is_generic_method_definition (MonoMethod *m)
 	return FALSE;
 }
 
-static gpointer
-add_gsharedvt_in_trampoline (MonoMethod *m, gpointer compiled_method, gpointer addr)
+/*
+ * mini_add_method_trampoline:
+ *
+ *   Add static rgctx/gsharedvt_in trampoline to M/COMPILED_METHOD if needed. Return the trampoline address, or
+ * COMPILED_METHOD if no trampoline is needed.
+ */
+gpointer
+mini_add_method_trampoline (MonoMethod *m, gpointer compiled_method, gboolean add_static_rgctx_tramp)
 {
+	gpointer addr = compiled_method;
+
 	MonoJitInfo *ji = 
 		mini_jit_info_table_find (mono_domain_get (), mono_get_addr_from_ftnptr (compiled_method), NULL);
 
@@ -300,6 +308,9 @@ add_gsharedvt_in_trampoline (MonoMethod *m, gpointer compiled_method, gpointer a
 		addr = mono_arch_get_static_rgctx_trampoline (m, info, addr);
 
 		printf ("HIT2: %s %s\n", mono_method_full_name (m, TRUE), mono_method_full_name (ji->method, TRUE));
+	} else {
+		if (add_static_rgctx_tramp)
+			addr = mono_create_static_rgctx_trampoline (m, compiled_method);
 	}
 
 	return addr;
@@ -515,10 +526,7 @@ common_call_trampoline (mgreg_t *regs, guint8 *code, MonoMethod *m, guint8* tram
 
 	mono_debugger_trampoline_compiled (code, m, addr);
 
-	if (need_rgctx_tramp)
-		addr = mono_create_static_rgctx_trampoline (m, addr);
-
-	addr = add_gsharedvt_in_trampoline (m, compiled_method, addr);
+	addr = mini_add_method_trampoline (m, compiled_method, need_rgctx_tramp);
 
 	if (generic_virtual || variant_iface) {
 		MonoMethod *target = generic_virtual ? generic_virtual : variant_iface;
@@ -984,9 +992,7 @@ mono_delegate_trampoline (mgreg_t *regs, guint8 *code, gpointer *tramp_data, gui
 			delegate->method_ptr = *delegate->method_code;
 		} else {
 			compiled_method = addr = mono_compile_method (method);
-			if (need_rgctx_tramp)
-				addr = mono_create_static_rgctx_trampoline (method, addr);
-			addr = add_gsharedvt_in_trampoline (method, compiled_method, addr);
+			addr = mini_add_method_trampoline (method, compiled_method, need_rgctx_tramp);
 			delegate->method_ptr = addr;
 			if (enable_caching && delegate->method_code)
 				*delegate->method_code = delegate->method_ptr;

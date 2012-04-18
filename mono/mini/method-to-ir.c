@@ -8645,6 +8645,10 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			if (cfg->generic_sharing_context)
 				context_used = mono_class_check_context_used (klass);
 
+			if (mini_is_gsharedvt_klass (cfg, klass))
+				/* Need to check for nullable types at runtime */
+				GSHAREDVT_FAILURE (*ip);
+
 			if (generic_class_is_reference_type (cfg, klass)) {
 				/* CASTCLASS FIXME kill this huge slice of duplicated code*/
 				if (!context_used && mini_class_has_reference_variant_generic_argument (cfg, klass, context_used)) {

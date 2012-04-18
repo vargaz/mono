@@ -2079,6 +2079,8 @@ mini_is_gsharedvt_method (MonoMethod *method)
 	// FIXME: Relax the restrictions
 	if (!gsharedvt_supported)
 		return FALSE;
+	if (mono_class_is_nullable (method->klass))
+		return FALSE;
 	if (method->is_inflated) {
 		MonoMethodInflated *inflated = (MonoMethodInflated*)method;
 		MonoGenericContext *context = &inflated->context;
