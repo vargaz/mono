@@ -104,7 +104,7 @@
 	} while (0)
 #define GSHAREDVT_FAILURE(opcode) do {		\
 		if (cfg->gsharedvt) {	\
-            if (cfg->verbose_level > 2) \
+            if (cfg->verbose_level >= 2) \
 			    printf ("gsharedvt failed for method %s.%s.%s/%d opcode %s line %d\n", method->klass->name_space, method->klass->name, method->name, method->signature->param_count, mono_opcode_name ((opcode)), __LINE__); \
 			mono_cfg_set_exception (cfg, MONO_EXCEPTION_GENERIC_SHARING_FAILED); \
 			goto exception_exit;	\
@@ -2268,7 +2268,7 @@ mono_emit_call_args (MonoCompile *cfg, MonoMethodSignature *sig,
 			call->vret_var = cfg->vret_addr;
 			//g_assert_not_reached ();
 		}
-	} else if (MONO_TYPE_ISSTRUCT (sig->ret)) {
+	} else if (MONO_TYPE_ISSTRUCT (sig->ret) || mini_is_gsharedvt_type (cfg, sig->ret)) {
 		MonoInst *temp = mono_compile_create_var (cfg, sig->ret, OP_LOCAL);
 		MonoInst *loada;
 
@@ -6932,12 +6932,10 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 				if (cfg->gsharedvt) {
 					/* Don't support calls made using type arguments for now */
-					if (mini_is_gsharedvt_type (cfg, fsig->ret))
+					/*
+					if (mini_is_gsharedvt_signature (cfg, fsig))
 						GSHAREDVT_FAILURE (*ip);
-					for (i = 0; i < fsig->param_count; ++i) {
-						if (mini_is_gsharedvt_type (cfg, fsig->params [i]))
-							GSHAREDVT_FAILURE (*ip);
-					}
+					*/
 				}
 
 				if (mono_security_get_mode () == MONO_SECURITY_MODE_CAS) {
@@ -7035,6 +7033,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 				if (mono_method_is_generic_sharable_impl (cmethod, TRUE)) {
 					pass_mrgctx = TRUE;
+					printf ("MA: %s %d\n", mono_method_full_name (cmethod, TRUE), mini_is_gsharedvt_signature (cfg, mono_method_signature (cmethod)));
 				} else {
 					gboolean sharing_enabled = mono_class_generic_sharing_enabled (cmethod->klass);
 					MonoGenericContext *context = mini_method_get_context (cmethod);
@@ -7042,6 +7041,13 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 					if (sharing_enabled && context_sharable)
 						pass_mrgctx = TRUE;
+
+					printf ("MA: %s %d\n", mono_method_full_name (cmethod, TRUE), mini_is_gsharedvt_signature (cfg, mono_method_signature (cmethod)));
+
+					if (cfg->gsharedvt && mini_is_gsharedvt_signature (cfg, mono_method_signature (cmethod))) {
+						printf ("DOH!\n");
+						pass_mrgctx = TRUE;
+					}
 				}
 			}
 

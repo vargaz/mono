@@ -2018,6 +2018,20 @@ mini_is_gsharedvt_klass (MonoCompile *cfg, MonoClass *klass)
 	return mini_is_gsharedvt_type (cfg, &klass->byval_arg);
 }
 
+gboolean
+mini_is_gsharedvt_signature (MonoCompile *cfg, MonoMethodSignature *sig)
+{
+	int i;
+
+	if (sig->ret && mini_is_gsharedvt_type (cfg, sig->ret))
+		return TRUE;
+	for (i = 0; i < sig->param_count; ++i) {
+		if (mini_is_gsharedvt_type (cfg, sig->params [i]))
+			return TRUE;
+	}
+	return FALSE;
+}
+
 /*
  * mini_get_gsharedvt_alloc_type:
  *
@@ -2135,8 +2149,13 @@ mini_is_gsharedvt_method (MonoMethod *method)
 	return TRUE;
 }
 
+/*
+ * mini_is_gsharedvt_variable_signature:
+ *
+ *   Return whenever the calling convention used to call SIG varies depending on the values of type parameters used by SIG.
+ */
 gboolean
-mini_is_gsharedvt_signature (MonoMethodSignature *sig)
+mini_is_gsharedvt_variable_signature (MonoMethodSignature *sig)
 {
 	int i;
 

@@ -2011,7 +2011,7 @@ gconstpointer     mono_get_trampoline_func (MonoTrampolineType tramp_type);
 gpointer          mini_get_vtable_trampoline (int slot_index) MONO_INTERNAL;
 char*             mono_get_generic_trampoline_name (MonoTrampolineType tramp_type) MONO_INTERNAL;
 char*             mono_get_rgctx_fetch_trampoline_name (int slot) MONO_INTERNAL;
-gpointer          mini_add_method_trampoline (MonoMethod *m, gpointer compiled_method, gboolean add_static_rgctx_tramp) MONO_INTERNAL;
+gpointer          mini_add_method_trampoline (MonoMethod *m, gpointer compiled_method, MonoJitInfo *caller_ji, gboolean add_static_rgctx_tramp) MONO_INTERNAL;
 
 gboolean          mono_running_on_valgrind (void) MONO_INTERNAL;
 void*             mono_global_codeman_reserve (int size) MONO_INTERNAL;
@@ -2410,10 +2410,11 @@ gboolean mini_type_is_reference (MonoCompile *cfg, MonoType *type) MONO_INTERNAL
 gboolean mini_type_var_is_vt (MonoCompile *cfg, MonoType *type) MONO_INTERNAL;
 gboolean mini_is_gsharedvt_klass (MonoCompile *cfg, MonoClass *klass) MONO_INTERNAL;
 gboolean mini_is_gsharedvt_type (MonoCompile *cfg, MonoType *t) MONO_INTERNAL;
+gboolean mini_is_gsharedvt_signature (MonoCompile *cfg, MonoMethodSignature *sig) MONO_INTERNAL;
 gboolean mini_is_gsharedvt_type_gsctx (MonoGenericSharingContext *gsctx, MonoType *t) MONO_INTERNAL;
 MonoClass* mini_get_gsharedvt_alloc_type (MonoCompile *cfg) MONO_INTERNAL;
 gboolean mini_is_gsharedvt_method (MonoMethod *method) MONO_INTERNAL;
-gboolean mini_is_gsharedvt_signature (MonoMethodSignature *sig) MONO_INTERNAL;
+gboolean mini_is_gsharedvt_variable_signature (MonoMethodSignature *sig) MONO_INTERNAL;
 gpointer mini_method_get_rgctx (MonoMethod *m) MONO_INTERNAL;
 
 /* wapihandles.c */

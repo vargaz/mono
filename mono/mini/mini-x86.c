@@ -408,7 +408,8 @@ get_call_info_internal (MonoGenericSharingContext *gsctx, CallInfo *cinfo, MonoM
 				break;
 			}
 			/* Fall through */
-		case MONO_TYPE_VALUETYPE: {
+		case MONO_TYPE_VALUETYPE:
+		case MONO_TYPE_TYPEDBYREF: {
 			guint32 tmp_gr = 0, tmp_fr = 0, tmp_stacksize = 0;
 
 			add_valuetype (gsctx, sig, &cinfo->ret, sig->ret, TRUE, &tmp_gr, &tmp_fr, &tmp_stacksize);
@@ -418,10 +419,6 @@ get_call_info_internal (MonoGenericSharingContext *gsctx, CallInfo *cinfo, MonoM
 			}
 			break;
 		}
-		case MONO_TYPE_TYPEDBYREF:
-			/* Same as a valuetype with size 12 */
-			cinfo->vtype_retaddr = TRUE;
-			break;
 		case MONO_TYPE_VOID:
 			cinfo->ret.storage = ArgNone;
 			break;
@@ -1602,7 +1599,7 @@ mono_arch_emit_call (MonoCompile *cfg, MonoCallInst *call)
 		}
 	}
 
-	if (sig->ret && MONO_TYPE_ISSTRUCT (sig->ret)) {
+	if (sig->ret && (MONO_TYPE_ISSTRUCT (sig->ret) || cinfo->vtype_retaddr)) {
 		MonoInst *vtarg;
 
 		if (cinfo->ret.storage == ArgValuetypeInReg) {

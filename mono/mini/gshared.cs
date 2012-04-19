@@ -352,4 +352,19 @@ public class Tests
 			return 1;
 		return 0;
 	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static T return2_t<T> (T t) {
+		return return_t (t);
+	}
+
+	public static int test_0_gsharedvt_calls () {
+		if (return2_t (2) != 2)
+			return 1;
+		if (return2_t ("A") != "A")
+			return 2;
+		if (return2_t (2.0) != 2.0)
+			return 3;
+		return 0;
+	}
 }
