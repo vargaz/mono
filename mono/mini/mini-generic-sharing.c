@@ -1969,10 +1969,14 @@ mini_type_is_reference (MonoCompile *cfg, MonoType *type)
 		return TRUE;
 	if (!cfg->generic_sharing_context)
 		return FALSE;
-	/*FIXME the probably needs better handle under partial sharing*/
 	return ((type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR) && !mini_type_var_is_vt (cfg, type));
 }
 
+/*
+ * mini_is_gsharedvt_type_gsctx:
+ *
+ *   Return whenever T references type arguments instantiated with gshared vtypes.
+ */
 gboolean
 mini_is_gsharedvt_type_gsctx (MonoGenericSharingContext *gsctx, MonoType *t)
 {
@@ -2036,20 +2040,41 @@ mini_is_gsharedvt_signature (MonoCompile *cfg, MonoMethodSignature *sig)
  * mini_get_gsharedvt_alloc_type:
  *
  *   Return the type which is used to allocate locals whose type is a type param
- * instantiated with the shared vtype.
+ * instantiated with a vtype.
  */
 MonoClass*
 mini_get_gsharedvt_alloc_type (MonoCompile *cfg)
 {
-	// FIXME:
 	return mono_defaults.typed_reference_class;
 }
 
 static gboolean
 is_variable_size (MonoType *t)
 {
-	// FIXME: Implement the GENERICINST case properly
-	return (t->type == MONO_TYPE_VAR || t->type == MONO_TYPE_MVAR || (t->type == MONO_TYPE_GENERICINST && t->data.generic_class->container_class->byval_arg.type == MONO_TYPE_VALUETYPE));
+	int i;
+
+	if (t->type == MONO_TYPE_VAR || t->type == MONO_TYPE_MVAR)
+		return TRUE;
+	if (t->type == MONO_TYPE_GENERICINST && t->data.generic_class->container_class->byval_arg.type == MONO_TYPE_VALUETYPE) {
+		MonoGenericClass *gclass = t->data.generic_class;
+		MonoGenericContext *context = &gclass->context;
+		MonoGenericInst *inst;
+
+		inst = context->class_inst;
+		if (inst) {
+			for (i = 0; i < inst->type_argc; ++i)
+				if (is_variable_size (inst->type_argv [i]))
+					return TRUE;
+		}
+		inst = context->method_inst;
+		if (inst) {
+			for (i = 0; i < inst->type_argc; ++i)
+				if (is_variable_size (inst->type_argv [i]))
+					return TRUE;
+		}
+	}
+
+	return FALSE;
 }
 
 static gboolean
@@ -2078,21 +2103,17 @@ gboolean
 mini_is_gsharedvt_method (MonoMethod *method)
 {
 	MonoMethodSignature *sig;
-	int i;
 
 	/*
 	 * A method is gshared vt if:
 	 * - it has type parameters instantiated with vtypes
 	 * - the size of the vtypes is smaller than the size of
      *   mini_get_gsharedvt_alloc_type ().
-	 * - the vtype type params don't show up in the signature of the method, i.e.
-	 *   swap (T[] arr) is ok, while T return_t () and pass_t (T t) are not.
-	 *   This ensures that the caller doesn't have to know whenever the callee is
-	 *   gsharedvt or not, except for passing the rgctx.
 	 */
 	// FIXME: Relax the restrictions
 	if (!gsharedvt_supported)
 		return FALSE;
+	/* Many opcodes have special cases for nullable types */
 	if (mono_class_is_nullable (method->klass))
 		return FALSE;
 	if (method->is_inflated) {
@@ -2128,20 +2149,13 @@ mini_is_gsharedvt_method (MonoMethod *method)
 		return FALSE;
 
 	/*
-	// FIXME:
 	if (!strcmp (method->klass->name, "Tests"))
 		return TRUE;
 	*/
 	if (mono_arch_gsharedvt_sig_supported (sig)) {
 	} else {
-		if (sig->ret && is_variable_size (sig->ret))
+		if (mini_is_gsharedvt_variable_signature (sig))
 			return FALSE;
-		for (i = 0; i < sig->param_count; ++i) {
-			MonoType *t = sig->params [i];
-
-			if (is_variable_size (t))
-				return FALSE;
-		}
 	}
 
 	//printf ("HITA: %s\n", mono_method_full_name (method, TRUE));
@@ -2152,7 +2166,8 @@ mini_is_gsharedvt_method (MonoMethod *method)
 /*
  * mini_is_gsharedvt_variable_signature:
  *
- *   Return whenever the calling convention used to call SIG varies depending on the values of type parameters used by SIG.
+ *   Return whenever the calling convention used to call SIG varies depending on the values of type parameters used by SIG,
+ * i.e. FALSE for swap(T[] arr, int i, int j), TRUE for T get_t ().
  */
 gboolean
 mini_is_gsharedvt_variable_signature (MonoMethodSignature *sig)
@@ -2188,7 +2203,7 @@ mini_method_get_rgctx (MonoMethod *m)
 // GSHAREDVT FIXME:
 // - more testing
 // - AOT/debugging support
-// - support for calling methods with variable signatures using trampolines
 // - support more opcodes
+// - ARM support
 //
 

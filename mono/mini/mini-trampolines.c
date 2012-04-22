@@ -103,10 +103,7 @@ mono_create_static_rgctx_trampoline (MonoMethod *m, gpointer addr)
 	g_assert (((gpointer*)addr) [2] == 0);
 #endif
 
-	if (mini_method_get_context (m)->method_inst)
-		ctx = mono_method_lookup_rgctx (mono_class_vtable (mono_domain_get (), m->klass), mini_method_get_context (m)->method_inst);
-	else
-		ctx = mono_class_vtable (mono_domain_get (), m->klass);
+	ctx = mini_method_get_rgctx (m);
 
 	domain = mono_domain_get ();
 

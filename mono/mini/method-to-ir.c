@@ -8306,14 +8306,10 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 				GSHAREDVT_FAILURE (*ip);
 
 			if (cfg->gsharedvt) {
-				/* Don't support calls made using type arguments for now */
-				// FIXME: Put this into a function
-				if (mini_is_gsharedvt_type (cfg, fsig->ret))
+				/*
+				if (mini_is_gsharedvt_variable_signature (sig))
 					GSHAREDVT_FAILURE (*ip);
-				for (i = 0; i < fsig->param_count; ++i) {
-					if (mini_is_gsharedvt_type (cfg, fsig->params [i]))
-						GSHAREDVT_FAILURE (*ip);
-				}
+				*/
 			}
 
 			if (cmethod->klass->valuetype && mono_class_generic_sharing_enabled (cmethod->klass) &&

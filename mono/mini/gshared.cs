@@ -20,6 +20,16 @@ struct GFoo2<T> {
 	public T t, t2;
 }
 
+class GFoo3<T> {
+	public T t, t2;
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	public GFoo3 (T i1, T i2) {
+		t = i1;
+		t2 = i2;
+	}
+}
+
 //
 // Tests for generic sharing of vtypes.
 // The tests use arrays to pass/receive values to keep the calling convention of the methods stable, which is a current limitation of the runtime support for gsharedvt.
@@ -365,6 +375,21 @@ public class Tests
 			return 2;
 		if (return2_t (2.0) != 2.0)
 			return 3;
+		return 0;
+	}
+
+	static GFoo3<T> newobj<T> (T t1, T t2) {
+		return new GFoo3<T> (t1, t2);
+	}
+	
+	public static int test_0_gshared_new () {
+		var g1 = newobj (1, 2);
+		if (g1.t != 1 || g1.t2 != 2)
+			return 1;
+		var g2 = newobj (1.0, 2.0);
+		if (g1.t != 1.0 || g1.t2 != 2.0)
+			return 2;
+
 		return 0;
 	}
 }
