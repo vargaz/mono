@@ -2150,12 +2150,13 @@ decode_exception_debug_info (MonoAotModule *amodule, MonoDomain *domain,
 {
 	int i, buf_len, num_clauses;
 	MonoJitInfo *jinfo;
-	guint used_int_regs, flags;
+	guint flags;
 	gboolean has_generic_jit_info, has_dwarf_unwind_info, has_clauses, has_seq_points, has_try_block_holes, has_arch_eh_jit_info;
 	gboolean from_llvm, has_gc_map;
 	guint8 *p;
 	int generic_info_size, try_holes_info_size, num_holes, arch_eh_jit_info_size;
 	int this_reg = 0, this_offset = 0;
+	guint32 unwind_info;
 
 	/* Load the method info from the AOT file */
 
@@ -2170,15 +2171,9 @@ decode_exception_debug_info (MonoAotModule *amodule, MonoDomain *domain,
 	has_gc_map = (flags & 64) != 0;
 	has_arch_eh_jit_info = (flags & 128) != 0;
 
-	if (has_dwarf_unwind_info) {
-		guint32 offset;
-
-		offset = decode_value (p, &p);
-		g_assert (offset < (1 << 30));
-		used_int_regs = offset;
-	} else {
-		used_int_regs = decode_value (p, &p);
-	}
+	g_assert (has_dwarf_unwind_info);
+	unwind_info = decode_value (p, &p);
+	g_assert (unwind_info < (1 << 30));
 	if (has_generic_jit_info)
 		generic_info_size = sizeof (MonoGenericJitInfo);
 	else
@@ -2260,7 +2255,7 @@ decode_exception_debug_info (MonoAotModule *amodule, MonoDomain *domain,
 		}
 
 		jinfo->code_size = code_len;
-		jinfo->used_regs = used_int_regs;
+		jinfo->used_regs = unwind_info;
 		jinfo->method = method;
 		jinfo->code_start = code;
 		jinfo->domain_neutral = 0;
