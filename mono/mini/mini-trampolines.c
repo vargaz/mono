@@ -220,6 +220,15 @@ mono_convert_imt_slot_to_vtable_slot (gpointer* slot, mgreg_t *regs, guint8 *cod
 
 		if (impl && mono_method_needs_static_rgctx_invoke (impl, FALSE))
 			*need_rgctx_tramp = TRUE;
+		if (impl && impl->wrapper_type == MONO_WRAPPER_MANAGED_TO_MANAGED) {
+			WrapperInfo *info = mono_marshal_get_wrapper_info (impl);
+
+			if (info && info->subtype == WRAPPER_SUBTYPE_GENERIC_ARRAY_HELPER) {
+				// FIXME: This needs a gsharedvt-out trampoline, since the caller uses the gsharedvt calling conv, but the
+				// wrapper is a normal non-generic method.
+				g_assert_not_reached ();
+			}
+		}
 
 		*impl_method = impl;
 #if DEBUG_IMT
