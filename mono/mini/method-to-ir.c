@@ -2268,7 +2268,7 @@ mono_emit_call_args (MonoCompile *cfg, MonoMethodSignature *sig,
 			call->vret_var = cfg->vret_addr;
 			//g_assert_not_reached ();
 		}
-	} else if (MONO_TYPE_ISSTRUCT (sig->ret) || mini_is_gsharedvt_type (cfg, sig->ret)) {
+	} else if (MONO_TYPE_ISSTRUCT (sig->ret) || mini_is_gsharedvt_variable_type (cfg, sig->ret)) {
 		MonoInst *temp = mono_compile_create_var (cfg, sig->ret, OP_LOCAL);
 		MonoInst *loada;
 

@@ -2037,6 +2037,27 @@ mini_is_gsharedvt_signature (MonoCompile *cfg, MonoMethodSignature *sig)
 }
 
 /*
+ * mini_is_gsharedvt_variable_type_gsctx:
+ *
+ *   Return whenever T refers to a GSHAREDVT type whose size differs depending on the values of type parameters.
+ */
+static gboolean
+mini_is_gsharedvt_variable_type_gsctx (MonoGenericSharingContext *gsctx, MonoType *t)
+{
+	if (!mini_is_gsharedvt_type_gsctx (gsctx, t))
+		return FALSE;
+	if (t->type == MONO_TYPE_GENERICINST && t->data.generic_class->container_class->byval_arg.type != MONO_TYPE_VALUETYPE)
+		return FALSE;
+	return TRUE;
+}
+
+gboolean
+mini_is_gsharedvt_variable_type (MonoCompile *cfg, MonoType *t)
+{
+	return mini_is_gsharedvt_variable_type_gsctx (cfg->generic_sharing_context, t);
+}
+
+/*
  * mini_get_gsharedvt_alloc_type:
  *
  *   Return the type which is used to allocate locals whose type is a type param

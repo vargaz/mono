@@ -318,14 +318,23 @@ mini_add_method_trampoline (MonoMethod *m, gpointer compiled_method, MonoJitInfo
 
 		/*
 		 * generic array helpers.
-		 * generic array helpers are not generic, but they are used in place of generic instances, so we need to treat them
-		 * as such when calling out from gsharedvt code.
+		 * Have to replace the wrappers with the original generic instances.
 		 */
 		if (info && info->subtype == WRAPPER_SUBTYPE_GENERIC_ARRAY_HELPER) {
 			callee_array_helper = TRUE;
 			m = info->d.generic_array_helper.method;
 		}
+	} else if (m->wrapper_type == MONO_WRAPPER_UNKNOWN) {
+		WrapperInfo *info = mono_marshal_get_wrapper_info (m);
+
+		/* Same for synchronized inner wrappers */
+		if (info && info->subtype == WRAPPER_SUBTYPE_SYNCHRONIZED_INNER) {
+			m = info->d.synchronized_inner.method;
+		}
 	}
+
+	if (callee_gsharedvt)
+		g_assert (m->is_inflated);
 
 	if (caller_gsharedvt && callee_gsharedvt) {
 		/* Caller is gsharedvt too, no need for marshalling */
@@ -333,6 +342,8 @@ mini_add_method_trampoline (MonoMethod *m, gpointer compiled_method, MonoJitInfo
 		gpointer info;
 		MonoMethod *wrapper;
 		MonoGenericSharingContext *gsctx;
+
+		/* Here m is a generic instance, while ji->method is the gsharedvt method implementing it */
 
 		/* Call from normal/gshared code to gsharedvt code with variable signature */
 		gsctx = mono_jit_info_get_generic_sharing_context (ji);
