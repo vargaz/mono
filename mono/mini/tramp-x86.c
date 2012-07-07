@@ -1103,7 +1103,7 @@ mono_arch_get_plt_info_offset (guint8 *plt_entry, mgreg_t *regs, guint8 *code)
 }
 
 static void
-x86_start_gsharedvt_call (GSharedVtInCallInfo *info, gpointer *caller, gpointer *callee)
+x86_start_gsharedvt_call (GSharedVtCallInfo *info, gpointer *caller, gpointer *callee)
 {
 	int i;
 	int *map = info->map;
@@ -1141,7 +1141,7 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	 * foo<T> (T b)
 	 * The trampoline is responsible for marshalling the arguments and marshalling the result back. To simplify
 	 * things, we create our own stack frame, and do most of the work in a C function, which receives a
-	 * GSharedVtInCallInfo structure as an argument. The structure should contain information to execute the C function to
+	 * GSharedVtCallInfo structure as an argument. The structure should contain information to execute the C function to
 	 * be as fast as possible. The argument is received in the RGCTX_REG from a static rgctx trampoline. So the real
 	 * call sequence looks like this:
 	 * caller -> static rgctx trampoline -> gsharevt in trampoline -> start_gsharedvt_call
@@ -1162,7 +1162,7 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	/* Align the stack */
 	x86_alu_reg_imm (code, X86_SUB, X86_ESP, 8);
 
-	x86_mov_reg_membase (code, X86_EAX, MONO_ARCH_RGCTX_REG, G_STRUCT_OFFSET (GSharedVtInCallInfo, stack_usage), sizeof (gpointer));
+	x86_mov_reg_membase (code, X86_EAX, MONO_ARCH_RGCTX_REG, G_STRUCT_OFFSET (GSharedVtCallInfo, stack_usage), sizeof (gpointer));
 	x86_alu_reg_reg (code, X86_SUB, X86_ESP, X86_EAX);
 
 	/* ecx = caller argument area */
@@ -1191,9 +1191,9 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	/* Load info struct */
 	x86_mov_reg_membase (code, X86_ECX, X86_EBP, -4, 4);
 	/* Load real rgctx */
-	x86_mov_reg_membase (code, MONO_ARCH_RGCTX_REG, X86_ECX, G_STRUCT_OFFSET (GSharedVtInCallInfo, rgctx), sizeof (gpointer));
+	x86_mov_reg_membase (code, MONO_ARCH_RGCTX_REG, X86_ECX, G_STRUCT_OFFSET (GSharedVtCallInfo, rgctx), sizeof (gpointer));
 	/* Load method addr */
-	x86_mov_reg_membase (code, X86_EAX, X86_ECX, G_STRUCT_OFFSET (GSharedVtInCallInfo, addr), sizeof (gpointer));
+	x86_mov_reg_membase (code, X86_EAX, X86_ECX, G_STRUCT_OFFSET (GSharedVtCallInfo, addr), sizeof (gpointer));
 	/* Make the call */
 	x86_call_reg (code, X86_EAX);
 	/* The return value is either in registers, or stored to an area beginning at sp [info->vret_slot] */
@@ -1201,8 +1201,8 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	/* Load info struct */
 	x86_mov_reg_membase (code, X86_ECX, X86_EBP, -4, 4);
 	/* Load ret marshal type */
-	x86_mov_reg_membase (code, X86_ECX, X86_ECX, G_STRUCT_OFFSET (GSharedVtInCallInfo, ret_marshal), 4);
-	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_IN_RET_NONE);
+	x86_mov_reg_membase (code, X86_ECX, X86_ECX, G_STRUCT_OFFSET (GSharedVtCallInfo, ret_marshal), 4);
+	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_RET_NONE);
 	br [0] = code;
 	x86_branch8 (code, X86_CC_NE, 0, TRUE);
 
@@ -1215,19 +1215,19 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	/* Load info struct */
 	x86_mov_reg_membase (code, X86_EAX, X86_EBP, -4, 4);
 	/* Load 'vret_slot' */
-	x86_mov_reg_membase (code, X86_EAX, X86_EAX, G_STRUCT_OFFSET (GSharedVtInCallInfo, vret_slot), 4);
+	x86_mov_reg_membase (code, X86_EAX, X86_EAX, G_STRUCT_OFFSET (GSharedVtCallInfo, vret_slot), 4);
 	/* Compute ret area address */
 	x86_shift_reg_imm (code, X86_SHL, X86_EAX, 2);
 	x86_alu_reg_reg (code, X86_ADD, X86_EAX, X86_ESP);
 
 	/* Branch to specific marshalling code */
-	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_IN_RET_DOUBLE_FPSTACK);
+	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_RET_DOUBLE_FPSTACK);
 	br [1] = code;
 	x86_branch8 (code, X86_CC_E, 0, TRUE);
-	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_IN_RET_FLOAT_FPSTACK);
+	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_RET_FLOAT_FPSTACK);
 	br [2] = code;
 	x86_branch8 (code, X86_CC_E, 0, TRUE);
-	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_IN_RET_STACK_POP);
+	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_RET_STACK_POP);
 	br [3] = code;
 	x86_branch8 (code, X86_CC_E, 0, TRUE);
 	/* IREGS case */
@@ -1260,3 +1260,168 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	mono_arch_flush_icache (buf, code - buf);
 	return buf;
 }
+
+static void
+x86_start_gsharedvt_out_call (GSharedVtCallInfo *info, gpointer *caller, gpointer *callee)
+{
+	int i;
+	int *map = info->map;
+
+#if 0
+	/* Set vtype ret arg */
+	if (info->vret_arg_slot != -1) {
+		callee [info->vret_arg_slot] = &callee [info->vret_slot];
+	}
+#endif
+	/* Copy data from the caller argument area to the callee */
+	for (i = 0; i < info->map_count; ++i)
+		callee [map [i * 2 + 1]] = caller [map [i * 2]];
+}
+
+gpointer
+mono_arch_get_gsharedvt_out_trampoline (MonoTrampInfo **info, gboolean aot)
+{
+	guint8 *code, *buf;
+	int buf_len, cfa_offset;
+	GSList *unwind_ops = NULL;
+	MonoJumpInfo *ji = NULL;
+	guint8 *br [16];
+
+	// FIXME: Length
+	buf_len = 256;
+	buf = code = mono_global_codeman_reserve (buf_len);
+
+	/*
+	 * This trampoline is responsible for marshalling calls between gsharedvt code and normal code. This is like the
+	 * gsharedvt_in trampoline in reverse.
+	 * caller:
+	 * T=<type used to represent vtype type arguments, currently TypedByRef>
+	 * foo<T> (T b)
+	 * callee:
+	 * foo<bool> (bool b)
+	 */
+
+	cfa_offset = sizeof (gpointer);
+	mono_add_unwind_op_def_cfa (unwind_ops, code, buf, X86_ESP, cfa_offset);
+	mono_add_unwind_op_offset (unwind_ops, code, buf, X86_NREG, -cfa_offset);
+	x86_push_reg (code, X86_EBP);
+	cfa_offset += sizeof (gpointer);
+	mono_add_unwind_op_def_cfa_offset (unwind_ops, code, buf, cfa_offset);
+	mono_add_unwind_op_offset (unwind_ops, code, buf, X86_EBP, - cfa_offset);
+	x86_mov_reg_reg (code, X86_EBP, X86_ESP, sizeof (gpointer));
+	mono_add_unwind_op_def_cfa_reg (unwind_ops, code, buf, X86_EBP);
+	/* Save info struct addr */
+	x86_mov_membase_reg (code, X86_EBP, -4, MONO_ARCH_RGCTX_REG, 4);
+	/* Align the stack */
+	x86_alu_reg_imm (code, X86_SUB, X86_ESP, 8);
+
+	x86_mov_reg_membase (code, X86_EAX, MONO_ARCH_RGCTX_REG, G_STRUCT_OFFSET (GSharedVtCallInfo, stack_usage), sizeof (gpointer));
+	x86_alu_reg_reg (code, X86_SUB, X86_ESP, X86_EAX);
+
+	/* ecx = caller argument area */
+	x86_mov_reg_reg (code, X86_ECX, X86_EBP, 4);
+	x86_alu_reg_imm (code, X86_ADD, X86_ECX, 8);
+	/* eax = caller argument area */
+	x86_mov_reg_reg (code, X86_EAX, X86_ESP, 4);
+
+	/* Call start_gsharedvt_out_call */
+	// FIXME: Use moves
+	/* Alignment */
+	x86_push_reg (code, X86_EAX);
+	/* Arg3 */
+	x86_push_reg (code, X86_EAX);
+	/* Arg2 */
+	x86_push_reg (code, X86_ECX);
+	/* Arg1 */
+	x86_push_reg (code, MONO_ARCH_RGCTX_REG);
+	if (aot)
+		NOT_IMPLEMENTED;
+	else
+		x86_call_code (code, x86_start_gsharedvt_out_call);
+	x86_alu_reg_imm (code, X86_ADD, X86_ESP, 4 * 4);
+
+	/* The stack is now setup for the real call */
+	/* Load info struct */
+	x86_mov_reg_membase (code, X86_ECX, X86_EBP, -4, 4);
+	/* Load real rgctx */
+	x86_mov_reg_membase (code, MONO_ARCH_RGCTX_REG, X86_ECX, G_STRUCT_OFFSET (GSharedVtCallInfo, rgctx), sizeof (gpointer));
+	/* Load method addr */
+	x86_mov_reg_membase (code, X86_EAX, X86_ECX, G_STRUCT_OFFSET (GSharedVtCallInfo, addr), sizeof (gpointer));
+	/* Make the call */
+	x86_call_reg (code, X86_EAX);
+
+	/* The return value is either in registers, or stored to an area beginning at sp [info->vret_slot] */
+	/* EAX/EDX might contain the return value, only ECX is free */
+	/* Load info struct */
+	x86_mov_reg_membase (code, X86_ECX, X86_EBP, -4, 4);
+	/* Load ret marshal type into ECX */
+	x86_mov_reg_membase (code, X86_ECX, X86_ECX, G_STRUCT_OFFSET (GSharedVtCallInfo, ret_marshal), 4);
+	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_RET_NONE);
+	br [0] = code;
+	x86_branch8 (code, X86_CC_NE, 0, TRUE);
+
+	/* Normal return, no marshalling required */
+	x86_leave (code);
+	x86_ret (code);
+
+	/* Return value marshalling */
+	x86_patch (br [0], code);
+
+	/* EAX might contain the return value */
+	// FIXME: Use moves
+	x86_push_reg (code, X86_EAX);
+
+	/* Load info struct */
+	x86_mov_reg_membase (code, X86_EAX, X86_EBP, -4, 4);
+	/* Load 'vret_arg_slot' */
+	x86_mov_reg_membase (code, X86_EAX, X86_EAX, G_STRUCT_OFFSET (GSharedVtCallInfo, vret_arg_slot), 4);
+	/* Compute ret area address in the caller frame in EAX */
+	x86_shift_reg_imm (code, X86_SHL, X86_EAX, 2);
+	x86_alu_reg_reg (code, X86_ADD, X86_EAX, X86_EBP);
+	x86_alu_reg_imm (code, X86_ADD, X86_EAX, 8);
+	x86_mov_reg_membase (code, X86_EAX, X86_EAX, 0, sizeof (gpointer));
+
+	/* Branch to specific marshalling code */
+	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_RET_DOUBLE_FPSTACK);
+	br [1] = code;
+	x86_branch8 (code, X86_CC_E, 0, TRUE);
+	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_RET_FLOAT_FPSTACK);
+	br [2] = code;
+	x86_branch8 (code, X86_CC_E, 0, TRUE);
+	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_RET_STACK_POP);
+	br [3] = code;
+	x86_branch8 (code, X86_CC_E, 0, TRUE);
+	/* IREGS case */
+	x86_mov_reg_reg (code, X86_ECX, X86_EAX, sizeof (gpointer));
+	x86_pop_reg (code, X86_EAX);
+	/* Store both eax and edx for simplicity */
+	x86_mov_membase_reg (code, X86_ECX, sizeof (gpointer), X86_EDX, sizeof (gpointer));
+	x86_mov_membase_reg (code, X86_ECX, 0, X86_EAX, sizeof (gpointer));
+	x86_leave (code);
+	x86_ret (code);
+	/* DOUBLE_FPSTACK case */
+	x86_alu_reg_imm (code, X86_ADD, X86_ESP, 4);
+	x86_patch (br [1], code);
+	x86_fst_membase (code, X86_EAX, 0, TRUE, TRUE);
+	x86_jump8 (code, 0);
+	x86_leave (code);
+	x86_ret (code);
+	/* FLOAT_FPSTACK case */
+	x86_alu_reg_imm (code, X86_ADD, X86_ESP, 4);
+	x86_patch (br [2], code);
+	x86_fst_membase (code, X86_EAX, 0, FALSE, TRUE);
+	x86_leave (code);
+	x86_ret (code);
+	/* STACK_POP case */
+	x86_patch (br [3], code);
+	x86_alu_reg_imm (code, X86_ADD, X86_ESP, 4);
+	x86_leave (code);
+	x86_ret_imm (code, 4);
+
+	if (info)
+		*info = mono_tramp_info_create ("gsharedvt_out_trampoline", buf, code - buf, ji, unwind_ops);
+
+	mono_arch_flush_icache (buf, code - buf);
+	return buf;
+}
+

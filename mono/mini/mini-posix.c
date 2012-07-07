@@ -520,7 +520,7 @@ mono_runtime_posix_install_handlers (void)
 	add_signal_handler (SIGABRT, sigabrt_signal_handler);
 
 	/* catch SIGSEGV */
-	add_signal_handler (SIGSEGV, mono_sigsegv_signal_handler);
+	//add_signal_handler (SIGSEGV, mono_sigsegv_signal_handler);
 }
 
 #ifndef PLATFORM_MACOSX

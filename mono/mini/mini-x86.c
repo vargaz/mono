@@ -6683,30 +6683,31 @@ mono_arch_gsharedvt_sig_supported (MonoMethodSignature *sig)
 	return TRUE;
 }
 
-gpointer
-mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m)
+static gpointer
+get_gsharedvt_call_info (gpointer addr, MonoMethod *m, MonoMethodSignature *caller_sig, MonoMethodSignature *callee_sig, CallInfo *caller_cinfo, CallInfo *callee_cinfo, MonoGenericSharingContext *gsctx, gboolean gsharedvt_in)
 {
-	GSharedVtInCallInfo *info;
-	MonoJitInfo *ji;
-	CallInfo *cinfo, *gcinfo;
+	GSharedVtCallInfo *info;
 	int i, j, index;
-	MonoMethodSignature *sig, *gsig;
 	gboolean var_ret = FALSE;
+	CallInfo *cinfo, *gcinfo;
+	MonoMethodSignature *sig, *gsig;
 
-	ji = mini_jit_info_table_find (mono_domain_get (), addr, NULL);
-	g_assert (ji);
+	/* sig/cinfo describes the normal call, while gsig/gcinfo describes the gsharedvt call */
+	if (gsharedvt_in) {
+		sig = caller_sig;
+		gsig = callee_sig;
+		cinfo = caller_cinfo;
+		gcinfo = callee_cinfo;
+	} else {
+		sig = callee_sig;
+		gsig = caller_sig;
+		cinfo = callee_cinfo;
+		gcinfo = caller_cinfo;
+	}
 
-	sig = mono_method_signature (m);
-	gsig = mono_method_signature (ji->method);
-	cinfo = get_call_info (NULL, NULL, sig);
-	gcinfo = get_call_info (mono_jit_info_get_generic_sharing_context (ji), NULL, gsig);
-
-	info = g_new0 (GSharedVtInCallInfo, 1);
-	info->addr = addr;
-
-	if (gcinfo->vtype_retaddr && gsig->ret && mini_is_gsharedvt_type_gsctx (mono_jit_info_get_generic_sharing_context (ji), gsig->ret)) {
+	if (gcinfo->vtype_retaddr && gsig->ret && mini_is_gsharedvt_type_gsctx (gsctx, gsig->ret)) {
 		/*
-		 * The callee returns a gsharedvt vtype, by receiving its address as the first argument.
+		 * The return type is gsharedvt
 		 */
 		var_ret = TRUE;
 	}
@@ -6719,9 +6720,11 @@ mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m)
 	 * <call area>
 	 * We have to map the stack slots in <arguments> to the stack slots in <call area>.
 	 */
-	info->stack_usage = gcinfo->stack_usage;
+	info = g_new0 (GSharedVtCallInfo, 1);
+	info->addr = addr;
+	info->stack_usage = callee_cinfo->stack_usage;
 	info->rgctx = mini_method_get_rgctx (m);
-	info->ret_marshal = GSHAREDVT_IN_RET_NONE;
+	info->ret_marshal = GSHAREDVT_RET_NONE;
 	info->vret_slot = -1;
 	if (var_ret)
 		info->vret_arg_slot = gcinfo->vret_arg_offset / sizeof (gpointer);
@@ -6736,19 +6739,19 @@ mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m)
 	if (var_ret) {
 		switch (cinfo->ret.storage) {
 		case ArgInIReg:
-			info->ret_marshal = GSHAREDVT_IN_RET_IREGS;
+			info->ret_marshal = GSHAREDVT_RET_IREGS;
 			break;
 		case ArgOnDoubleFpStack:
-			info->ret_marshal = GSHAREDVT_IN_RET_DOUBLE_FPSTACK;
+			info->ret_marshal = GSHAREDVT_RET_DOUBLE_FPSTACK;
 			break;
 		case ArgOnFloatFpStack:
-			info->ret_marshal = GSHAREDVT_IN_RET_FLOAT_FPSTACK;
+			info->ret_marshal = GSHAREDVT_RET_FLOAT_FPSTACK;
 			break;
 		case ArgOnStack:
 			/* The caller passes in a vtype ret arg as well */
-			g_assert (cinfo->vtype_retaddr);
+			g_assert (gcinfo->vtype_retaddr);
 			/* Just have to pop the arg, as done by normal methods in their epilog */
-			info->ret_marshal = GSHAREDVT_IN_RET_STACK_POP;
+			info->ret_marshal = GSHAREDVT_RET_STACK_POP;
 			break;
 		default:
 			g_assert_not_reached ();
@@ -6761,23 +6764,23 @@ mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m)
 		 * This handles the case when the method returns a normal vtype, and when it returns a type arg, and its instantiated
 		 * with a vtype.
 		 */		
-		info->map [index ++] = cinfo->vret_arg_offset / sizeof (gpointer);
-		info->map [index ++] = gcinfo->vret_arg_offset / sizeof (gpointer);
+		info->map [index ++] = caller_cinfo->vret_arg_offset / sizeof (gpointer);
+		info->map [index ++] = callee_cinfo->vret_arg_offset / sizeof (gpointer);
 	}
 
-	for (i = 0; i < cinfo->nargs; ++i) {
-		ArgInfo *ainfo = &cinfo->args [i];
-		ArgInfo *gainfo = &gcinfo->args [i];
+	for (i = 0; i < caller_cinfo->nargs; ++i) {
+		ArgInfo *ainfo = &caller_cinfo->args [i];
+		ArgInfo *ainfo2 = &callee_cinfo->args [i];
 		int nslots = ainfo->nslots ? ainfo->nslots : 1;
 
 		g_assert (ainfo->storage == ArgOnStack);
 		for (j = 0; j < nslots; ++j) {
 			info->map [index ++] = (ainfo->offset / sizeof (gpointer)) + j;
-			info->map [index ++] = (gainfo->offset / sizeof (gpointer)) + j;
+			info->map [index ++] = (ainfo2->offset / sizeof (gpointer)) + j;
 		}
 	}
 
-	if (var_ret && !cinfo->vtype_retaddr) {
+	if (gsharedvt_in && var_ret && !caller_cinfo->vtype_retaddr) {
 		/* Allocate stack space for the return value */
 		info->vret_slot = info->stack_usage / sizeof (gpointer);
 		// FIXME:
@@ -6787,5 +6790,53 @@ mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m)
 	info->stack_usage = ALIGN_TO (info->stack_usage, MONO_ARCH_FRAME_ALIGNMENT);
 	info->map_count = index / 2;
 
+	return info;
+}
+
+/*
+ * mono_arch_get_gsharedvt_in_call_info:
+ *
+ *   Compute calling convention information for marshalling a call between M and GSHAREDVT_METHOD.
+ */
+gpointer
+mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m, MonoMethod *gsharedvt_method, MonoGenericSharingContext *gsctx)
+{
+	GSharedVtCallInfo *info;
+	CallInfo *caller_cinfo, *callee_cinfo;
+	MonoMethodSignature *caller_sig, *callee_sig;
+
+	/*
+	 * The caller uses a normal signature while the callee uses the gsharedvt one.
+	 */
+	caller_sig = mono_method_signature (m);
+	callee_sig = mono_method_signature (gsharedvt_method);
+	caller_cinfo = get_call_info (NULL, NULL, caller_sig);
+	callee_cinfo = get_call_info (gsctx, NULL, callee_sig);
+
+	info = get_gsharedvt_call_info (addr, m, caller_sig, callee_sig, caller_cinfo, callee_cinfo, gsctx, TRUE);
+	return info;
+}
+
+/*
+ * mono_arch_get_gsharedvt_in_call_info:
+ *
+ *   Compute calling convention information for marshalling a call between GSHAREDVT_METHOD and M.
+ */
+gpointer
+mono_arch_get_gsharedvt_out_call_info (gpointer addr, MonoMethod *m, MonoMethod *gsharedvt_method, MonoGenericSharingContext *gsctx)
+{
+	GSharedVtCallInfo *info;
+	CallInfo *caller_cinfo, *callee_cinfo;
+	MonoMethodSignature *caller_sig, *callee_sig;
+
+	/*
+	 * The caller uses a gsharedvt signature while the callee uses the normal one.
+	 */
+	callee_sig = mono_method_signature (m);
+	callee_cinfo = get_call_info (NULL, NULL, callee_sig);
+	caller_sig = mono_method_signature (gsharedvt_method);
+	caller_cinfo = get_call_info (gsctx, NULL, caller_sig);
+
+	info = get_gsharedvt_call_info (addr, m, caller_sig, callee_sig, caller_cinfo, callee_cinfo, gsctx, FALSE);
 	return info;
 }

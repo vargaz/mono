@@ -392,4 +392,92 @@ public class Tests
 
 		return 0;
 	}
+
+	//
+	// Tests for transitioning out of gsharedvt code
+	//
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static T return_t_nogshared<T> (T t) {
+		// This is not currently supported by gsharedvt
+		object o = t;
+		T t2 = (T)o;
+		//Console.WriteLine ("X: " + t);
+		return t;
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static int return_int_nogshared<T> (T t) {
+		// This is not currently supported by gsharedvt
+		object o = t;
+		T t2 = (T)o;
+		return 2;
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static A return_vtype_nogshared<T> (T t) {
+		// This is not currently supported by gsharedvt
+		object o = t;
+		T t2 = (T)o;
+		return new A () { a = 1, b = 2, c = 3 };
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static T return2_t_out<T> (T t) {
+		return return_t_nogshared (t);
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static int return2_int_out<T> (T t) {
+		return return_int_nogshared (t);
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static A return2_vtype_out<T> (T t) {
+		return return_vtype_nogshared (t);
+	}
+
+	struct A {
+		public int a, b, c;
+	}
+
+	public static int test_0_gsharedvt_out () {
+		if (return2_t_out (2) != 2)
+			return 1;
+		if (return2_t_out ("A") != "A")
+			return 2;
+		if (return2_t_out (2.0) != 2.0)
+			return 3;
+		if (return2_t_out (2.0f) != 2.0f)
+			return 4;
+		A a = new A () { a = 1, b = 2, c = 3 };
+		A a2 = return2_t_out (a);
+		if (a2.a != 1 || a2.b != 2 || a2.c != 3)
+			return 5;
+		// Calls with non gsharedvt return types
+		if (return2_int_out (1) != 2)
+			return 6;
+		A c = return2_vtype_out (a);
+		if (a2.a != 1 || a2.b != 2 || a2.c != 3)
+			return 7;
+		return 0;
+	}
+
+	public class GenericClass<T> {
+		public static T Z (IList<T> x, int index)
+		{
+			return x [index];
+		}
+	}
+
+	public static int test_0_generic_array_helpers () {
+		int[] x = new int[] {100, 200};
+
+		// Generic array helpers should be treated as gsharedvt-out
+		if (GenericClass<int>.Z (x, 0) != 100)
+			return 1;
+
+		return 0;
+	}
+
 }

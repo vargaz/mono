@@ -2116,7 +2116,9 @@ GSList*   mono_arch_get_cie_program             (void) MONO_INTERNAL;
 void      mono_arch_set_target                  (char *mtriple) MONO_INTERNAL;
 gboolean  mono_arch_gsharedvt_sig_supported     (MonoMethodSignature *sig) MONO_INTERNAL;
 gpointer  mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot) MONO_INTERNAL;
-gpointer  mono_arch_get_gsharedvt_in_call_info  (gpointer addr, MonoMethod *m) MONO_INTERNAL;
+gpointer  mono_arch_get_gsharedvt_out_trampoline (MonoTrampInfo **info, gboolean aot) MONO_INTERNAL;
+gpointer  mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m, MonoMethod *gsharedvt_method, MonoGenericSharingContext *gsctx) MONO_INTERNAL;
+gpointer mono_arch_get_gsharedvt_out_call_info (gpointer addr, MonoMethod *m, MonoMethod *gsharedvt_method, MonoGenericSharingContext *gsctx) MONO_INTERNAL;
 
 /* Soft Debug support */
 #ifdef MONO_ARCH_SOFT_DEBUG_SUPPORTED
@@ -2416,6 +2418,7 @@ MonoClass* mini_get_gsharedvt_alloc_type (MonoCompile *cfg) MONO_INTERNAL;
 gboolean mini_is_gsharedvt_method (MonoMethod *method) MONO_INTERNAL;
 gboolean mini_is_gsharedvt_variable_signature (MonoMethodSignature *sig) MONO_INTERNAL;
 gpointer mini_method_get_rgctx (MonoMethod *m) MONO_INTERNAL;
+void mini_init_gsctx (MonoGenericContext *context, MonoGenericSharingContext *gsctx) MONO_INTERNAL;
 
 /* wapihandles.c */
 int mini_wapi_hps (int argc, char **argv) MONO_INTERNAL;

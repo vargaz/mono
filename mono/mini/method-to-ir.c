@@ -7033,7 +7033,6 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 				if (mono_method_is_generic_sharable_impl (cmethod, TRUE)) {
 					pass_mrgctx = TRUE;
-					printf ("MA: %s %d\n", mono_method_full_name (cmethod, TRUE), mini_is_gsharedvt_signature (cfg, mono_method_signature (cmethod)));
 				} else {
 					gboolean sharing_enabled = mono_class_generic_sharing_enabled (cmethod->klass);
 					MonoGenericContext *context = mini_method_get_context (cmethod);
@@ -7042,12 +7041,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 					if (sharing_enabled && context_sharable)
 						pass_mrgctx = TRUE;
 
-					printf ("MA: %s %d\n", mono_method_full_name (cmethod, TRUE), mini_is_gsharedvt_signature (cfg, mono_method_signature (cmethod)));
-
-					if (cfg->gsharedvt && mini_is_gsharedvt_signature (cfg, mono_method_signature (cmethod))) {
-						printf ("DOH!\n");
+					if (cfg->gsharedvt && mini_is_gsharedvt_signature (cfg, mono_method_signature (cmethod)))
 						pass_mrgctx = TRUE;
-					}
 				}
 			}
 

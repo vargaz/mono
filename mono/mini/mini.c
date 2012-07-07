@@ -4402,6 +4402,42 @@ mini_get_shared_method (MonoMethod *method)
 	return res;
 }
 
+void
+mini_init_gsctx (MonoGenericContext *context, MonoGenericSharingContext *gsctx)
+{
+	MonoGenericInst *inst;
+	int i;
+
+	memset (gsctx, 0, sizeof (MonoGenericSharingContext));
+
+	if (context->class_inst) {
+		inst = context->class_inst;
+		gsctx->var_is_vt = g_new0 (gboolean, inst->type_argc);
+
+		for (i = 0; i < inst->type_argc; ++i) {
+			MonoType *type = inst->type_argv [i];
+
+			if (MONO_TYPE_IS_REFERENCE (type) || (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)) {
+			} else {
+				gsctx->var_is_vt [i] = TRUE;
+			}
+		}
+	}
+	if (context->method_inst) {
+		inst = context->method_inst;
+		gsctx->mvar_is_vt = g_new0 (gboolean, inst->type_argc);
+
+		for (i = 0; i < inst->type_argc; ++i) {
+			MonoType *type = inst->type_argv [i];
+
+			if (MONO_TYPE_IS_REFERENCE (type) || (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)) {
+			} else {
+				gsctx->mvar_is_vt [i] = TRUE;
+			}
+		}
+	}
+}
+
 #ifndef DISABLE_JIT
 /*
  * mini_method_compile:
@@ -4501,39 +4537,13 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 	if (cfg->generic_sharing_context && mini_is_gsharedvt_method (method)) {
 		MonoMethodInflated *inflated;
 		MonoGenericContext *context;
-		MonoGenericInst *inst;
-		int i;
 
 		g_assert (method->is_inflated);
 		inflated = (MonoMethodInflated*)method;
 		context = &inflated->context;
 
-		if (context->class_inst) {
-			inst = context->class_inst;
-			cfg->gsctx.var_is_vt = g_new0 (gboolean, inst->type_argc);
-
-			for (i = 0; i < inst->type_argc; ++i) {
-				MonoType *type = inst->type_argv [i];
-
-				if (MONO_TYPE_IS_REFERENCE (type) || (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)) {
-				} else {
-					cfg->gsctx.var_is_vt [i] = TRUE;
-				}
-			}
-		}
-		if (context->method_inst) {
-			inst = context->method_inst;
-			cfg->gsctx.mvar_is_vt = g_new0 (gboolean, inst->type_argc);
-
-			for (i = 0; i < inst->type_argc; ++i) {
-				MonoType *type = inst->type_argv [i];
-
-				if (MONO_TYPE_IS_REFERENCE (type) || (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)) {
-				} else {
-					cfg->gsctx.mvar_is_vt [i] = TRUE;
-				}
-			}
-		}
+		// FIXME: Free the contents of gsctx if compilation fails
+		mini_init_gsctx (context, &cfg->gsctx);
 
 		cfg->gsharedvt = TRUE;
 	}
@@ -5232,7 +5242,7 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 	}
 
 	if (cfg->gsharedvt)
-		printf ("HIT: %s\n", mono_method_full_name (cfg->method, TRUE));
+		printf ("GSHAREDVT: %s\n", mono_method_full_name (cfg->method, TRUE));
 
 	/* collect statistics */
 	mono_perfcounters->jit_methods++;
@@ -5482,7 +5492,19 @@ mono_jit_compile_method_inner (MonoMethod *method, MonoDomain *target_domain, in
 			jinfo = create_jit_info_for_trampoline (method, tinfo);
 			mono_jit_info_table_add (mono_get_root_domain (), jinfo);
 			return tinfo->code;
+		} else if (info->subtype == WRAPPER_SUBTYPE_GSHAREDVT_OUT) {
+			static MonoTrampInfo *tinfo;
+			MonoJitInfo *jinfo;
+
+			if (tinfo)
+				return tinfo->code;
+
+			mono_arch_get_gsharedvt_out_trampoline (&tinfo, FALSE);
+			jinfo = create_jit_info_for_trampoline (method, tinfo);
+			mono_jit_info_table_add (mono_get_root_domain (), jinfo);
+			return tinfo->code;
 		}
+
 	}
 
 	if (mono_aot_only) {

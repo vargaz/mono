@@ -287,14 +287,14 @@ typedef struct {
 
 extern MonoBreakpointInfo mono_breakpoint_info [MONO_BREAKPOINT_ARRAY_SIZE];
 
-/* Return value marshalling for gsharedvt in calls */
+/* Return value marshalling for calls between gsharedvt and normal code */
 typedef enum {
-	GSHAREDVT_IN_RET_NONE = 0,
-	GSHAREDVT_IN_RET_IREGS = 1,
-	GSHAREDVT_IN_RET_DOUBLE_FPSTACK = 2,
-	GSHAREDVT_IN_RET_FLOAT_FPSTACK = 3,
-	GSHAREDVT_IN_RET_STACK_POP = 4
-} GSharedVtInRetMarshal;
+	GSHAREDVT_RET_NONE = 0,
+	GSHAREDVT_RET_IREGS = 1,
+	GSHAREDVT_RET_DOUBLE_FPSTACK = 2,
+	GSHAREDVT_RET_FLOAT_FPSTACK = 3,
+	GSHAREDVT_RET_STACK_POP = 4
+} GSharedVtRetMarshal;
 
 typedef struct {
 	/* Method address to call */
@@ -309,7 +309,7 @@ typedef struct {
 	int vret_slot;
 	int stack_usage, map_count;
 	int *map;
-} GSharedVtInCallInfo;
+} GSharedVtCallInfo;
 
 guint8*
 mono_x86_emit_tls_get (guint8* code, int dreg, int tls_offset) MONO_INTERNAL;

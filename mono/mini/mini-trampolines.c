@@ -226,7 +226,8 @@ mono_convert_imt_slot_to_vtable_slot (gpointer* slot, mgreg_t *regs, guint8 *cod
 			if (info && info->subtype == WRAPPER_SUBTYPE_GENERIC_ARRAY_HELPER) {
 				// FIXME: This needs a gsharedvt-out trampoline, since the caller uses the gsharedvt calling conv, but the
 				// wrapper is a normal non-generic method.
-				g_assert_not_reached ();
+				*need_rgctx_tramp = TRUE;
+				//g_assert_not_reached ();
 			}
 		}
 
@@ -304,22 +305,39 @@ gpointer
 mini_add_method_trampoline (MonoMethod *m, gpointer compiled_method, MonoJitInfo *caller_ji, gboolean add_static_rgctx_tramp)
 {
 	gpointer addr = compiled_method;
-	gboolean caller_gsharedvt, callee_gsharedvt;
-
+	gboolean caller_gsharedvt, callee_gsharedvt, callee_array_helper;
 	MonoJitInfo *ji = 
 		mini_jit_info_table_find (mono_domain_get (), mono_get_addr_from_ftnptr (compiled_method), NULL);
 
 	caller_gsharedvt = ji_is_gsharedvt (caller_ji);
 	callee_gsharedvt = ji_is_gsharedvt (ji);
 
+	callee_array_helper = FALSE;
+	if (m->wrapper_type == MONO_WRAPPER_MANAGED_TO_MANAGED) {
+		WrapperInfo *info = mono_marshal_get_wrapper_info (m);
+
+		/*
+		 * generic array helpers.
+		 * generic array helpers are not generic, but they are used in place of generic instances, so we need to treat them
+		 * as such when calling out from gsharedvt code.
+		 */
+		if (info && info->subtype == WRAPPER_SUBTYPE_GENERIC_ARRAY_HELPER) {
+			callee_array_helper = TRUE;
+			m = info->d.generic_array_helper.method;
+		}
+	}
+
 	if (caller_gsharedvt && callee_gsharedvt) {
 		/* Caller is gsharedvt too, no need for marshalling */
 	} else if (callee_gsharedvt && mini_is_gsharedvt_variable_signature (mono_method_signature (ji->method))) {
 		gpointer info;
 		MonoMethod *wrapper;
+		MonoGenericSharingContext *gsctx;
 
 		/* Call from normal/gshared code to gsharedvt code with variable signature */
-		info = mono_arch_get_gsharedvt_in_call_info (compiled_method, m);
+		gsctx = mono_jit_info_get_generic_sharing_context (ji);
+
+		info = mono_arch_get_gsharedvt_in_call_info (compiled_method, m, ji->method, gsctx);
 
 		wrapper = mono_marshal_get_gsharedvt_in_wrapper ();
 		addr = mono_compile_method (wrapper);
@@ -327,12 +345,34 @@ mini_add_method_trampoline (MonoMethod *m, gpointer compiled_method, MonoJitInfo
 		/* Reuse static rgctx trampolines for passing the call info */
 		addr = mono_arch_get_static_rgctx_trampoline (m, info, addr);
 
-		printf ("HIT2: %s %s\n", mono_method_full_name (m, TRUE), mono_method_full_name (ji->method, TRUE));
+		printf ("IN: %s\n", mono_method_full_name (m, TRUE));
 	} else if (caller_gsharedvt && !callee_gsharedvt && m->is_inflated && mini_is_gsharedvt_variable_signature (mono_method_signature (mono_method_get_declaring_generic_method (m)))) {
-		// FIXME: caller_gsharedvt && callee is not, but the call is made using the gsharedv call conv.
-		NOT_IMPLEMENTED;
+		gpointer info;
+		MonoMethod *wrapper;
+		MonoMethodInflated *inflated;
+		MonoGenericContext *context;
+		MonoGenericSharingContext gsctx;
+		MonoMethod *gm;
+
+		g_assert (m->is_inflated);
+		inflated = (MonoMethodInflated*)m;
+		context = &inflated->context;
+
+		gm = mini_get_shared_method (m);
+
+		mini_init_gsctx (context, &gsctx);
+
+		info = mono_arch_get_gsharedvt_out_call_info (compiled_method, m, gm, &gsctx);
+
+		/* caller_gsharedvt && callee is not, but the call is made using the gsharedv call conv. */
+		wrapper = mono_marshal_get_gsharedvt_out_wrapper ();
+		addr = mono_compile_method (wrapper);
+
+		addr = mono_arch_get_static_rgctx_trampoline (m, info, addr);
+
+		printf ("OUT: %s\n", mono_method_full_name (m, TRUE));
 	} else {
-		if (add_static_rgctx_tramp)
+		if (add_static_rgctx_tramp && !callee_array_helper)
 			addr = mono_create_static_rgctx_trampoline (m, compiled_method);
 	}
 
@@ -412,9 +452,6 @@ common_call_trampoline (mgreg_t *regs, guint8 *code, MonoMethod *m, guint8* tram
 		}
 	}
 #endif
-
-	if (strstr (m->name, "pick_key"))
-		printf ("DOH!\n");
 
 	/*
 	 * The virtual check is needed because is_generic_method_definition (m) could
