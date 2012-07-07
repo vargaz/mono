@@ -367,6 +367,8 @@ mono_print_method_from_ip (void *ip)
 	MonoDomain *domain = mono_domain_get ();
 	MonoDomain *target_domain = mono_domain_get ();
 	FindTrampUserData user_data;
+	MonoGenericSharingContext*gsctx;
+	const char *shared_type;
 	
 	ji = mini_jit_info_table_find (domain, ip, &target_domain);
 	if (!ji) {
@@ -388,7 +390,16 @@ mono_print_method_from_ip (void *ip)
 	method = mono_method_full_name (ji->method, TRUE);
 	source = mono_debug_lookup_source_location (ji->method, (guint32)((guint8*)ip - (guint8*)ji->code_start), target_domain);
 
-	g_print ("IP %p at offset 0x%x of method %s (%p %p)[domain %p - %s]\n", ip, (int)((char*)ip - (char*)ji->code_start), method, ji->code_start, (char*)ji->code_start + ji->code_size, target_domain, target_domain->friendly_name);
+	gsctx = mono_jit_info_get_generic_sharing_context (ji);
+	shared_type = NULL;
+	if (gsctx) {
+		if (gsctx->var_is_vt || gsctx->mvar_is_vt)
+			shared_type = "gsharedvt ";
+		else
+			shared_type = "gshared ";
+	}
+
+	g_print ("IP %p at offset 0x%x of %smethod %s (%p %p)[domain %p - %s]\n", ip, (int)((char*)ip - (char*)ji->code_start), shared_type, method, ji->code_start, (char*)ji->code_start + ji->code_size, target_domain, target_domain->friendly_name);
 
 	if (source)
 		g_print ("%s:%d\n", source->source_file, source->row);
