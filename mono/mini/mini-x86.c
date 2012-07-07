@@ -6768,11 +6768,15 @@ get_gsharedvt_call_info (gpointer addr, MonoMethod *m, MonoMethodSignature *call
 		info->map [index ++] = callee_cinfo->vret_arg_offset / sizeof (gpointer);
 	}
 
-	for (i = 0; i < caller_cinfo->nargs; ++i) {
+	for (i = 0; i < cinfo->nargs; ++i) {
 		ArgInfo *ainfo = &caller_cinfo->args [i];
 		ArgInfo *ainfo2 = &callee_cinfo->args [i];
-		int nslots = ainfo->nslots ? ainfo->nslots : 1;
-
+		int nslots;
+		
+		/* Have to use the non-gsharedvt size */ 
+		nslots = cinfo->args [i].nslots;
+		if (!nslots)
+			nslots = 1;
 		g_assert (ainfo->storage == ArgOnStack);
 		for (j = 0; j < nslots; ++j) {
 			info->map [index ++] = (ainfo->offset / sizeof (gpointer)) + j;
