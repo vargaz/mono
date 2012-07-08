@@ -8135,8 +8135,6 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			int loc_index = -1;
 			int stloc_len = 0;
 
-			GSHAREDVT_FAILURE (*ip);
-
 			CHECK_OPSIZE (5);
 			CHECK_STACK (1);
 			--sp;
@@ -9400,7 +9398,6 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			CHECK_STACK (2);
 			sp -= 2;
 			CHECK_OPSIZE (5);
-			GSHAREDVT_FAILURE (*ip);
 			token = read32 (ip + 1);
 			klass = mini_get_class (method, token, generic_context);
 			CHECK_TYPELOAD (klass);

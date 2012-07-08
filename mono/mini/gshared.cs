@@ -114,6 +114,30 @@ public class Tests
 	}
 
 	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static T ldobj_stobj<T> (ref T t1, ref T t2) {
+		t1 = t2;
+		T t = t2;
+		t2 = default(T);
+		return t;
+	}
+
+	public static int test_0_vt_ldobj_stobj () {
+		int i = 5;
+		int j = 6;
+ 		if (ldobj_stobj (ref i, ref j) != 6)
+			return 1;
+		if (i != 6 || j != 0)
+			return 2;
+		double d1 = 1.0;
+		double d2 = 2.0;
+ 		if (ldobj_stobj (ref d1, ref d2) != 2.0)
+			return 3;
+		if (d1 != 2.0 || d2 != 0.0)
+			return 4;		
+		return 0;
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
 	private static void box<T> (T [] array, object[] arr) {
 		object x = array [0];
 		arr [0] = x;
