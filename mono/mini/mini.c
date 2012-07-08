@@ -6024,7 +6024,7 @@ mono_jit_runtime_invoke (MonoMethod *method, void *obj, void **params, MonoObjec
 				}
 			}
 
-			info->compiled_method = mini_add_method_trampoline (method, info->compiled_method, NULL, mono_method_needs_static_rgctx_invoke (method, FALSE));
+			info->compiled_method = mini_add_method_trampoline (NULL, method, info->compiled_method, NULL, mono_method_needs_static_rgctx_invoke (method, FALSE));
 		}
 
 		/*

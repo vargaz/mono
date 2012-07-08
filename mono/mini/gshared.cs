@@ -504,4 +504,28 @@ public class Tests
 		return 0;
 	}
 
+	internal class IntComparer : IComparer<int>
+	{
+		public int Compare (int ix, int iy)
+		{
+			if (ix == iy)
+				return 0;
+
+			if (((uint) ix) < ((uint) iy))
+				return -1;
+			return 1;
+		}
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static int gshared_out_iface<T> (T t1, T t2, IComparer<T> comp) {
+		return comp.Compare (t1, t2);
+	}
+
+	public static int test_0_gshared_out_iface () {
+		// Call out from gshared to a nongeneric method through a generic interface method
+		if (gshared_out_iface (2, 2, new IntComparer ()) != 0)
+			return 1;
+		return 0;
+	}
 }
