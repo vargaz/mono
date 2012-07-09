@@ -397,6 +397,7 @@ public class Tests
 			return 1;
 		if (return2_t ("A") != "A")
 			return 2;
+		Console.WriteLine ("DOH: " + return2_t (2.0));
 		if (return2_t (2.0) != 2.0)
 			return 3;
 		return 0;

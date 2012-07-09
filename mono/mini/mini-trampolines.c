@@ -310,9 +310,6 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 	MonoJitInfo *ji = 
 		mini_jit_info_table_find (mono_domain_get (), mono_get_addr_from_ftnptr (compiled_method), NULL);
 
-	//	if (!strcmp (m->name, "Z"))
-		printf ("M: %s\n", mono_method_full_name (m, TRUE));
-
 	caller_gsharedvt = ji_is_gsharedvt (caller_ji);
 	callee_gsharedvt = ji_is_gsharedvt (ji);
 
@@ -345,7 +342,8 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 
 	if (caller_gsharedvt && callee_gsharedvt) {
 		/* Caller is gsharedvt too, no need for marshalling */
-		addr = mono_create_static_rgctx_trampoline (m, compiled_method);
+		// FIXME: The caller should pass this.
+		//addr = mono_create_static_rgctx_trampoline (m, compiled_method);
 	} else if (callee_gsharedvt && mini_is_gsharedvt_variable_signature (mono_method_signature (ji->method))) {
 		gpointer info;
 		MonoMethod *wrapper;

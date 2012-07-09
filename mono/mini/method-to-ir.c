@@ -6954,6 +6954,10 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			if (!cfg->generic_sharing_context && cmethod)
 				g_assert (!mono_method_check_context_used (cmethod));
 
+			if (virtual)
+				/* FIXME: virtual calls might not go through trampolines so we can't insert gsharedvt-out trampolines */
+				GSHAREDVT_FAILURE (*ip);
+
 			CHECK_STACK (n);
 
 			//g_assert (!virtual || fsig->hasthis);
