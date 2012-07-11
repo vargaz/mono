@@ -4294,6 +4294,7 @@ mini_get_shared_method (MonoMethod *method)
 	MonoMethod *declaring_method, *res;
 	int i;
 	gboolean partial = FALSE;
+	gboolean gsharedvt = FALSE;
 
 	if (method->is_generic || method->klass->generic_container)
 		declaring_method = method;
@@ -4312,7 +4313,6 @@ mini_get_shared_method (MonoMethod *method)
 		MonoGenericContext *context = mono_method_get_context (method);
 		MonoGenericInst *inst;
 		MonoType **type_argv;
-		gboolean gsharedvt;
 
 		gsharedvt = mini_is_gsharedvt_method (method);
 
@@ -4410,11 +4410,12 @@ mini_get_shared_method (MonoMethod *method)
 		/* The result should be an inflated method whose parent is not inflated */
 		g_assert (!res->klass->is_inflated);
 	}
+	res->is_gshared = TRUE;
 	return res;
 }
 
-void
-mini_init_gsctx (MonoGenericContext *context, MonoGenericSharingContext *gsctx)
+static void
+mini_init_gsctx_full (MonoGenericContext *context, MonoGenericSharingContext *gsctx, gboolean all_vt)
 {
 	MonoGenericInst *inst;
 	int i;
@@ -4428,7 +4429,7 @@ mini_init_gsctx (MonoGenericContext *context, MonoGenericSharingContext *gsctx)
 		for (i = 0; i < inst->type_argc; ++i) {
 			MonoType *type = inst->type_argv [i];
 
-			if (MONO_TYPE_IS_REFERENCE (type) || (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)) {
+			if (!all_vt && (MONO_TYPE_IS_REFERENCE (type) || (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR))) {
 			} else {
 				gsctx->var_is_vt [i] = TRUE;
 			}
@@ -4441,12 +4442,18 @@ mini_init_gsctx (MonoGenericContext *context, MonoGenericSharingContext *gsctx)
 		for (i = 0; i < inst->type_argc; ++i) {
 			MonoType *type = inst->type_argv [i];
 
-			if (MONO_TYPE_IS_REFERENCE (type) || (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)) {
+			if (!all_vt && (MONO_TYPE_IS_REFERENCE (type) || (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR))) {
 			} else {
 				gsctx->mvar_is_vt [i] = TRUE;
 			}
 		}
 	}
+}
+
+void
+mini_init_gsctx (MonoGenericContext *context, MonoGenericSharingContext *gsctx)
+{
+	mini_init_gsctx_full (context, gsctx, FALSE);
 }
 
 #ifndef DISABLE_JIT
@@ -4505,16 +4512,26 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 			try_generic_shared = FALSE;
 	}
 
+	if (method->is_gshared) {
+		/* We are AOTing a gshared method directly */
+		g_assert (compile_aot);
+		try_generic_shared = TRUE;
+	}
+
 #ifdef ENABLE_LLVM
 	try_llvm = mono_use_llvm;
 #endif
 
  restart_compile:
-	if (try_generic_shared) {
-		method_to_compile = mini_get_shared_method (method);
-		g_assert (method_to_compile);
-	} else {
+	if (method->is_gshared) {
 		method_to_compile = method;
+	} else {
+		if (try_generic_shared) {
+			method_to_compile = mini_get_shared_method (method);
+			g_assert (method_to_compile);
+		} else {
+			method_to_compile = method;
+		}
 	}
 
 	cfg = g_new0 (MonoCompile, 1);
@@ -4540,12 +4557,12 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 	if (cfg->gen_seq_points)
 		cfg->seq_points = g_ptr_array_new ();
 
-	if (cfg->compile_aot && !try_generic_shared && (method->is_generic || method->klass->generic_container)) {
+	if (cfg->compile_aot && !try_generic_shared && (method->is_generic || method->klass->generic_container || method->is_gshared)) {
 		cfg->exception_type = MONO_EXCEPTION_GENERIC_SHARING_FAILED;
 		return cfg;
 	}
 
-	if (cfg->generic_sharing_context && mini_is_gsharedvt_method (method)) {
+	if (cfg->generic_sharing_context && (mini_is_gsharedvt_method (method) || method->is_gshared)) {
 		MonoMethodInflated *inflated;
 		MonoGenericContext *context;
 
@@ -4554,7 +4571,13 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 		context = &inflated->context;
 
 		// FIXME: Free the contents of gsctx if compilation fails
-		mini_init_gsctx (context, &cfg->gsctx);
+		if (method->is_gshared) {
+			/* We are compiling a gsharedvt method directly */
+			g_assert (compile_aot);
+			mini_init_gsctx_full (context, &cfg->gsctx, TRUE);
+		} else {
+			mini_init_gsctx (context, &cfg->gsctx);
+		}
 
 		cfg->gsharedvt = TRUE;
 	}
@@ -5499,10 +5522,15 @@ mono_jit_compile_method_inner (MonoMethod *method, MonoDomain *target_domain, in
 			 * works.
 			 * FIXME: The caller signature doesn't match the callee, which might cause problems on some platforms
 			 */
-			mono_arch_get_gsharedvt_in_trampoline (&tinfo, FALSE);
-			jinfo = create_jit_info_for_trampoline (method, tinfo);
-			mono_jit_info_table_add (mono_get_root_domain (), jinfo);
-			return tinfo->code;
+			if (mono_aot_only) {
+				// FIXME: EH
+				return mono_aot_get_trampoline ("gsharedvt_in_trampoline");
+			} else {
+				mono_arch_get_gsharedvt_in_trampoline (&tinfo, FALSE);
+				jinfo = create_jit_info_for_trampoline (method, tinfo);
+				mono_jit_info_table_add (mono_get_root_domain (), jinfo);
+				return tinfo->code;
+			}
 		} else if (info->subtype == WRAPPER_SUBTYPE_GSHAREDVT_OUT) {
 			static MonoTrampInfo *tinfo;
 			MonoJitInfo *jinfo;
@@ -5510,10 +5538,15 @@ mono_jit_compile_method_inner (MonoMethod *method, MonoDomain *target_domain, in
 			if (tinfo)
 				return tinfo->code;
 
-			mono_arch_get_gsharedvt_out_trampoline (&tinfo, FALSE);
-			jinfo = create_jit_info_for_trampoline (method, tinfo);
-			mono_jit_info_table_add (mono_get_root_domain (), jinfo);
-			return tinfo->code;
+			if (mono_aot_only) {
+				// FIXME: EH
+				return mono_aot_get_trampoline ("gsharedvt_out_trampoline");
+			} else {
+				mono_arch_get_gsharedvt_out_trampoline (&tinfo, FALSE);
+				jinfo = create_jit_info_for_trampoline (method, tinfo);
+				mono_jit_info_table_add (mono_get_root_domain (), jinfo);
+				return tinfo->code;
+			}
 		}
 
 	}

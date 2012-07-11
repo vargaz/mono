@@ -1102,8 +1102,8 @@ mono_arch_get_plt_info_offset (guint8 *plt_entry, mgreg_t *regs, guint8 *code)
 	return *(guint32*)(plt_entry + NACL_SIZE (6, 12));
 }
 
-static void
-x86_start_gsharedvt_call (GSharedVtCallInfo *info, gpointer *caller, gpointer *callee)
+void
+mono_x86_start_gsharedvt_in_call (GSharedVtCallInfo *info, gpointer *caller, gpointer *callee)
 {
 	int i;
 	int *map = info->map;
@@ -1181,10 +1181,12 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	x86_push_reg (code, X86_ECX);
 	/* Arg1 */
 	x86_push_reg (code, MONO_ARCH_RGCTX_REG);
-	if (aot)
-		NOT_IMPLEMENTED;
-	else
-		x86_call_code (code, x86_start_gsharedvt_call);
+	if (aot) {
+		code = mono_arch_emit_load_aotconst (buf, code, &ji, MONO_PATCH_INFO_JIT_ICALL_ADDR, "mono_x86_start_gsharedvt_in_call");
+		x86_call_reg (code, X86_EAX);
+	} else {
+		x86_call_code (code, mono_x86_start_gsharedvt_in_call);
+	}
 	x86_alu_reg_imm (code, X86_ADD, X86_ESP, 4 * 4);
 
 	/* The stack is now setup for the real call */
@@ -1261,18 +1263,12 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	return buf;
 }
 
-static void
-x86_start_gsharedvt_out_call (GSharedVtCallInfo *info, gpointer *caller, gpointer *callee)
+void
+mono_x86_start_gsharedvt_out_call (GSharedVtCallInfo *info, gpointer *caller, gpointer *callee)
 {
 	int i;
 	int *map = info->map;
 
-#if 0
-	/* Set vtype ret arg */
-	if (info->vret_arg_slot != -1) {
-		callee [info->vret_arg_slot] = &callee [info->vret_slot];
-	}
-#endif
 	/* Copy data from the caller argument area to the callee */
 	for (i = 0; i < info->map_count; ++i)
 		callee [map [i * 2 + 1]] = caller [map [i * 2]];
@@ -1334,10 +1330,12 @@ mono_arch_get_gsharedvt_out_trampoline (MonoTrampInfo **info, gboolean aot)
 	x86_push_reg (code, X86_ECX);
 	/* Arg1 */
 	x86_push_reg (code, MONO_ARCH_RGCTX_REG);
-	if (aot)
-		NOT_IMPLEMENTED;
-	else
-		x86_call_code (code, x86_start_gsharedvt_out_call);
+	if (aot) {
+		code = mono_arch_emit_load_aotconst (buf, code, &ji, MONO_PATCH_INFO_JIT_ICALL_ADDR, "mono_x86_start_gsharedvt_out_call");
+		x86_call_reg (code, X86_EAX);
+	} else {
+		x86_call_code (code, mono_x86_start_gsharedvt_out_call);
+	}
 	x86_alu_reg_imm (code, X86_ADD, X86_ESP, 4 * 4);
 
 	/* The stack is now setup for the real call */

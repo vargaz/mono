@@ -419,6 +419,7 @@ decode_klass_ref (MonoAotModule *module, guint8 *buf, guint8 **endbuf)
 		int type = decode_value (p, &p);
 		int num = decode_value (p, &p);
 		gboolean is_method = decode_value (p, &p);
+		int serial = decode_value (p, &p);
 
 		if (is_method) {
 			MonoMethod *method_def;
@@ -444,6 +445,16 @@ decode_klass_ref (MonoAotModule *module, guint8 *buf, guint8 **endbuf)
 		t = g_new0 (MonoType, 1);
 		t->type = type;
 		t->data.generic_param = mono_generic_container_get_param (container, num);
+
+		if (serial != mono_generic_param_info (t->data.generic_param)->serial) {
+			/* serial != 0 is used by generic sharing, see get_gsharedvt_type () */
+			/* Have to make a copy */
+			MonoGenericParam *par = t->data.generic_param;
+			par = g_memdup (par, sizeof (MonoGenericParamFull));
+			mono_generic_param_info (par)->serial = serial;
+			t = mono_metadata_type_dup (NULL, t);
+			t->data.generic_param = par;
+		}
 
 		// FIXME: Maybe use types directly to avoid
 		// the overhead of creating MonoClass-es
@@ -2301,10 +2312,27 @@ decode_exception_debug_info (MonoAotModule *amodule, MonoDomain *domain,
 			}
 		}
 
-		/* This currently contains no data */
-		gi->generic_sharing_context = g_new0 (MonoGenericSharingContext, 1);
-
 		jinfo->method = decode_resolve_method_ref (amodule, p, &p);
+
+		gi->generic_sharing_context = g_new0 (MonoGenericSharingContext, 1);
+		if (decode_value (p, &p)) {
+			/* gsharedvt */
+			int i, n;
+			MonoGenericSharingContext *gsctx = gi->generic_sharing_context;
+
+			n = decode_value (p, &p);
+			if (n) {
+				gsctx->var_is_vt = g_new0 (gboolean, n);
+				for (i = 0; i < n; ++i)
+					gsctx->var_is_vt [i] = decode_value (p, &p);
+			}
+			n = decode_value (p, &p);
+			if (n) {
+				gsctx->mvar_is_vt = g_new0 (gboolean, n);
+				for (i = 0; i < n; ++i)
+					gsctx->mvar_is_vt [i] = decode_value (p, &p);
+			}
+		}
 	}
 
 	if (has_try_block_holes) {
@@ -3267,7 +3295,7 @@ mono_aot_get_method (MonoDomain *domain, MonoMethod *method)
 	g_assert (klass->inited);
 
 	/* Find method index */
-	if (method->is_inflated && mono_method_is_generic_sharable_impl_full (method, FALSE, FALSE)) {
+	if (method->is_inflated && mono_method_is_generic_sharable_impl_full (method, FALSE, FALSE) && !mini_is_gsharedvt_method (method)) {
 		/* 
 		 * For generic methods, we store the fully shared instance in place of the
 		 * original method.
@@ -3365,6 +3393,11 @@ mono_aot_get_method (MonoDomain *domain, MonoMethod *method)
 			code = mono_aot_get_method (domain, m);
 			if (code)
 				return code;
+		}
+
+		if (method_index == 0xffffff && method->is_inflated && mini_is_gsharedvt_method (method)) {
+			/* gsharedvt */
+			method_index = find_extra_method (mini_get_shared_method (method), &amodule);
 		}
 
 		if (method_index == 0xffffff && method->is_inflated && mono_method_is_generic_sharable_impl_full (method, FALSE, TRUE)) {

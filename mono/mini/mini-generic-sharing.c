@@ -2120,6 +2120,7 @@ inst_is_gsharedvt_sharable (MonoGenericInst *inst)
 	return has_vt && !large_size;
 }
 
+// FIXME: Rename to 'gsharedvt_sharable_method'
 gboolean
 mini_is_gsharedvt_method (MonoMethod *method)
 {

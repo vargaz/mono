@@ -310,6 +310,7 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 	MonoJitInfo *ji = 
 		mini_jit_info_table_find (mono_domain_get (), mono_get_addr_from_ftnptr (compiled_method), NULL);
 
+	// FIXME: This loads information from AOT
 	caller_gsharedvt = ji_is_gsharedvt (caller_ji);
 	callee_gsharedvt = ji_is_gsharedvt (ji);
 
@@ -360,7 +361,10 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 		addr = mono_compile_method (wrapper);
 
 		/* Reuse static rgctx trampolines for passing the call info */
-		addr = mono_arch_get_static_rgctx_trampoline (m, info, addr);
+		if (mono_aot_only)
+			addr = mono_aot_get_static_rgctx_trampoline (info, addr);
+		else
+			addr = mono_arch_get_static_rgctx_trampoline (m, info, addr);
 
 		printf ("IN: %s\n", mono_method_full_name (m, TRUE));
 	} else if (caller_gsharedvt && !callee_gsharedvt && orig_method->is_inflated && mini_is_gsharedvt_variable_signature (mono_method_signature (mono_method_get_declaring_generic_method (orig_method)))) {
@@ -389,7 +393,10 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 		wrapper = mono_marshal_get_gsharedvt_out_wrapper ();
 		addr = mono_compile_method (wrapper);
 
-		addr = mono_arch_get_static_rgctx_trampoline (orig_method, info, addr);
+		if (mono_aot_only)
+			addr = mono_aot_get_static_rgctx_trampoline (info, addr);
+		else
+			addr = mono_arch_get_static_rgctx_trampoline (orig_method, info, addr);
 
 		printf ("OUT: %s\n", mono_method_full_name (m, TRUE));
 	} else if (callee_gsharedvt && !callee_array_helper) {
