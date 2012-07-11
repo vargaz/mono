@@ -355,7 +355,7 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 		/* Call from normal/gshared code to gsharedvt code with variable signature */
 		gsctx = mono_jit_info_get_generic_sharing_context (ji);
 
-		info = mono_arch_get_gsharedvt_in_call_info (compiled_method, m, ji->method, gsctx);
+		info = mono_arch_get_gsharedvt_call_info (compiled_method, m, ji->method, gsctx, TRUE);
 
 		wrapper = mono_marshal_get_gsharedvt_in_wrapper ();
 		addr = mono_compile_method (wrapper);
@@ -387,7 +387,7 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 
 		mini_init_gsctx (context, &gsctx);
 
-		info = mono_arch_get_gsharedvt_out_call_info (compiled_method, orig_method, gm, &gsctx);
+		info = mono_arch_get_gsharedvt_call_info (compiled_method, orig_method, gm, &gsctx, FALSE);
 
 		/* caller_gsharedvt && callee is not, but the call is made using the gsharedv call conv. */
 		wrapper = mono_marshal_get_gsharedvt_out_wrapper ();

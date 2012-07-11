@@ -6685,14 +6685,41 @@ mono_arch_gsharedvt_sig_supported (MonoMethodSignature *sig)
 	return TRUE;
 }
 
-static gpointer
-get_gsharedvt_call_info (gpointer addr, MonoMethod *m, MonoMethodSignature *caller_sig, MonoMethodSignature *callee_sig, CallInfo *caller_cinfo, CallInfo *callee_cinfo, MonoGenericSharingContext *gsctx, gboolean gsharedvt_in)
+/*
+ * mono_arch_get_gsharedvt_call_info:
+ *
+ *   Compute calling convention information for marshalling a call between NORMAL_METHOD and GSHAREDVT_METHOD.
+ * If GSHAREDVT_IN is TRUE, then the caller calls using the signature of NORMAL_METHOD but the call is received by
+ * GSHAREDVT_METHOD, otherwise its the other way around.
+ */
+gpointer
+mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethod *normal_method, MonoMethod *gsharedvt_method, MonoGenericSharingContext *gsctx, gboolean gsharedvt_in)
 {
 	GSharedVtCallInfo *info;
+	CallInfo *caller_cinfo, *callee_cinfo;
+	MonoMethodSignature *caller_sig, *callee_sig;
 	int i, j, index;
 	gboolean var_ret = FALSE;
 	CallInfo *cinfo, *gcinfo;
 	MonoMethodSignature *sig, *gsig;
+
+	if (gsharedvt_in) {
+		caller_sig = mono_method_signature (normal_method);
+		callee_sig = mono_method_signature (gsharedvt_method);
+		caller_cinfo = get_call_info (NULL, NULL, caller_sig);
+		callee_cinfo = get_call_info (gsctx, NULL, callee_sig);
+	} else {
+		callee_sig = mono_method_signature (normal_method);
+		callee_cinfo = get_call_info (NULL, NULL, callee_sig);
+		caller_sig = mono_method_signature (gsharedvt_method);
+		caller_cinfo = get_call_info (gsctx, NULL, caller_sig);
+	}
+
+	/*
+	 * If GSHAREDVT_IN is true, this means we are transitioning from normal to gsharedvt code. The caller uses the
+	 * normal call signature, while the callee uses the gsharedvt signature.
+	 * If GSHAREDVT_IN is false, its the other way around.
+	 */
 
 	/* sig/cinfo describes the normal call, while gsig/gcinfo describes the gsharedvt call */
 	if (gsharedvt_in) {
@@ -6725,7 +6752,7 @@ get_gsharedvt_call_info (gpointer addr, MonoMethod *m, MonoMethodSignature *call
 	info = g_new0 (GSharedVtCallInfo, 1);
 	info->addr = addr;
 	info->stack_usage = callee_cinfo->stack_usage;
-	info->rgctx = mini_method_get_rgctx (m);
+	info->rgctx = mini_method_get_rgctx (normal_method);
 	info->ret_marshal = GSHAREDVT_RET_NONE;
 	info->vret_slot = -1;
 	if (var_ret)
@@ -6796,53 +6823,5 @@ get_gsharedvt_call_info (gpointer addr, MonoMethod *m, MonoMethodSignature *call
 	info->stack_usage = ALIGN_TO (info->stack_usage, MONO_ARCH_FRAME_ALIGNMENT);
 	info->map_count = index / 2;
 
-	return info;
-}
-
-/*
- * mono_arch_get_gsharedvt_in_call_info:
- *
- *   Compute calling convention information for marshalling a call between M and GSHAREDVT_METHOD.
- */
-gpointer
-mono_arch_get_gsharedvt_in_call_info (gpointer addr, MonoMethod *m, MonoMethod *gsharedvt_method, MonoGenericSharingContext *gsctx)
-{
-	GSharedVtCallInfo *info;
-	CallInfo *caller_cinfo, *callee_cinfo;
-	MonoMethodSignature *caller_sig, *callee_sig;
-
-	/*
-	 * The caller uses a normal signature while the callee uses the gsharedvt one.
-	 */
-	caller_sig = mono_method_signature (m);
-	callee_sig = mono_method_signature (gsharedvt_method);
-	caller_cinfo = get_call_info (NULL, NULL, caller_sig);
-	callee_cinfo = get_call_info (gsctx, NULL, callee_sig);
-
-	info = get_gsharedvt_call_info (addr, m, caller_sig, callee_sig, caller_cinfo, callee_cinfo, gsctx, TRUE);
-	return info;
-}
-
-/*
- * mono_arch_get_gsharedvt_in_call_info:
- *
- *   Compute calling convention information for marshalling a call between GSHAREDVT_METHOD and M.
- */
-gpointer
-mono_arch_get_gsharedvt_out_call_info (gpointer addr, MonoMethod *m, MonoMethod *gsharedvt_method, MonoGenericSharingContext *gsctx)
-{
-	GSharedVtCallInfo *info;
-	CallInfo *caller_cinfo, *callee_cinfo;
-	MonoMethodSignature *caller_sig, *callee_sig;
-
-	/*
-	 * The caller uses a gsharedvt signature while the callee uses the normal one.
-	 */
-	callee_sig = mono_method_signature (m);
-	callee_cinfo = get_call_info (NULL, NULL, callee_sig);
-	caller_sig = mono_method_signature (gsharedvt_method);
-	caller_cinfo = get_call_info (gsctx, NULL, caller_sig);
-
-	info = get_gsharedvt_call_info (addr, m, caller_sig, callee_sig, caller_cinfo, callee_cinfo, gsctx, FALSE);
 	return info;
 }

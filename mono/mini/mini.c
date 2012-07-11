@@ -4354,57 +4354,6 @@ mini_get_shared_method (MonoMethod *method)
 		}
 	}
 
-#if 0
-	if (mini_is_gsharedvt_method (method)) {
-		MonoMethodInflated *inflated;
-		MonoGenericContext *context;
-		MonoGenericInst *inst;
-		MonoType **type_argv;
-		int i;
-
-		g_assert (method->is_inflated);
-		inflated = (MonoMethodInflated*)method;
-		context = &inflated->context;
-
-		if (context->class_inst) {
-			inst = context->class_inst;
-			type_argv = g_new0 (MonoType*, inst->type_argc);
-			for (i = 0; i < inst->type_argc; ++i) {
-				MonoType *type = inst->type_argv [i];
-
-				if (MONO_TYPE_IS_REFERENCE (type) || (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)) {
-					type_argv [i] = shared_context.method_inst->type_argv [i];
-				} else {
-					type_argv [i] = g_new0 (MonoType, 1);
-					type_argv [i]->type = MONO_TYPE_VALUETYPE;
-					// FIXME:
-					type_argv [i]->data.klass = mono_defaults.typed_reference_class;
-				}
-			}
-			shared_context.class_inst = mono_metadata_get_generic_inst (inst->type_argc, type_argv);
-			g_free (type_argv);
-		}
-		if (context->method_inst) {
-			inst = context->method_inst;
-			type_argv = g_new0 (MonoType*, inst->type_argc);
-			for (i = 0; i < inst->type_argc; ++i) {
-				MonoType *type = inst->type_argv [i];
-
-				if (MONO_TYPE_IS_REFERENCE (type) || (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)) {
-					type_argv [i] = shared_context.method_inst->type_argv [i];
-				} else {
-					type_argv [i] = g_new0 (MonoType, 1);
-					type_argv [i]->type = MONO_TYPE_VALUETYPE;
-					// FIXME:
-					type_argv [i]->data.klass = mono_defaults.typed_reference_class;
-				}
-			}
-			shared_context.method_inst = mono_metadata_get_generic_inst (inst->type_argc, type_argv);
-			g_free (type_argv);
-		}
-	}
-#endif
-
     res = mono_class_inflate_generic_method (declaring_method, &shared_context);
 	if (!partial) {
 		/* The result should be an inflated method whose parent is not inflated */
@@ -4481,6 +4430,7 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 	gboolean deadce_has_run = FALSE;
 	gboolean try_generic_shared, try_llvm = FALSE;
 	MonoMethod *method_to_compile, *method_to_register;
+	gboolean method_is_gshared = FALSE;
 
 	InterlockedIncrement (&mono_jit_stats.methods_compiled);
 	if (mono_profiler_get_events () & MONO_PROFILE_JIT_COMPILATION)
@@ -4514,6 +4464,7 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 
 	if (method->is_gshared) {
 		/* We are AOTing a gshared method directly */
+		method_is_gshared = TRUE;
 		g_assert (compile_aot);
 		try_generic_shared = TRUE;
 	}
@@ -4523,7 +4474,7 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 #endif
 
  restart_compile:
-	if (method->is_gshared) {
+	if (method_is_gshared) {
 		method_to_compile = method;
 	} else {
 		if (try_generic_shared) {
@@ -4562,7 +4513,7 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 		return cfg;
 	}
 
-	if (cfg->generic_sharing_context && (mini_is_gsharedvt_method (method) || method->is_gshared)) {
+	if (cfg->generic_sharing_context && (mini_is_gsharedvt_method (method) || method_is_gshared)) {
 		MonoMethodInflated *inflated;
 		MonoGenericContext *context;
 
@@ -4571,7 +4522,7 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 		context = &inflated->context;
 
 		// FIXME: Free the contents of gsctx if compilation fails
-		if (method->is_gshared) {
+		if (method_is_gshared) {
 			/* We are compiling a gsharedvt method directly */
 			g_assert (compile_aot);
 			mini_init_gsctx_full (context, &cfg->gsctx, TRUE);
