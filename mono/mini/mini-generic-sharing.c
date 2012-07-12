@@ -2069,6 +2069,47 @@ mini_get_gsharedvt_alloc_type (MonoCompile *cfg)
 	return mono_defaults.typed_reference_class;
 }
 
+/*
+ * mini_get_gsharedvt_alloc_type_for_type:
+ *
+ * For the gsharedvt type T, return the type which is used to allocate locals of type T.
+ */
+MonoType*
+mini_get_gsharedvt_alloc_type_for_type (MonoCompile *cfg, MonoType *t)
+{
+	if (t->type == MONO_TYPE_VAR || t->type == MONO_TYPE_MVAR)
+		return &mini_get_gsharedvt_alloc_type (cfg)->byval_arg;
+	else if (t->type == MONO_TYPE_GENERICINST && mono_type_generic_inst_is_valuetype (t)) {
+		MonoGenericClass *klass = t->data.generic_class;
+		MonoGenericContext context = klass->context;
+		MonoGenericInst *inst;
+		MonoType **type_argv;
+		int i;
+
+		if (context.class_inst) {
+			inst = context.class_inst;
+			type_argv = g_new0 (MonoType*, inst->type_argc);
+			for (i = 0; i < inst->type_argc; ++i)
+				type_argv [i] = mini_get_gsharedvt_alloc_type_for_type (cfg, inst->type_argv [i]);
+
+			context.class_inst = mono_metadata_get_generic_inst (inst->type_argc, type_argv);
+		}
+
+		if (context.method_inst) {
+			inst = context.method_inst;
+			type_argv = g_new0 (MonoType*, inst->type_argc);
+			for (i = 0; i < inst->type_argc; ++i)
+				type_argv [i] = mini_get_gsharedvt_alloc_type_for_type (cfg, inst->type_argv [i]);
+
+			context.method_inst = mono_metadata_get_generic_inst (inst->type_argc, type_argv);
+		}
+
+		return mono_class_inflate_generic_type (&klass->container_class->byval_arg, &context);
+	} else {
+		return t;
+	}
+}
+
 static gboolean
 is_variable_size (MonoType *t)
 {

@@ -2052,17 +2052,21 @@ mono_allocate_stack_slots (MonoCompile *cfg, gboolean backward, guint32 *stack_s
 		vmv = l->data;
 		inst = cfg->varinfo [vmv->idx];
 
+		t = mono_type_get_underlying_type (inst->inst_vtype);
+		if (t->type == MONO_TYPE_GENERICINST && mini_is_gsharedvt_variable_type (cfg, t))
+			t = mini_get_gsharedvt_alloc_type_for_type (cfg, t);
+
 		/* inst->backend.is_pinvoke indicates native sized value types, this is used by the
 		* pinvoke wrappers when they call functions returning structures */
-		if (inst->backend.is_pinvoke && MONO_TYPE_ISSTRUCT (inst->inst_vtype) && inst->inst_vtype->type != MONO_TYPE_TYPEDBYREF) {
-			size = mono_class_native_size (mono_class_from_mono_type (inst->inst_vtype), &align);
+		if (inst->backend.is_pinvoke && MONO_TYPE_ISSTRUCT (t) && t->type != MONO_TYPE_TYPEDBYREF) {
+			size = mono_class_native_size (mono_class_from_mono_type (t), &align);
 		} else {
 			int ialign;
 
-			size = mono_type_size (inst->inst_vtype, &ialign);
+			size = mono_type_size (t, &ialign);
 			align = ialign;
 
-			if (MONO_CLASS_IS_SIMD (cfg, mono_class_from_mono_type (inst->inst_vtype)))
+			if (MONO_CLASS_IS_SIMD (cfg, mono_class_from_mono_type (t)))
 				align = 16;
 		}
 
@@ -2070,7 +2074,6 @@ mono_allocate_stack_slots (MonoCompile *cfg, gboolean backward, guint32 *stack_s
 		if (cfg->disable_reuse_stack_slots)
 			reuse_slot = FALSE;
 
-		t = mono_type_get_underlying_type (inst->inst_vtype);
 		if (t->byref) {
 			slot_info = &scalar_stack_slots [MONO_TYPE_I];
 		} else {
@@ -2129,8 +2132,7 @@ handle_vt:
 				if (mini_type_var_is_vt (cfg, t)) {
 					int ialign;
 
-					// FIXME-VT: the other allocation function
-					t = &(mini_get_gsharedvt_alloc_type (cfg))->byval_arg;
+					t = mini_get_gsharedvt_alloc_type_for_type (cfg, t);
 					size = mono_type_size (t, &ialign);
 					align = ialign;
 					goto handle_vt;

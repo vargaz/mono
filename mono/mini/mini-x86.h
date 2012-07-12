@@ -300,8 +300,6 @@ typedef enum {
 typedef struct {
 	/* Method address to call */
 	gpointer addr;
-	/* RGCTX to pass to the method */
-	gpointer rgctx;
 	/* The trampoline reads this, so keep the size explicit */
 	int ret_marshal;
 	/* If ret_marshal != NONE, this is the stack slot of the vret arg, else -1 */

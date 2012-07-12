@@ -528,4 +528,28 @@ public class Tests
 			return 1;
 		return 0;
 	}
+
+	struct Foo1 {
+		public int i1, i2, i3;
+	}
+
+	struct Foo2<T> {
+		int i1, i2, i3, i4, i5;
+		public T foo;
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]	
+	public static void locals<T> (T t) {
+		Foo2<T> t2 = new Foo2<T> ();
+		object o = t2;
+	}
+
+	public static int test_0_locals () {
+		// Test that instantiations of type parameters are allocated the proper local type
+		int i = 1;
+		for (int j = 0; j < 10; ++j)
+			i ++;
+		locals<Foo1> (new Foo1 () { i1 = 1, i2 = 2, i3 = 3 });
+		return 0;
+	}
 }

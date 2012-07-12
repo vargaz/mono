@@ -341,6 +341,8 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 	if (callee_gsharedvt)
 		g_assert (m->is_inflated);
 
+	addr = compiled_method;
+
 	if (caller_gsharedvt && callee_gsharedvt) {
 		/* Caller is gsharedvt too, no need for marshalling */
 		// FIXME: The caller should pass this.
@@ -360,11 +362,10 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 		wrapper = mono_marshal_get_gsharedvt_in_wrapper ();
 		addr = mono_compile_method (wrapper);
 
-		/* Reuse static rgctx trampolines for passing the call info */
 		if (mono_aot_only)
-			addr = mono_aot_get_static_rgctx_trampoline (info, addr);
+			NOT_IMPLEMENTED;
 		else
-			addr = mono_arch_get_static_rgctx_trampoline (m, info, addr);
+			addr = mono_arch_get_gsharedvt_trampoline (mono_domain_get (), info, addr);
 
 		printf ("IN: %s\n", mono_method_full_name (m, TRUE));
 	} else if (caller_gsharedvt && !callee_gsharedvt && orig_method->is_inflated && mini_is_gsharedvt_variable_signature (mono_method_signature (mono_method_get_declaring_generic_method (orig_method)))) {
@@ -394,17 +395,22 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 		addr = mono_compile_method (wrapper);
 
 		if (mono_aot_only)
-			addr = mono_aot_get_static_rgctx_trampoline (info, addr);
+			NOT_IMPLEMENTED;
 		else
-			addr = mono_arch_get_static_rgctx_trampoline (orig_method, info, addr);
+			addr = mono_arch_get_gsharedvt_trampoline (mono_domain_get (), info, addr);
 
 		printf ("OUT: %s\n", mono_method_full_name (m, TRUE));
 	} else if (callee_gsharedvt && !callee_array_helper) {
-		addr = mono_create_static_rgctx_trampoline (m, compiled_method);
+		//addr = mono_create_static_rgctx_trampoline (m, compiled_method);
 	} else {
+		/*
 		if (add_static_rgctx_tramp && !callee_array_helper)
 			addr = mono_create_static_rgctx_trampoline (m, compiled_method);
+		*/
 	}
+
+	if (add_static_rgctx_tramp && !callee_array_helper)
+		addr = mono_create_static_rgctx_trampoline (m, addr);
 
 	return addr;
 }

@@ -106,6 +106,31 @@ mono_arch_get_llvm_imt_trampoline (MonoDomain *domain, MonoMethod *m, int vt_off
 	return start;
 }
 
+/*
+ * mono_arch_get_gsharedvt_trampoline:
+ *
+ *   Return a trampoline which passes ARG to the gsharedvt in/out trampoline ADDR.
+ */
+gpointer
+mono_arch_get_gsharedvt_trampoline (MonoDomain *domain, gpointer arg, gpointer addr)
+{
+	guint8 *code, *start;
+	int buf_len;
+
+	buf_len = 10;
+
+	start = code = mono_domain_code_reserve (domain, buf_len);
+
+	x86_mov_reg_imm (code, X86_EAX, arg);
+	x86_jump_code (code, addr);
+	g_assert ((code - start) <= buf_len);
+
+	nacl_domain_code_validate (domain, &start, buf_len, &code);
+	mono_arch_flush_icache (start, code - start);
+
+	return start;
+}
+
 void
 mono_arch_patch_callsite (guint8 *method_start, guint8 *orig_code, guint8 *addr)
 {
@@ -1142,9 +1167,9 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	 * The trampoline is responsible for marshalling the arguments and marshalling the result back. To simplify
 	 * things, we create our own stack frame, and do most of the work in a C function, which receives a
 	 * GSharedVtCallInfo structure as an argument. The structure should contain information to execute the C function to
-	 * be as fast as possible. The argument is received in the RGCTX_REG from a static rgctx trampoline. So the real
+	 * be as fast as possible. The argument is received in EAX from a gsharedvt trampoline. So the real
 	 * call sequence looks like this:
-	 * caller -> static rgctx trampoline -> gsharevt in trampoline -> start_gsharedvt_call
+	 * caller -> gsharedvt trampoline -> gsharevt in trampoline -> start_gsharedvt_call
 	 * FIXME: Optimize this.
 	 */
 
@@ -1157,12 +1182,15 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	mono_add_unwind_op_offset (unwind_ops, code, buf, X86_EBP, - cfa_offset);
 	x86_mov_reg_reg (code, X86_EBP, X86_ESP, sizeof (gpointer));
 	mono_add_unwind_op_def_cfa_reg (unwind_ops, code, buf, X86_EBP);
-	/* Save info struct addr */
-	x86_mov_membase_reg (code, X86_EBP, -4, MONO_ARCH_RGCTX_REG, 4);
-	/* Align the stack */
+	/* Alloc stack frame/align stack */
 	x86_alu_reg_imm (code, X86_SUB, X86_ESP, 8);
+	/* The info struct is put into EAX by the gsharedvt trampoline */
+	/* Save info struct addr */
+	x86_mov_membase_reg (code, X86_EBP, -4, X86_EAX, 4);
+	/* Save rgctx */
+	x86_mov_membase_reg (code, X86_EBP, -8, MONO_ARCH_RGCTX_REG, 4);
 
-	x86_mov_reg_membase (code, X86_EAX, MONO_ARCH_RGCTX_REG, G_STRUCT_OFFSET (GSharedVtCallInfo, stack_usage), sizeof (gpointer));
+	x86_mov_reg_membase (code, X86_EAX, X86_EAX, G_STRUCT_OFFSET (GSharedVtCallInfo, stack_usage), sizeof (gpointer));
 	x86_alu_reg_reg (code, X86_SUB, X86_ESP, X86_EAX);
 
 	/* ecx = caller argument area */
@@ -1180,7 +1208,7 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	/* Arg2 */
 	x86_push_reg (code, X86_ECX);
 	/* Arg1 */
-	x86_push_reg (code, MONO_ARCH_RGCTX_REG);
+	x86_push_membase (code, X86_EBP, -4);
 	if (aot) {
 		code = mono_arch_emit_load_aotconst (buf, code, &ji, MONO_PATCH_INFO_JIT_ICALL_ADDR, "mono_x86_start_gsharedvt_in_call");
 		x86_call_reg (code, X86_EAX);
@@ -1192,8 +1220,8 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	/* The stack is now setup for the real call */
 	/* Load info struct */
 	x86_mov_reg_membase (code, X86_ECX, X86_EBP, -4, 4);
-	/* Load real rgctx */
-	x86_mov_reg_membase (code, MONO_ARCH_RGCTX_REG, X86_ECX, G_STRUCT_OFFSET (GSharedVtCallInfo, rgctx), sizeof (gpointer));
+	/* Load rgctx */
+	x86_mov_reg_membase (code, MONO_ARCH_RGCTX_REG, X86_EBP, -8, sizeof (gpointer));
 	/* Load method addr */
 	x86_mov_reg_membase (code, X86_EAX, X86_ECX, G_STRUCT_OFFSET (GSharedVtCallInfo, addr), sizeof (gpointer));
 	/* Make the call */
@@ -1306,12 +1334,15 @@ mono_arch_get_gsharedvt_out_trampoline (MonoTrampInfo **info, gboolean aot)
 	mono_add_unwind_op_offset (unwind_ops, code, buf, X86_EBP, - cfa_offset);
 	x86_mov_reg_reg (code, X86_EBP, X86_ESP, sizeof (gpointer));
 	mono_add_unwind_op_def_cfa_reg (unwind_ops, code, buf, X86_EBP);
-	/* Save info struct addr */
-	x86_mov_membase_reg (code, X86_EBP, -4, MONO_ARCH_RGCTX_REG, 4);
-	/* Align the stack */
+	/* Alloc stack frame/align stack */
 	x86_alu_reg_imm (code, X86_SUB, X86_ESP, 8);
+	/* The info struct is put into EAX by the gsharedvt trampoline */
+	/* Save info struct addr */
+	x86_mov_membase_reg (code, X86_EBP, -4, X86_EAX, 4);
+	/* Save rgctx */
+	x86_mov_membase_reg (code, X86_EBP, -8, MONO_ARCH_RGCTX_REG, 4);
 
-	x86_mov_reg_membase (code, X86_EAX, MONO_ARCH_RGCTX_REG, G_STRUCT_OFFSET (GSharedVtCallInfo, stack_usage), sizeof (gpointer));
+	x86_mov_reg_membase (code, X86_EAX, X86_EAX, G_STRUCT_OFFSET (GSharedVtCallInfo, stack_usage), sizeof (gpointer));
 	x86_alu_reg_reg (code, X86_SUB, X86_ESP, X86_EAX);
 
 	/* ecx = caller argument area */
@@ -1329,7 +1360,7 @@ mono_arch_get_gsharedvt_out_trampoline (MonoTrampInfo **info, gboolean aot)
 	/* Arg2 */
 	x86_push_reg (code, X86_ECX);
 	/* Arg1 */
-	x86_push_reg (code, MONO_ARCH_RGCTX_REG);
+	x86_push_membase (code, X86_EBP, -4);
 	if (aot) {
 		code = mono_arch_emit_load_aotconst (buf, code, &ji, MONO_PATCH_INFO_JIT_ICALL_ADDR, "mono_x86_start_gsharedvt_out_call");
 		x86_call_reg (code, X86_EAX);
@@ -1341,8 +1372,8 @@ mono_arch_get_gsharedvt_out_trampoline (MonoTrampInfo **info, gboolean aot)
 	/* The stack is now setup for the real call */
 	/* Load info struct */
 	x86_mov_reg_membase (code, X86_ECX, X86_EBP, -4, 4);
-	/* Load real rgctx */
-	x86_mov_reg_membase (code, MONO_ARCH_RGCTX_REG, X86_ECX, G_STRUCT_OFFSET (GSharedVtCallInfo, rgctx), sizeof (gpointer));
+	/* Load rgctx */
+	x86_mov_reg_membase (code, MONO_ARCH_RGCTX_REG, X86_EBP, -8, sizeof (gpointer));
 	/* Load method addr */
 	x86_mov_reg_membase (code, X86_EAX, X86_ECX, G_STRUCT_OFFSET (GSharedVtCallInfo, addr), sizeof (gpointer));
 	/* Make the call */
@@ -1412,7 +1443,6 @@ mono_arch_get_gsharedvt_out_trampoline (MonoTrampInfo **info, gboolean aot)
 	x86_ret (code);
 	/* STACK_POP case */
 	x86_patch (br [3], code);
-	x86_alu_reg_imm (code, X86_ADD, X86_ESP, 4);
 	x86_leave (code);
 	x86_ret_imm (code, 4);
 

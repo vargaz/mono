@@ -6752,7 +6752,6 @@ mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethod *normal_method, Mon
 	info = g_new0 (GSharedVtCallInfo, 1);
 	info->addr = addr;
 	info->stack_usage = callee_cinfo->stack_usage;
-	info->rgctx = mini_method_get_rgctx (normal_method);
 	info->ret_marshal = GSHAREDVT_RET_NONE;
 	info->vret_slot = -1;
 	if (var_ret)
