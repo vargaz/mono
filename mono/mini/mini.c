@@ -4288,12 +4288,13 @@ get_gsharedvt_type (MonoType *t)
 }
 
 /*
- * mini_get_shared_method:
+ * mini_get_shared_method_full:
  *
  *   Return the method which is actually compiled/registered when doing generic sharing.
+ * If ALL_VT is true, return the shared method belonging to an all-vtype instantiation.
  */
 MonoMethod*
-mini_get_shared_method (MonoMethod *method)
+mini_get_shared_method_full (MonoMethod *method, gboolean all_vt)
 {
 	MonoGenericContext shared_context;
 	MonoMethod *declaring_method, *res;
@@ -4330,7 +4331,7 @@ mini_get_shared_method (MonoMethod *method)
 		if (inst) {
 			type_argv = g_new0 (MonoType*, inst->type_argc);
 			for (i = 0; i < inst->type_argc; ++i) {
-				if (MONO_TYPE_IS_REFERENCE (inst->type_argv [i]) || inst->type_argv [i]->type == MONO_TYPE_VAR || inst->type_argv [i]->type == MONO_TYPE_MVAR)
+				if (!all_vt && (MONO_TYPE_IS_REFERENCE (inst->type_argv [i]) || inst->type_argv [i]->type == MONO_TYPE_VAR || inst->type_argv [i]->type == MONO_TYPE_MVAR))
 					type_argv [i] = shared_context.class_inst->type_argv [i];
 				else if (gsharedvt)
 					type_argv [i] = get_gsharedvt_type (shared_context.class_inst->type_argv [i]);
@@ -4346,7 +4347,7 @@ mini_get_shared_method (MonoMethod *method)
 		if (inst) {
 			type_argv = g_new0 (MonoType*, inst->type_argc);
 			for (i = 0; i < inst->type_argc; ++i) {
-				if (MONO_TYPE_IS_REFERENCE (inst->type_argv [i]) || inst->type_argv [i]->type == MONO_TYPE_VAR || inst->type_argv [i]->type == MONO_TYPE_MVAR)
+				if (!all_vt && (MONO_TYPE_IS_REFERENCE (inst->type_argv [i]) || inst->type_argv [i]->type == MONO_TYPE_VAR || inst->type_argv [i]->type == MONO_TYPE_MVAR))
 					type_argv [i] = shared_context.method_inst->type_argv [i];
 				else if (gsharedvt)
 					type_argv [i] = get_gsharedvt_type (shared_context.method_inst->type_argv [i]);
@@ -4366,6 +4367,12 @@ mini_get_shared_method (MonoMethod *method)
 	}
 	res->is_gshared = TRUE;
 	return res;
+}
+
+MonoMethod*
+mini_get_shared_method (MonoMethod *method)
+{
+	return mini_get_shared_method_full (method, FALSE);
 }
 
 static void

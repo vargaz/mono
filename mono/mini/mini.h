@@ -2401,6 +2401,7 @@ MonoGenericContext* mini_class_get_context (MonoClass *class) MONO_INTERNAL;
 MonoType* mini_get_basic_type_from_generic (MonoGenericSharingContext *gsctx, MonoType *type) MONO_INTERNAL;
 MonoType* mini_type_get_underlying_type (MonoGenericSharingContext *gsctx, MonoType *type) MONO_INTERNAL;
 MonoMethod* mini_get_shared_method (MonoMethod *method) MONO_INTERNAL;
+MonoMethod* mini_get_shared_method_full (MonoMethod *method, gboolean all_vt) MONO_INTERNAL;
 MonoMethod* mini_get_shared_method_to_register (MonoMethod *method) MONO_INTERNAL;
 
 int mini_type_stack_size (MonoGenericSharingContext *gsctx, MonoType *t, int *align) MONO_INTERNAL;
