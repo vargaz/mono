@@ -3271,8 +3271,6 @@ add_generic_class_with_depth (MonoAotCompile *acfg, MonoClass *klass, int depth,
 	MonoClassField *field;
 	gpointer iter;
 
-	return;
-
 	if (!acfg->ginst_hash)
 		acfg->ginst_hash = g_hash_table_new (NULL, NULL);
 
@@ -3285,6 +3283,9 @@ add_generic_class_with_depth (MonoAotCompile *acfg, MonoClass *klass, int depth,
 		return;
 
 	if (!klass->generic_class && !klass->rank)
+		return;
+
+	if (klass->exception_type)
 		return;
 
 	if (!acfg->ginst_hash)
@@ -5593,7 +5594,7 @@ compile_method (MonoAotCompile *acfg, MonoMethod *method)
 							if (acfg->aot_opts.full_aot)
 								add_extra_method_with_depth (acfg, mono_marshal_get_native_wrapper (m, TRUE, TRUE), depth + 1);
 						} else {
-							//add_extra_method_with_depth (acfg, m, depth + 1);
+							add_extra_method_with_depth (acfg, m, depth + 1);
 							add_types_from_method_header (acfg, m);
 						}
 					}
@@ -7219,6 +7220,9 @@ collect_methods (MonoAotCompile *acfg)
 		MonoMethod *method;
 		guint32 token = MONO_TOKEN_METHOD_DEF | (mindex + 1);
 
+		if (!(acfg->opts & MONO_OPT_GSHAREDVT))
+			continue;
+
 		method = mono_get_method (acfg->image, token, NULL);
 		if (!method)
 			continue;
@@ -7235,6 +7239,7 @@ collect_methods (MonoAotCompile *acfg)
 			if (method->klass->generic_container) {
 				shared_context = method->klass->generic_container->context;
 				inst = shared_context.class_inst;
+
 				args = g_new0 (MonoType*, inst->type_argc);
 				for (i = 0; i < inst->type_argc; ++i) {
 					args [i] = &mono_defaults.int_class->byval_arg;
@@ -7243,8 +7248,8 @@ collect_methods (MonoAotCompile *acfg)
 			}
 			if (method->is_generic) {
 				shared_context = mono_method_get_generic_container (method)->context;
-
 				inst = shared_context.method_inst;
+
 				args = g_new0 (MonoType*, inst->type_argc);
 				for (i = 0; i < inst->type_argc; ++i) {
 					args [i] = &mono_defaults.int_class->byval_arg;
