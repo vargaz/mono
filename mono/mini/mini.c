@@ -4272,12 +4272,15 @@ get_gsharedvt_type (MonoType *t)
 	MonoType *res;
 
 	/* 
-	 * Make a copy of the param with a different serial so normal gshared and gsharedvt methods have
+	 * Create an anonymous gparam with a different serial so normal gshared and gsharedvt methods have
 	 * a different instantiation.
 	 */
 	g_assert (mono_generic_param_info (par));
 	par = g_memdup (par, sizeof (MonoGenericParamFull));
-	mono_generic_param_info (par)->serial = 1;
+	par->owner = NULL;
+	// FIXME:
+	par->image = mono_defaults.corlib;
+	((MonoGenericParamFull*)par)->info.serial = 1;
 	res = mono_metadata_type_dup (NULL, t);
 	res->data.generic_param = par;
 

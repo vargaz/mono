@@ -415,45 +415,50 @@ decode_klass_ref (MonoAotModule *module, guint8 *buf, guint8 **endbuf)
 	}
 	case MONO_AOT_TYPEREF_VAR: {
 		MonoType *t;
-		MonoGenericContainer *container;
+		MonoGenericContainer *container = NULL;
 		int type = decode_value (p, &p);
 		int num = decode_value (p, &p);
-		gboolean is_method = decode_value (p, &p);
-		int serial = decode_value (p, &p);
+		gboolean has_container = decode_value (p, &p);
+		int serial = 0;
 
-		if (is_method) {
-			MonoMethod *method_def;
-			g_assert (type == MONO_TYPE_MVAR);
-			method_def = decode_resolve_method_ref (module, p, &p);
-			if (!method_def)
-				return NULL;
+		if (has_container) {
+			gboolean is_method = decode_value (p, &p);
+			
+			if (is_method) {
+				MonoMethod *method_def;
+				g_assert (type == MONO_TYPE_MVAR);
+				method_def = decode_resolve_method_ref (module, p, &p);
+				if (!method_def)
+					return NULL;
 
-			container = mono_method_get_generic_container (method_def);
+				container = mono_method_get_generic_container (method_def);
+			} else {
+				MonoClass *class_def;
+				g_assert (type == MONO_TYPE_VAR);
+				class_def = decode_klass_ref (module, p, &p);
+				if (!class_def)
+					return NULL;
+
+				container = class_def->generic_container;
+			}
 		} else {
-			MonoClass *class_def;
-			g_assert (type == MONO_TYPE_VAR);
-			class_def = decode_klass_ref (module, p, &p);
-			if (!class_def)
-				return NULL;
-
-			container = class_def->generic_container;
+			serial = decode_value (p, &p);
 		}
-
-		g_assert (container);
 
 		// FIXME: Memory management
 		t = g_new0 (MonoType, 1);
 		t->type = type;
-		t->data.generic_param = mono_generic_container_get_param (container, num);
-
-		if (serial != mono_generic_param_info (t->data.generic_param)->serial) {
-			/* serial != 0 is used by generic sharing, see get_gsharedvt_type () */
-			/* Have to make a copy */
-			MonoGenericParam *par = t->data.generic_param;
-			par = g_memdup (par, sizeof (MonoGenericParamFull));
-			mono_generic_param_info (par)->serial = serial;
-			t = mono_metadata_type_dup (NULL, t);
+		if (container) {
+			t->data.generic_param = mono_generic_container_get_param (container, num);
+			g_assert (serial == 0);
+		} else {
+			/* Anonymous */
+			MonoGenericParam *par = (MonoGenericParam*)g_new0 (MonoGenericParamFull, 1);
 			t->data.generic_param = par;
+			par->num = num;
+			// FIXME:
+			par->image = mono_defaults.corlib;
+			((MonoGenericParamFull*)par)->info.serial = serial;
 		}
 
 		// FIXME: Maybe use types directly to avoid
