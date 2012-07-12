@@ -1591,6 +1591,7 @@ load_aot_module (MonoAssembly *assembly, gpointer user_data)
 	amodule->trampolines [MONO_AOT_TRAMP_SPECIFIC] = info->specific_trampolines;
 	amodule->trampolines [MONO_AOT_TRAMP_STATIC_RGCTX] = info->static_rgctx_trampolines;
 	amodule->trampolines [MONO_AOT_TRAMP_IMT_THUNK] = info->imt_thunks;
+	amodule->trampolines [MONO_AOT_TRAMP_GSHAREDVT] = info->gsharedvt_trampolines;
 	amodule->thumb_end = info->thumb_end;
 
 	if (make_unreadable) {
@@ -4072,6 +4073,22 @@ mono_aot_get_imt_thunk (MonoVTable *vtable, MonoDomain *domain, MonoIMTCheckItem
 	amodule->got [got_offset] = buf;
 
 	return code;
+}
+
+gpointer
+mono_aot_get_gsharedvt_trampoline (gpointer arg, gpointer addr)
+{
+	MonoAotModule *amodule;
+	guint8 *code;
+	guint32 got_offset;
+
+	code = get_numerous_trampoline (MONO_AOT_TRAMP_GSHAREDVT, 2, &amodule, &got_offset, NULL);
+
+	amodule->got [got_offset] = arg;
+	amodule->got [got_offset + 1] = addr; 
+
+	/* The caller expects an ftnptr */
+	return mono_create_ftnptr (mono_domain_get (), code);
 }
  
 /*

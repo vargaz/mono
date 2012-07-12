@@ -359,11 +359,12 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 
 		info = mono_arch_get_gsharedvt_call_info (compiled_method, m, ji->method, gsctx, TRUE);
 
+		// FIXME: Cache this
 		wrapper = mono_marshal_get_gsharedvt_in_wrapper ();
 		addr = mono_compile_method (wrapper);
 
 		if (mono_aot_only)
-			NOT_IMPLEMENTED;
+			addr = mono_aot_get_gsharedvt_trampoline (info, addr);
 		else
 			addr = mono_arch_get_gsharedvt_trampoline (mono_domain_get (), info, addr);
 
@@ -391,11 +392,13 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 		info = mono_arch_get_gsharedvt_call_info (compiled_method, orig_method, gm, &gsctx, FALSE);
 
 		/* caller_gsharedvt && callee is not, but the call is made using the gsharedv call conv. */
+
+		// FIXME: Cache this
 		wrapper = mono_marshal_get_gsharedvt_out_wrapper ();
 		addr = mono_compile_method (wrapper);
 
 		if (mono_aot_only)
-			NOT_IMPLEMENTED;
+			addr = mono_aot_get_gsharedvt_trampoline (info, addr);
 		else
 			addr = mono_arch_get_gsharedvt_trampoline (mono_domain_get (), info, addr);
 

@@ -128,6 +128,7 @@ typedef struct MonoAotOptions {
 	int ntrampolines;
 	int nrgctx_trampolines;
 	int nimt_trampolines;
+	int ngsharedvt_trampolines;
 	gboolean print_skipped_methods;
 	gboolean stats;
 	char *tool_prefix;
@@ -1593,6 +1594,52 @@ arch_emit_imt_thunk (MonoAotCompile *acfg, int offset, int *tramp_size)
 	g_assert_not_reached ();
 #endif
 }
+
+/*
+ * arch_emit_gsharedvt_trampoline:
+ *
+ *   Emit code for a gsharedvt trampoline. OFFSET is the offset of the first of
+ * two GOT slots which contain the argument, and the code to jump to.
+ * TRAMP_SIZE is set to the size of the emitted trampoline.
+ * These kinds of trampolines cannot be enumerated statically, since there could
+ * be one trampoline per method instantiation, so we emit the same code for all
+ * trampolines, and parameterize them using two GOT slots.
+ */
+static void
+arch_emit_gsharedvt_trampoline (MonoAotCompile *acfg, int offset, int *tramp_size)
+{
+#if defined(TARGET_X86)
+	guint8 buf [128];
+	guint8 *code;
+
+	/* Similar to the PPC code above */
+
+	g_assert (MONO_ARCH_RGCTX_REG != X86_ECX);
+
+	code = buf;
+	/* Load mscorlib got address */
+	x86_mov_reg_membase (code, X86_ECX, MONO_ARCH_GOT_REG, sizeof (gpointer), 4);
+	/* Load arg */
+	x86_mov_reg_membase (code, X86_EAX, X86_ECX, offset * sizeof (gpointer), 4);
+	/* Branch to the target address */
+	x86_jump_membase (code, X86_ECX, (offset + 1) * sizeof (gpointer));
+
+#ifdef __native_client_codegen__
+	{
+		/* emit nops to next 32 byte alignment */
+		int a = (~kNaClAlignmentMask) & ((code - buf) + kNaClAlignment - 1);
+		while (code < (buf + a)) x86_nop(code);
+	}
+#endif
+
+	emit_bytes (acfg, buf, code - buf);
+
+	*tramp_size = NACL_SIZE (15, kNaClAlignment);
+	g_assert (code - buf == *tramp_size);
+#else
+	g_assert_not_reached ();
+#endif
+}	
 
 static void
 arch_emit_autoreg (MonoAotCompile *acfg, char *symbol)
@@ -5097,6 +5144,9 @@ emit_trampolines (MonoAotCompile *acfg)
 			case MONO_AOT_TRAMP_IMT_THUNK:
 				sprintf (symbol, "imt_thunks");
 				break;
+			case MONO_AOT_TRAMP_GSHAREDVT:
+				sprintf (symbol, "gsharedvt_trampolines");
+				break;
 			default:
 				g_assert_not_reached ();
 			}
@@ -5126,6 +5176,10 @@ emit_trampolines (MonoAotCompile *acfg)
 				case MONO_AOT_TRAMP_IMT_THUNK:
 					arch_emit_imt_thunk (acfg, tramp_got_offset, &tramp_size);
 					tramp_got_offset += 1;
+					break;
+				case MONO_AOT_TRAMP_GSHAREDVT:
+					arch_emit_gsharedvt_trampoline (acfg, tramp_got_offset, &tramp_size);				
+					tramp_got_offset += 2;
 					break;
 				default:
 					g_assert_not_reached ();
@@ -5277,6 +5331,8 @@ mono_aot_parse_options (const char *aot_options, MonoAotOptions *opts)
 			opts->nrgctx_trampolines = atoi (arg + strlen ("nrgctx-trampolines="));
 		} else if (str_begins_with (arg, "nimt-trampolines=")) {
 			opts->nimt_trampolines = atoi (arg + strlen ("nimt-trampolines="));
+		} else if (str_begins_with (arg, "ngsharedvt-trampolines=")) {
+			opts->ngsharedvt_trampolines = atoi (arg + strlen ("ngsharedvt-trampolines="));
 		} else if (str_begins_with (arg, "autoreg")) {
 			opts->autoreg = TRUE;
 		} else if (str_begins_with (arg, "tool-prefix=")) {
@@ -5319,6 +5375,7 @@ mono_aot_parse_options (const char *aot_options, MonoAotOptions *opts)
 			printf ("    ntrampolines=\n");
 			printf ("    nrgctx-trampolines=\n");
 			printf ("    nimt-trampolines=\n");
+			printf ("    ngsharedvt-trampolines=\n");
 			printf ("    autoreg\n");
 			printf ("    tool-prefix=\n");
 			printf ("    readonly-value=\n");
@@ -7050,7 +7107,9 @@ emit_file_info (MonoAotCompile *acfg)
 		emit_pointer (acfg, "specific_trampolines");
 		emit_pointer (acfg, "static_rgctx_trampolines");
 		emit_pointer (acfg, "imt_thunks");
+		emit_pointer (acfg, "gsharedvt_trampolines");
 	} else {
+		emit_pointer (acfg, NULL);
 		emit_pointer (acfg, NULL);
 		emit_pointer (acfg, NULL);
 		emit_pointer (acfg, NULL);
@@ -7579,6 +7638,7 @@ mono_compile_assembly (MonoAssembly *ass, guint32 opts, const char *aot_options)
 	acfg->aot_opts.ntrampolines = 1024;
 	acfg->aot_opts.nrgctx_trampolines = 1024;
 	acfg->aot_opts.nimt_trampolines = 128;
+	acfg->aot_opts.ngsharedvt_trampolines = 128;
 	acfg->aot_opts.llvm_path = g_strdup ("");
 
 	mono_aot_parse_options (aot_options, &acfg->aot_opts);
@@ -7637,6 +7697,7 @@ mono_compile_assembly (MonoAssembly *ass, guint32 opts, const char *aot_options)
 	acfg->num_trampolines [MONO_AOT_TRAMP_STATIC_RGCTX] = acfg->aot_opts.full_aot ? acfg->aot_opts.nrgctx_trampolines : 0;
 #endif
 	acfg->num_trampolines [MONO_AOT_TRAMP_IMT_THUNK] = acfg->aot_opts.full_aot ? acfg->aot_opts.nimt_trampolines : 0;
+	acfg->num_trampolines [MONO_AOT_TRAMP_GSHAREDVT] = acfg->aot_opts.full_aot ? acfg->aot_opts.ngsharedvt_trampolines : 0;
 
 	acfg->temp_prefix = img_writer_get_temp_label_prefix (NULL);
 
