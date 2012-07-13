@@ -345,9 +345,8 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 
 	if (caller_gsharedvt && callee_gsharedvt) {
 		/* Caller is gsharedvt too, no need for marshalling */
-		// FIXME: The caller should pass this.
-		//addr = mono_create_static_rgctx_trampoline (m, compiled_method);
 	} else if (callee_gsharedvt && mini_is_gsharedvt_variable_signature (mono_method_signature (ji->method))) {
+		static gpointer tramp_addr;
 		gpointer info;
 		MonoMethod *wrapper;
 		MonoGenericSharingContext *gsctx;
@@ -359,9 +358,13 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 
 		info = mono_arch_get_gsharedvt_call_info (compiled_method, m, ji->method, gsctx, TRUE);
 
-		// FIXME: Cache this
-		wrapper = mono_marshal_get_gsharedvt_in_wrapper ();
-		addr = mono_compile_method (wrapper);
+		if (!tramp_addr) {
+			wrapper = mono_marshal_get_gsharedvt_in_wrapper ();
+			addr = mono_compile_method (wrapper);
+			mono_memory_barrier ();
+			tramp_addr = addr;
+		}
+		addr = tramp_addr;
 
 		if (mono_aot_only)
 			addr = mono_aot_get_gsharedvt_trampoline (info, addr);
@@ -370,6 +373,7 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 
 		printf ("IN: %s\n", mono_method_full_name (m, TRUE));
 	} else if (caller_gsharedvt && !callee_gsharedvt && orig_method->is_inflated && mini_is_gsharedvt_variable_signature (mono_method_signature (mono_method_get_declaring_generic_method (orig_method)))) {
+		static gpointer tramp_addr;
 		gpointer info;
 		MonoMethod *wrapper;
 		MonoMethodInflated *inflated;
@@ -393,9 +397,13 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 
 		/* caller_gsharedvt && callee is not, but the call is made using the gsharedv call conv. */
 
-		// FIXME: Cache this
-		wrapper = mono_marshal_get_gsharedvt_out_wrapper ();
-		addr = mono_compile_method (wrapper);
+		if (!tramp_addr) {
+			wrapper = mono_marshal_get_gsharedvt_out_wrapper ();
+			addr = mono_compile_method (wrapper);
+			mono_memory_barrier ();
+			tramp_addr = addr;
+		}
+		addr = tramp_addr;
 
 		if (mono_aot_only)
 			addr = mono_aot_get_gsharedvt_trampoline (info, addr);
@@ -403,13 +411,6 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 			addr = mono_arch_get_gsharedvt_trampoline (mono_domain_get (), info, addr);
 
 		printf ("OUT: %s\n", mono_method_full_name (m, TRUE));
-	} else if (callee_gsharedvt && !callee_array_helper) {
-		//addr = mono_create_static_rgctx_trampoline (m, compiled_method);
-	} else {
-		/*
-		if (add_static_rgctx_tramp && !callee_array_helper)
-			addr = mono_create_static_rgctx_trampoline (m, compiled_method);
-		*/
 	}
 
 	if (add_static_rgctx_tramp && !callee_array_helper)

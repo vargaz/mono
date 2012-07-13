@@ -1151,8 +1151,7 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	MonoJumpInfo *ji = NULL;
 	guint8 *br [16];
 
-	// FIXME: Length
-	buf_len = 256;
+	buf_len = 192;
 	buf = code = mono_global_codeman_reserve (buf_len);
 
 	/*
@@ -1311,8 +1310,7 @@ mono_arch_get_gsharedvt_out_trampoline (MonoTrampInfo **info, gboolean aot)
 	MonoJumpInfo *ji = NULL;
 	guint8 *br [16];
 
-	// FIXME: Length
-	buf_len = 256;
+	buf_len = 192;
 	buf = code = mono_global_codeman_reserve (buf_len);
 
 	/*
@@ -1445,6 +1443,8 @@ mono_arch_get_gsharedvt_out_trampoline (MonoTrampInfo **info, gboolean aot)
 	x86_patch (br [3], code);
 	x86_leave (code);
 	x86_ret_imm (code, 4);
+
+	g_assert ((code - buf) < buf_len);
 
 	if (info)
 		*info = mono_tramp_info_create ("gsharedvt_out_trampoline", buf, code - buf, ji, unwind_ops);

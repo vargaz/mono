@@ -6698,10 +6698,11 @@ mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethod *normal_method, Mon
 	GSharedVtCallInfo *info;
 	CallInfo *caller_cinfo, *callee_cinfo;
 	MonoMethodSignature *caller_sig, *callee_sig;
-	int i, j, index;
+	int i, j;
 	gboolean var_ret = FALSE;
 	CallInfo *cinfo, *gcinfo;
 	MonoMethodSignature *sig, *gsig;
+	GPtrArray *map;
 
 	if (gsharedvt_in) {
 		caller_sig = mono_method_signature (normal_method);
@@ -6749,7 +6750,35 @@ mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethod *normal_method, Mon
 	 * <call area>
 	 * We have to map the stack slots in <arguments> to the stack slots in <call area>.
 	 */
-	info = g_new0 (GSharedVtCallInfo, 1);
+	map = g_ptr_array_new ();
+
+	if (cinfo->vtype_retaddr) {
+		/*
+		 * Map ret arg.
+		 * This handles the case when the method returns a normal vtype, and when it returns a type arg, and its instantiated
+		 * with a vtype.
+		 */		
+		g_ptr_array_add (map, GUINT_TO_POINTER (caller_cinfo->vret_arg_offset / sizeof (gpointer)));
+		g_ptr_array_add (map, GUINT_TO_POINTER (callee_cinfo->vret_arg_offset / sizeof (gpointer)));
+	}
+
+	for (i = 0; i < cinfo->nargs; ++i) {
+		ArgInfo *ainfo = &caller_cinfo->args [i];
+		ArgInfo *ainfo2 = &callee_cinfo->args [i];
+		int nslots;
+		
+		/* Have to use the non-gsharedvt size */ 
+		nslots = cinfo->args [i].nslots;
+		if (!nslots)
+			nslots = 1;
+		g_assert (ainfo->storage == ArgOnStack);
+		for (j = 0; j < nslots; ++j) {
+			g_ptr_array_add (map, GUINT_TO_POINTER ((ainfo->offset / sizeof (gpointer)) + j));
+			g_ptr_array_add (map, GUINT_TO_POINTER ((ainfo2->offset / sizeof (gpointer)) + j));
+		}
+	}
+
+	info = mono_domain_alloc0 (mono_domain_get (), sizeof (GSharedVtCallInfo) + (map->len * sizeof (int)));
 	info->addr = addr;
 	info->stack_usage = callee_cinfo->stack_usage;
 	info->ret_marshal = GSHAREDVT_RET_NONE;
@@ -6758,10 +6787,10 @@ mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethod *normal_method, Mon
 		info->vret_arg_slot = gcinfo->vret_arg_offset / sizeof (gpointer);
 	else
 		info->vret_arg_slot = -1;
-	// FIXME: Embed map into the structure
-	// FIXME:
-	info->map = g_malloc0 (sizeof (int) * 256);
-	index = 0;
+	info->map_count = map->len / 2;
+	for (i = 0; i < map->len; ++i)
+		info->map [i] = GPOINTER_TO_UINT (g_ptr_array_index (map, i));
+	g_ptr_array_free (map, TRUE);
 
 	/* Compute return value marshalling */
 	if (var_ret) {
@@ -6786,32 +6815,6 @@ mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethod *normal_method, Mon
 		}
 	}
 
-	if (cinfo->vtype_retaddr) {
-		/*
-		 * Map ret arg.
-		 * This handles the case when the method returns a normal vtype, and when it returns a type arg, and its instantiated
-		 * with a vtype.
-		 */		
-		info->map [index ++] = caller_cinfo->vret_arg_offset / sizeof (gpointer);
-		info->map [index ++] = callee_cinfo->vret_arg_offset / sizeof (gpointer);
-	}
-
-	for (i = 0; i < cinfo->nargs; ++i) {
-		ArgInfo *ainfo = &caller_cinfo->args [i];
-		ArgInfo *ainfo2 = &callee_cinfo->args [i];
-		int nslots;
-		
-		/* Have to use the non-gsharedvt size */ 
-		nslots = cinfo->args [i].nslots;
-		if (!nslots)
-			nslots = 1;
-		g_assert (ainfo->storage == ArgOnStack);
-		for (j = 0; j < nslots; ++j) {
-			info->map [index ++] = (ainfo->offset / sizeof (gpointer)) + j;
-			info->map [index ++] = (ainfo2->offset / sizeof (gpointer)) + j;
-		}
-	}
-
 	if (gsharedvt_in && var_ret && !caller_cinfo->vtype_retaddr) {
 		/* Allocate stack space for the return value */
 		info->vret_slot = info->stack_usage / sizeof (gpointer);
@@ -6820,7 +6823,6 @@ mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethod *normal_method, Mon
 	}
 
 	info->stack_usage = ALIGN_TO (info->stack_usage, MONO_ARCH_FRAME_ALIGNMENT);
-	info->map_count = index / 2;
 
 	return info;
 }

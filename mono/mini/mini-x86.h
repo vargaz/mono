@@ -307,7 +307,7 @@ typedef struct {
 	/* The stack slot where the return value will be stored */
 	int vret_slot;
 	int stack_usage, map_count;
-	int *map;
+	int map [MONO_ZERO_LEN_ARRAY];
 } GSharedVtCallInfo;
 
 guint8*
