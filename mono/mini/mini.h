@@ -2375,7 +2375,7 @@ gboolean
 mono_method_is_generic_sharable_impl (MonoMethod *method, gboolean allow_type_vars) MONO_INTERNAL;
 
 gboolean
-mono_method_is_generic_sharable_impl_full (MonoMethod *method, gboolean allow_type_vars, gboolean allow_partial) MONO_INTERNAL;
+mono_method_is_generic_sharable_impl_full (MonoMethod *method, gboolean allow_type_vars, gboolean allow_partial, gboolean allow_gsharedvt) MONO_INTERNAL;
 
 gboolean
 mono_is_partially_sharable_inst (MonoGenericInst *inst) MONO_INTERNAL;

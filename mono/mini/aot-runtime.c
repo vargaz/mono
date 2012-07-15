@@ -3301,7 +3301,7 @@ mono_aot_get_method (MonoDomain *domain, MonoMethod *method)
 	g_assert (klass->inited);
 
 	/* Find method index */
-	if (method->is_inflated && mono_method_is_generic_sharable_impl_full (method, FALSE, FALSE) && !mini_is_gsharedvt_method (method)) {
+	if (method->is_inflated && mono_method_is_generic_sharable_impl_full (method, FALSE, FALSE, FALSE)) {
 		/* 
 		 * For generic methods, we store the fully shared instance in place of the
 		 * original method.
@@ -3405,11 +3405,6 @@ mono_aot_get_method (MonoDomain *domain, MonoMethod *method)
 			/* gsharedvt */
 			/* Use the all-vt shared method since this is what was AOTed */
 			method_index = find_extra_method (mini_get_shared_method_full (method, TRUE), &amodule);
-		}
-
-		if (method_index == 0xffffff && method->is_inflated && mono_method_is_generic_sharable_impl_full (method, FALSE, TRUE)) {
-			/* Partial sharing */
-			method_index = find_extra_method (mini_get_shared_method (method), &amodule);
 		}
 
 		if (method_index == 0xffffff) {
@@ -3982,7 +3977,7 @@ mono_aot_get_unbox_trampoline (MonoMethod *method)
 	guint32 *ut, *ut_end, *entry;
 	int low, high, entry_index;
 
-	if (method->is_inflated && !mono_method_is_generic_sharable_impl (method, FALSE)) {
+	if (method->is_inflated && !mono_method_is_generic_sharable_impl_full (method, FALSE, FALSE, FALSE)) {
 		method_index = find_extra_method (method, &amodule);
 		g_assert (method_index != 0xffffff);
 	} else {

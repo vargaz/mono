@@ -1532,6 +1532,7 @@ has_constraints (MonoGenericContainer *container)
  * @method: a method
  * @allow_type_vars: whether to regard type variables as reference types
  * @alloc_partial: whether to allow partial sharing
+ * @alloc_gsharedvt: whenever to allow sharing over valuetypes
  *
  * Returns TRUE iff the method is inflated or part of an inflated
  * class, its context is sharable and it has no constraints on its
@@ -1539,12 +1540,12 @@ has_constraints (MonoGenericContainer *container)
  */
 gboolean
 mono_method_is_generic_sharable_impl_full (MonoMethod *method, gboolean allow_type_vars,
-										   gboolean allow_partial)
+										   gboolean allow_partial, gboolean allow_gsharedvt)
 {
 	if (!mono_method_is_generic_impl (method))
 		return FALSE;
 
-	if (mini_is_gsharedvt_method (method))
+	if (allow_gsharedvt && mini_is_gsharedvt_method (method))
 		return TRUE;
 
 	if (method->is_inflated) {
@@ -1582,7 +1583,7 @@ mono_method_is_generic_sharable_impl_full (MonoMethod *method, gboolean allow_ty
 gboolean
 mono_method_is_generic_sharable_impl (MonoMethod *method, gboolean allow_type_vars)
 {
-	return mono_method_is_generic_sharable_impl_full (method, allow_type_vars, ALLOW_PARTIAL_SHARING);
+	return mono_method_is_generic_sharable_impl_full (method, allow_type_vars, ALLOW_PARTIAL_SHARING, TRUE);
 }
 
 gboolean
