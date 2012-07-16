@@ -4346,12 +4346,12 @@ mini_get_shared_method_full (MonoMethod *method, gboolean all_vt)
 
 	/* Handle partial sharing */
 	if ((method != declaring_method && method->is_inflated && !mono_method_is_generic_sharable_impl_full (method, FALSE, FALSE, TRUE)) ||
-		mini_is_gsharedvt_method (method)) {
+		mini_is_gsharedvt_sharable_method (method)) {
 		MonoGenericContext *context = mono_method_get_context (method);
 		MonoGenericInst *inst;
 		MonoType **type_argv;
 
-		gsharedvt = mini_is_gsharedvt_method (method);
+		gsharedvt = mini_is_gsharedvt_sharable_method (method);
 
 		/* 
 		 * Create the shared context by replacing the ref type arguments with
@@ -4499,7 +4499,7 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 			mono_stats.generics_unsharable_methods++;
 	}
 
-	if (mini_is_gsharedvt_method (method)) {
+	if (mini_is_gsharedvt_sharable_method (method)) {
 		if (!mono_debug_count ())
 			try_generic_shared = FALSE;
 		if (compile_aot)
@@ -4557,7 +4557,7 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 		return cfg;
 	}
 
-	if (cfg->generic_sharing_context && (mini_is_gsharedvt_method (method) || method_is_gshared)) {
+	if (cfg->generic_sharing_context && (mini_is_gsharedvt_sharable_method (method) || method_is_gshared)) {
 		MonoMethodInflated *inflated;
 		MonoGenericContext *context;
 

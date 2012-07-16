@@ -1545,7 +1545,7 @@ mono_method_is_generic_sharable_impl_full (MonoMethod *method, gboolean allow_ty
 	if (!mono_method_is_generic_impl (method))
 		return FALSE;
 
-	if (allow_gsharedvt && mini_is_gsharedvt_method (method))
+	if (allow_gsharedvt && mini_is_gsharedvt_sharable_method (method))
 		return TRUE;
 
 	if (method->is_inflated) {
@@ -2164,7 +2164,7 @@ inst_is_gsharedvt_sharable (MonoGenericInst *inst)
 
 // FIXME: Rename to 'gsharedvt_sharable_method'
 gboolean
-mini_is_gsharedvt_method (MonoMethod *method)
+mini_is_gsharedvt_sharable_method (MonoMethod *method)
 {
 	MonoMethodSignature *sig;
 

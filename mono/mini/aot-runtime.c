@@ -3401,7 +3401,7 @@ mono_aot_get_method (MonoDomain *domain, MonoMethod *method)
 				return code;
 		}
 
-		if (method_index == 0xffffff && method->is_inflated && mini_is_gsharedvt_method (method)) {
+		if (method_index == 0xffffff && method->is_inflated && mini_is_gsharedvt_sharable_method (method)) {
 			/* gsharedvt */
 			/* Use the all-vt shared method since this is what was AOTed */
 			method_index = find_extra_method (mini_get_shared_method_full (method, TRUE), &amodule);
