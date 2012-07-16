@@ -454,11 +454,11 @@ decode_klass_ref (MonoAotModule *module, guint8 *buf, guint8 **endbuf)
 		} else {
 			/* Anonymous */
 			MonoGenericParam *par = (MonoGenericParam*)g_new0 (MonoGenericParamFull, 1);
-			t->data.generic_param = par;
 			par->num = num;
+			par->serial = serial;
 			// FIXME:
 			par->image = mono_defaults.corlib;
-			((MonoGenericParamFull*)par)->info.serial = serial;
+			t->data.generic_param = par;
 		}
 
 		// FIXME: Maybe use types directly to avoid

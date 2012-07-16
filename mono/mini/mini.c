@@ -4280,11 +4280,43 @@ get_gsharedvt_type (MonoType *t)
 	par->owner = NULL;
 	// FIXME:
 	par->image = mono_defaults.corlib;
-	((MonoGenericParamFull*)par)->info.serial = 1;
+	par->serial = 1;
 	res = mono_metadata_type_dup (NULL, t);
 	res->data.generic_param = par;
 
 	return res;
+}
+
+static gboolean
+is_gsharedvt_type (MonoType *t)
+{
+	return (t->type == MONO_TYPE_VAR || t->type == MONO_TYPE_MVAR) && t->data.generic_param->serial == 1;
+}
+
+/* Return whenever METHOD is a gsharedvt method */
+static gboolean
+is_gsharedvt_method (MonoMethod *method)
+{
+	MonoGenericContext *context;
+	MonoGenericInst *inst;
+	int i;
+
+	if (!method->is_inflated)
+		return FALSE;
+	context = mono_method_get_context (method);
+	inst = context->class_inst;
+	if (inst) {
+		for (i = 0; i < inst->type_argc; ++i)
+			if (is_gsharedvt_type (inst->type_argv [i]))
+				return TRUE;
+	}
+	inst = context->method_inst;
+	if (inst) {
+		for (i = 0; i < inst->type_argc; ++i)
+			if (is_gsharedvt_type (inst->type_argv [i]))
+				return TRUE;
+	}
+	return FALSE;
 }
 
 /*
@@ -4364,7 +4396,6 @@ mini_get_shared_method_full (MonoMethod *method, gboolean all_vt)
 		/* The result should be an inflated method whose parent is not inflated */
 		g_assert (!res->klass->is_inflated);
 	}
-	res->is_gshared = TRUE;
 	return res;
 }
 
@@ -4475,7 +4506,7 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 			try_generic_shared = FALSE;
 	}
 
-	if (method->is_gshared) {
+	if (is_gsharedvt_method (method)) {
 		/* We are AOTing a gshared method directly */
 		method_is_gshared = TRUE;
 		g_assert (compile_aot);
@@ -4521,7 +4552,7 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 	if (cfg->gen_seq_points)
 		cfg->seq_points = g_ptr_array_new ();
 
-	if (cfg->compile_aot && !try_generic_shared && (method->is_generic || method->klass->generic_container || method->is_gshared)) {
+	if (cfg->compile_aot && !try_generic_shared && (method->is_generic || method->klass->generic_container || method_is_gshared)) {
 		cfg->exception_type = MONO_EXCEPTION_GENERIC_SHARING_FAILED;
 		return cfg;
 	}
