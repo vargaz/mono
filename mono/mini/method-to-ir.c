@@ -7126,6 +7126,28 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			if (check_this)
 				MONO_EMIT_NEW_CHECK_THIS (cfg, sp [0]->dreg);
 
+			/*
+			 * Making generic calls out of gsharedvt methods.
+			 * The callee could end up being a gsharedvt method, or a non-shared method. The latter call
+			 * cannot be patched, so we make indirect calls through the rgctx.
+			 */
+			if (cmethod && cfg->gsharedvt && mini_is_gsharedvt_signature (cfg, mono_method_signature (cmethod))) {
+				MonoInst *addr = emit_get_rgctx_method (cfg, context_used,
+														cmethod, MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE);
+				ins = mono_emit_calli (cfg, fsig, sp, addr, vtable_arg);
+
+				if (!MONO_TYPE_IS_VOID (fsig->ret))
+					*sp++ = mono_emit_widen_call_res (cfg, ins, fsig);
+
+				CHECK_CFG_EXCEPTION;
+
+				ip += 5;
+				ins_flag = 0;
+				if (need_seq_point)
+					emit_seq_point (cfg, method, ip, FALSE);
+				break;
+			}
+
 			/* Calling virtual generic methods */
 			if (cmethod && virtual && 
 			    (cmethod->flags & METHOD_ATTRIBUTE_VIRTUAL) && 

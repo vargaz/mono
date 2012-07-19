@@ -373,44 +373,8 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 
 		printf ("IN: %s\n", mono_method_full_name (m, TRUE));
 	} else if (caller_gsharedvt && !callee_gsharedvt && orig_method->is_inflated && mini_is_gsharedvt_variable_signature (mono_method_signature (mono_method_get_declaring_generic_method (orig_method)))) {
-		static gpointer tramp_addr;
-		gpointer info;
-		MonoMethod *wrapper;
-		MonoMethodInflated *inflated;
-		MonoGenericContext *context;
-		MonoGenericSharingContext gsctx;
-		MonoMethod *gm;
-
-		/*
-		 * For iface calls, M could be a non-generic method, so use ORIG_METHOD instead.
-		 */
-
-		g_assert (orig_method->is_inflated);
-		inflated = (MonoMethodInflated*)orig_method;
-		context = &inflated->context;
-
-		gm = mini_get_shared_method (orig_method);
-
-		mini_init_gsctx (context, &gsctx);
-
-		info = mono_arch_get_gsharedvt_call_info (compiled_method, orig_method, gm, &gsctx, FALSE);
-
-		/* caller_gsharedvt && callee is not, but the call is made using the gsharedv call conv. */
-
-		if (!tramp_addr) {
-			wrapper = mono_marshal_get_gsharedvt_out_wrapper ();
-			addr = mono_compile_method (wrapper);
-			mono_memory_barrier ();
-			tramp_addr = addr;
-		}
-		addr = tramp_addr;
-
-		if (mono_aot_only)
-			addr = mono_aot_get_gsharedvt_trampoline (info, addr);
-		else
-			addr = mono_arch_get_gsharedvt_trampoline (mono_domain_get (), info, addr);
-
-		printf ("OUT: %s\n", mono_method_full_name (m, TRUE));
+		/* These calls are made through an rgctx and handled in mini-generic-sharing.c */
+		g_assert_not_reached ();
 	}
 
 	if (add_static_rgctx_tramp && !callee_array_helper)

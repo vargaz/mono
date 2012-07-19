@@ -530,7 +530,8 @@ inflate_info (MonoRuntimeGenericContextInfoTemplate *oti,
 	case MONO_RGCTX_INFO_METHOD_RGCTX:
 	case MONO_RGCTX_INFO_METHOD_CONTEXT:
 	case MONO_RGCTX_INFO_REMOTING_INVOKE_WITH_CHECK:
-	case MONO_RGCTX_INFO_METHOD_DELEGATE_CODE: {
+	case MONO_RGCTX_INFO_METHOD_DELEGATE_CODE:
+	case MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE: {
 		MonoMethod *method = data;
 		MonoMethod *inflated_method;
 		MonoType *inflated_type = mono_class_inflate_generic_type (&method->klass->byval_arg, context);
@@ -862,6 +863,16 @@ class_type_info (MonoDomain *domain, MonoClass *class, MonoRgctxInfoType info_ty
 	return NULL;
 }
 
+static gboolean
+ji_is_gsharedvt (MonoJitInfo *ji)
+{
+	if (ji && ji->has_generic_jit_info && (mono_jit_info_get_generic_sharing_context (ji)->var_is_vt ||
+										   mono_jit_info_get_generic_sharing_context (ji)->mvar_is_vt))
+		return TRUE;
+	else
+		return FALSE;
+}
+
 static gpointer
 instantiate_info (MonoDomain *domain, MonoRuntimeGenericContextInfoTemplate *oti,
 	MonoGenericContext *context, MonoClass *class)
@@ -950,6 +961,58 @@ instantiate_info (MonoDomain *domain, MonoRuntimeGenericContextInfoTemplate *oti
 		g_assert (method->context.method_inst);
 
 		return method->context.method_inst;
+	}
+	case MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE: {
+		MonoMethod *method = data;
+		gpointer addr;
+		MonoJitInfo *ji;
+
+		g_assert (method->is_inflated);
+
+		printf ("MOO: %s\n", mono_method_full_name (method, 1));
+
+		addr = mono_compile_method (method);
+
+		// FIXME: This loads information from AOT
+		ji = mini_jit_info_table_find (mono_domain_get (), mono_get_addr_from_ftnptr (addr), NULL);
+		if (!ji_is_gsharedvt (ji)) {
+			static gpointer tramp_addr;
+			gpointer info;
+			MonoMethod *wrapper;
+			MonoMethodInflated *inflated;
+			MonoGenericContext *context;
+			MonoGenericSharingContext gsctx;
+			MonoMethod *gm;
+
+			g_assert (method->is_inflated);
+			inflated = (MonoMethodInflated*)method;
+			context = &inflated->context;
+
+			gm = mini_get_shared_method (method);
+
+			mini_init_gsctx (context, &gsctx);
+
+			info = mono_arch_get_gsharedvt_call_info (addr, method, gm, &gsctx, FALSE);
+
+			/* caller_gsharedvt && callee is not, but the call is made using the gsharedv call conv. */
+
+			if (!tramp_addr) {
+				wrapper = mono_marshal_get_gsharedvt_out_wrapper ();
+				addr = mono_compile_method (wrapper);
+				mono_memory_barrier ();
+				tramp_addr = addr;
+			}
+			addr = tramp_addr;
+
+			if (mono_aot_only)
+				addr = mono_aot_get_gsharedvt_trampoline (info, addr);
+			else
+				addr = mono_arch_get_gsharedvt_trampoline (mono_domain_get (), info, addr);
+
+			printf ("OUT: %s\n", mono_method_full_name (method, TRUE));
+		}
+
+		return addr;
 	}
 	default:
 		g_assert_not_reached ();
@@ -1094,6 +1157,7 @@ info_equal (gpointer data1, gpointer data2, MonoRgctxInfoType info_type)
 	case MONO_RGCTX_INFO_METHOD_CONTEXT:
 	case MONO_RGCTX_INFO_REMOTING_INVOKE_WITH_CHECK:
 	case MONO_RGCTX_INFO_METHOD_DELEGATE_CODE:
+	case MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE:
 		return data1 == data2;
 	default:
 		g_assert_not_reached ();

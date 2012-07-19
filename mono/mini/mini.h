@@ -1033,7 +1033,9 @@ typedef enum {
 	MONO_RGCTX_INFO_CAST_CACHE,
 	MONO_RGCTX_INFO_ARRAY_ELEMENT_SIZE,
 	MONO_RGCTX_INFO_VALUE_SIZE,
-	MONO_RGCTX_INFO_FIELD_OFFSET
+	MONO_RGCTX_INFO_FIELD_OFFSET,
+	/* Either the code for a gsharedvt method, or the address for a gsharedvt-out trampoline for the method */
+	MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE
 } MonoRgctxInfoType;
 
 typedef struct _MonoRuntimeGenericContextInfoTemplate {
