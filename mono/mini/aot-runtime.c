@@ -877,6 +877,10 @@ decode_method_ref_with_target (MonoAotModule *module, MethodRef *ref, MonoMethod
 				if (!m)
 					return FALSE;
 				ref->method = mono_marshal_get_synchronized_inner_wrapper (m);
+			} else if (subtype == WRAPPER_SUBTYPE_GSHAREDVT_IN) {
+				ref->method = mono_marshal_get_gsharedvt_in_wrapper ();
+			} else if (subtype == WRAPPER_SUBTYPE_GSHAREDVT_OUT) {
+				ref->method = mono_marshal_get_gsharedvt_out_wrapper ();
 			} else {
 				if (subtype == WRAPPER_SUBTYPE_FAST_MONITOR_ENTER)
 					desc = mono_method_desc_new ("Monitor:Enter", FALSE);

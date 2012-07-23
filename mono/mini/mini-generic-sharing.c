@@ -972,7 +972,10 @@ instantiate_info (MonoDomain *domain, MonoRuntimeGenericContextInfoTemplate *oti
 
 		g_assert (method->is_inflated);
 
-		addr = mono_compile_method (method);
+		if (!virtual)
+			addr = mono_compile_method (method);
+		else
+			addr = NULL;
 
 		/*
 		 * For gsharedvt calls made out of gsharedvt methods, the callee could end up being a gsharedvt method, or a normal
@@ -2247,12 +2250,11 @@ mini_is_gsharedvt_sharable_method (MonoMethod *method)
 	MonoMethodSignature *sig;
 
 	/*
-	 * A method is gshared vt if:
+	 * A method is gsharedvt if:
 	 * - it has type parameters instantiated with vtypes
 	 * - the size of the vtypes is smaller than the size of
      *   mini_get_gsharedvt_alloc_type ().
 	 */
-	// FIXME: Relax the restrictions
 	if (!gsharedvt_supported)
 		return FALSE;
 	/* Many opcodes have special cases for nullable types */
@@ -2290,10 +2292,6 @@ mini_is_gsharedvt_sharable_method (MonoMethod *method)
 	if (!sig)
 		return FALSE;
 
-	/*
-	if (!strcmp (method->klass->name, "Tests"))
-		return TRUE;
-	*/
 	if (mono_arch_gsharedvt_sig_supported (sig)) {
 	} else {
 		if (mini_is_gsharedvt_variable_signature (sig))

@@ -391,7 +391,7 @@ mono_print_method_from_ip (void *ip)
 	source = mono_debug_lookup_source_location (ji->method, (guint32)((guint8*)ip - (guint8*)ji->code_start), target_domain);
 
 	gsctx = mono_jit_info_get_generic_sharing_context (ji);
-	shared_type = NULL;
+	shared_type = "";
 	if (gsctx) {
 		if (gsctx->var_is_vt || gsctx->mvar_is_vt)
 			shared_type = "gsharedvt ";
@@ -1759,18 +1759,22 @@ mono_allocate_stack_slots2 (MonoCompile *cfg, gboolean backward, guint32 *stack_
 		vmv = current;
 		inst = cfg->varinfo [vmv->idx];
 
+		t = mono_type_get_underlying_type (inst->inst_vtype);
+		if (cfg->gsharedvt && mini_is_gsharedvt_variable_type (cfg, t))
+			t = mini_get_gsharedvt_alloc_type_for_type (cfg, t);
+
 		/* inst->backend.is_pinvoke indicates native sized value types, this is used by the
 		* pinvoke wrappers when they call functions returning structures */
-		if (inst->backend.is_pinvoke && MONO_TYPE_ISSTRUCT (inst->inst_vtype) && inst->inst_vtype->type != MONO_TYPE_TYPEDBYREF) {
-			size = mono_class_native_size (mono_class_from_mono_type (inst->inst_vtype), &align);
+		if (inst->backend.is_pinvoke && MONO_TYPE_ISSTRUCT (t) && t->type != MONO_TYPE_TYPEDBYREF) {
+			size = mono_class_native_size (mono_class_from_mono_type (t), &align);
 		}
 		else {
 			int ialign;
 
-			size = mono_type_size (inst->inst_vtype, &ialign);
+			size = mono_type_size (t, &ialign);
 			align = ialign;
 
-			if (MONO_CLASS_IS_SIMD (cfg, mono_class_from_mono_type (inst->inst_vtype)))
+			if (MONO_CLASS_IS_SIMD (cfg, mono_class_from_mono_type (t)))
 				align = 16;
 		}
 
@@ -1778,7 +1782,6 @@ mono_allocate_stack_slots2 (MonoCompile *cfg, gboolean backward, guint32 *stack_
 		if (cfg->disable_reuse_stack_slots)
 			reuse_slot = FALSE;
 
-		t = mono_type_get_underlying_type (inst->inst_vtype);
 		switch (t->type) {
 		case MONO_TYPE_GENERICINST:
 			if (!mono_type_generic_inst_is_valuetype (t)) {
@@ -2053,7 +2056,7 @@ mono_allocate_stack_slots (MonoCompile *cfg, gboolean backward, guint32 *stack_s
 		inst = cfg->varinfo [vmv->idx];
 
 		t = mono_type_get_underlying_type (inst->inst_vtype);
-		if (t->type == MONO_TYPE_GENERICINST && mini_is_gsharedvt_variable_type (cfg, t))
+		if (cfg->gsharedvt && mini_is_gsharedvt_variable_type (cfg, t))
 			t = mini_get_gsharedvt_alloc_type_for_type (cfg, t);
 
 		/* inst->backend.is_pinvoke indicates native sized value types, this is used by the
@@ -2085,7 +2088,6 @@ mono_allocate_stack_slots (MonoCompile *cfg, gboolean backward, guint32 *stack_s
 				}
 				/* Fall through */
 			case MONO_TYPE_VALUETYPE:
-handle_vt:
 				if (!vtype_stack_slots)
 					vtype_stack_slots = mono_mempool_alloc0 (cfg->mempool, sizeof (StackSlotInfo) * 256);
 				for (i = 0; i < nvtypes; ++i)
@@ -2129,14 +2131,6 @@ handle_vt:
 				break;
 			case MONO_TYPE_VAR:
 			case MONO_TYPE_MVAR:
-				if (mini_type_var_is_vt (cfg, t)) {
-					int ialign;
-
-					t = mini_get_gsharedvt_alloc_type_for_type (cfg, t);
-					size = mono_type_size (t, &ialign);
-					align = ialign;
-					goto handle_vt;
-				}
 				slot_info = &scalar_stack_slots [t->type];
 				break;
 			default:
@@ -5270,8 +5264,10 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 		mono_domain_unlock (cfg->domain);
 	}
 
+	/*
 	if (cfg->gsharedvt)
 		printf ("GSHAREDVT: %s\n", mono_method_full_name (cfg->method, TRUE));
+	*/
 
 	/* collect statistics */
 	mono_perfcounters->jit_methods++;
