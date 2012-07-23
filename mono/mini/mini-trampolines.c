@@ -306,12 +306,11 @@ gpointer
 mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer compiled_method, MonoJitInfo *caller_ji, gboolean add_static_rgctx_tramp)
 {
 	gpointer addr = compiled_method;
-	gboolean caller_gsharedvt, callee_gsharedvt, callee_array_helper;
+	gboolean callee_gsharedvt, callee_array_helper;
 	MonoJitInfo *ji = 
 		mini_jit_info_table_find (mono_domain_get (), mono_get_addr_from_ftnptr (compiled_method), NULL);
 
 	// FIXME: This loads information from AOT
-	caller_gsharedvt = ji_is_gsharedvt (caller_ji);
 	callee_gsharedvt = ji_is_gsharedvt (ji);
 
 	callee_array_helper = FALSE;
@@ -343,9 +342,7 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 
 	addr = compiled_method;
 
-	if (caller_gsharedvt && callee_gsharedvt) {
-		/* Caller is gsharedvt too, no need for marshalling */
-	} else if (callee_gsharedvt && mini_is_gsharedvt_variable_signature (mono_method_signature (ji->method))) {
+	if (callee_gsharedvt && mini_is_gsharedvt_variable_signature (mono_method_signature (ji->method))) {
 		static gpointer tramp_addr;
 		gpointer info;
 		MonoMethod *wrapper;
@@ -356,7 +353,7 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 		/* Call from normal/gshared code to gsharedvt code with variable signature */
 		gsctx = mono_jit_info_get_generic_sharing_context (ji);
 
-		info = mono_arch_get_gsharedvt_call_info (compiled_method, m, ji->method, gsctx, TRUE);
+		info = mono_arch_get_gsharedvt_call_info (compiled_method, m, ji->method, gsctx, TRUE, FALSE);
 
 		if (!tramp_addr) {
 			wrapper = mono_marshal_get_gsharedvt_in_wrapper ();
@@ -372,9 +369,6 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 			addr = mono_arch_get_gsharedvt_trampoline (mono_domain_get (), info, addr);
 
 		printf ("IN: %s\n", mono_method_full_name (m, TRUE));
-	} else if (caller_gsharedvt && !callee_gsharedvt && orig_method->is_inflated && mini_is_gsharedvt_variable_signature (mono_method_signature (mono_method_get_declaring_generic_method (orig_method)))) {
-		/* These calls are made through an rgctx and handled in mini-generic-sharing.c */
-		g_assert_not_reached ();
 	}
 
 	if (add_static_rgctx_tramp && !callee_array_helper)

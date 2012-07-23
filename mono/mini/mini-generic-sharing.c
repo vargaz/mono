@@ -531,7 +531,8 @@ inflate_info (MonoRuntimeGenericContextInfoTemplate *oti,
 	case MONO_RGCTX_INFO_METHOD_CONTEXT:
 	case MONO_RGCTX_INFO_REMOTING_INVOKE_WITH_CHECK:
 	case MONO_RGCTX_INFO_METHOD_DELEGATE_CODE:
-	case MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE: {
+	case MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE:
+	case MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE_VIRT: {
 		MonoMethod *method = data;
 		MonoMethod *inflated_method;
 		MonoType *inflated_type = mono_class_inflate_generic_type (&method->klass->byval_arg, context);
@@ -962,20 +963,31 @@ instantiate_info (MonoDomain *domain, MonoRuntimeGenericContextInfoTemplate *oti
 
 		return method->context.method_inst;
 	}
-	case MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE: {
+	case MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE:
+	case MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE_VIRT: {
 		MonoMethod *method = data;
 		gpointer addr;
 		MonoJitInfo *ji;
+		gboolean virtual = oti->info_type == MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE_VIRT;
 
 		g_assert (method->is_inflated);
 
-		printf ("MOO: %s\n", mono_method_full_name (method, 1));
-
 		addr = mono_compile_method (method);
 
+		/*
+		 * For gsharedvt calls made out of gsharedvt methods, the callee could end up being a gsharedvt method, or a normal
+		 * non-shared method. The latter call cannot be patched, so instead of using a normal call, we make an indirect
+		 * call through the rgctx, in effect patching the rgctx entry instead of the call site.
+		 * For virtual calls, the caller might be a normal or a gsharedvt method. Since there is only one vtable slot,
+		 * this difference needs to be handed on the caller side. This is currently implemented by adding a gsharedvt-in
+		 * trampoline to all gsharedvt methods and storing this trampoline into the vtable slot. Virtual calls made from
+		 * gsharedvt methods always go through a gsharedvt-out trampoline, so the calling sequence is:
+		 * caller -> out trampoline -> in trampoline -> callee
+		 * This is not very efficient, but it is easy to implement.
+		 */
 		// FIXME: This loads information from AOT
 		ji = mini_jit_info_table_find (mono_domain_get (), mono_get_addr_from_ftnptr (addr), NULL);
-		if (!ji_is_gsharedvt (ji)) {
+		if (virtual || !ji_is_gsharedvt (ji)) {
 			static gpointer tramp_addr;
 			gpointer info;
 			MonoMethod *wrapper;
@@ -992,9 +1004,7 @@ instantiate_info (MonoDomain *domain, MonoRuntimeGenericContextInfoTemplate *oti
 
 			mini_init_gsctx (context, &gsctx);
 
-			info = mono_arch_get_gsharedvt_call_info (addr, method, gm, &gsctx, FALSE);
-
-			/* caller_gsharedvt && callee is not, but the call is made using the gsharedv call conv. */
+			info = mono_arch_get_gsharedvt_call_info (addr, method, gm, &gsctx, FALSE, virtual);
 
 			if (!tramp_addr) {
 				wrapper = mono_marshal_get_gsharedvt_out_wrapper ();
@@ -1009,7 +1019,10 @@ instantiate_info (MonoDomain *domain, MonoRuntimeGenericContextInfoTemplate *oti
 			else
 				addr = mono_arch_get_gsharedvt_trampoline (mono_domain_get (), info, addr);
 
-			printf ("OUT: %s\n", mono_method_full_name (method, TRUE));
+			if (virtual)
+				printf ("OUT-VCALL: %s\n", mono_method_full_name (method, TRUE));
+			else
+				printf ("OUT: %s\n", mono_method_full_name (method, TRUE));
 		}
 
 		return addr;
@@ -1158,6 +1171,7 @@ info_equal (gpointer data1, gpointer data2, MonoRgctxInfoType info_type)
 	case MONO_RGCTX_INFO_REMOTING_INVOKE_WITH_CHECK:
 	case MONO_RGCTX_INFO_METHOD_DELEGATE_CODE:
 	case MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE:
+	case MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE_VIRT:
 		return data1 == data2;
 	default:
 		g_assert_not_reached ();
@@ -2330,7 +2344,6 @@ mini_method_get_rgctx (MonoMethod *m)
 //
 // GSHAREDVT FIXME:
 // - more testing
-// - AOT/debugging support
 // - support more opcodes
 // - ARM support
 //

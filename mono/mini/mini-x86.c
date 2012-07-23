@@ -6693,7 +6693,7 @@ mono_arch_gsharedvt_sig_supported (MonoMethodSignature *sig)
  * GSHAREDVT_METHOD, otherwise its the other way around.
  */
 gpointer
-mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethod *normal_method, MonoMethod *gsharedvt_method, MonoGenericSharingContext *gsctx, gboolean gsharedvt_in)
+mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethod *normal_method, MonoMethod *gsharedvt_method, MonoGenericSharingContext *gsctx, gboolean gsharedvt_in, gboolean virtual)
 {
 	GSharedVtCallInfo *info;
 	CallInfo *caller_cinfo, *callee_cinfo;
@@ -6787,6 +6787,14 @@ mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethod *normal_method, Mon
 		info->vret_arg_slot = gcinfo->vret_arg_offset / sizeof (gpointer);
 	else
 		info->vret_arg_slot = -1;
+	if (virtual) {
+		g_assert (!gsharedvt_in);
+		/* Same as in mono_emit_method_call_full () */
+		info->vcall_offset = G_STRUCT_OFFSET (MonoVTable, vtable) +
+			((mono_method_get_vtable_index (normal_method)) * (SIZEOF_VOID_P));
+	} else {
+		info->vcall_offset = -1;
+	}
 	info->map_count = map->len / 2;
 	for (i = 0; i < map->len; ++i)
 		info->map [i] = GPOINTER_TO_UINT (g_ptr_array_index (map, i));

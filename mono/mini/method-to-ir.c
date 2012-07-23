@@ -6954,9 +6954,11 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			if (!cfg->generic_sharing_context && cmethod)
 				g_assert (!mono_method_check_context_used (cmethod));
 
+#if 0
 			if (virtual)
 				/* FIXME: virtual calls might not go through trampolines so we can't insert gsharedvt-out trampolines */
 				GSHAREDVT_FAILURE (*ip);
+#endif
 
 			CHECK_STACK (n);
 
@@ -7126,28 +7128,6 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			if (check_this)
 				MONO_EMIT_NEW_CHECK_THIS (cfg, sp [0]->dreg);
 
-			/*
-			 * Making generic calls out of gsharedvt methods.
-			 * The callee could end up being a gsharedvt method, or a non-shared method. The latter call
-			 * cannot be patched, so we make indirect calls through the rgctx.
-			 */
-			if (cmethod && cfg->gsharedvt && mini_is_gsharedvt_signature (cfg, mono_method_signature (cmethod))) {
-				MonoInst *addr = emit_get_rgctx_method (cfg, context_used,
-														cmethod, MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE);
-				ins = mono_emit_calli (cfg, fsig, sp, addr, vtable_arg);
-
-				if (!MONO_TYPE_IS_VOID (fsig->ret))
-					*sp++ = mono_emit_widen_call_res (cfg, ins, fsig);
-
-				CHECK_CFG_EXCEPTION;
-
-				ip += 5;
-				ins_flag = 0;
-				if (need_seq_point)
-					emit_seq_point (cfg, method, ip, FALSE);
-				break;
-			}
-
 			/* Calling virtual generic methods */
 			if (cmethod && virtual && 
 			    (cmethod->flags & METHOD_ATTRIBUTE_VIRTUAL) && 
@@ -7161,6 +7141,9 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 				/* Prevent inlining of methods that contain indirect calls */
 				INLINE_FAILURE;
+
+				if (cfg->gsharedvt && mini_is_gsharedvt_signature (cfg, mono_method_signature (cmethod)))
+					GSHAREDVT_FAILURE (*ip);
 
 #if MONO_ARCH_HAVE_GENERALIZED_IMT_THUNK && defined(MONO_ARCH_GSHARED_SUPPORTED)
 				if (cmethod->wrapper_type == MONO_WRAPPER_NONE && mono_use_imt) {
@@ -7281,6 +7264,48 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 						emit_seq_point (cfg, method, ip, FALSE);
 					break;
 				}
+			}
+
+			/*
+			 * Making generic calls out of gsharedvt methods.
+			 */
+			if (cmethod && cfg->gsharedvt && mini_is_gsharedvt_signature (cfg, fsig)) {
+				MonoInst *addr;
+
+				if (virtual) {
+					if (cmethod->klass->flags & TYPE_ATTRIBUTE_INTERFACE)
+						GSHAREDVT_FAILURE (*ip);
+					// disable for possible remoting calls
+					if (fsig->hasthis && (method->klass->marshalbyref || method->klass == mono_defaults.object_class))
+						GSHAREDVT_FAILURE (*ip);
+					// virtual generic calls were disabled earlier
+				}
+
+				if (virtual)
+					addr = emit_get_rgctx_method (cfg, context_used,
+												  cmethod, MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE_VIRT);
+				else
+					addr = emit_get_rgctx_method (cfg, context_used,
+												  cmethod, MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE);
+				ins = mono_emit_calli (cfg, fsig, sp, addr, vtable_arg);
+
+				if (!MONO_TYPE_IS_VOID (fsig->ret))
+					*sp++ = mono_emit_widen_call_res (cfg, ins, fsig);
+
+				CHECK_CFG_EXCEPTION;
+
+				ip += 5;
+				ins_flag = 0;
+				if (need_seq_point)
+					emit_seq_point (cfg, method, ip, FALSE);
+				break;
+			}
+
+			if (cmethod && cfg->gsharedvt && cmethod->slot == -1) {
+				mono_class_setup_vtable (cmethod->klass);
+				if (cmethod->slot == -1)
+					// FIXME: How can this happen ?
+					GSHAREDVT_FAILURE (*ip);
 			}
 			
 			inline_costs += 10 * num_calls++;
@@ -8498,8 +8523,17 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 						inline_costs += costs - 5;
 					} else {
 						INLINE_FAILURE;
+						// FIXME: Clean this up
+						if (cfg->gsharedvt && mini_is_gsharedvt_signature (cfg, fsig))
+							GSHAREDVT_FAILURE(*ip);
 						mono_emit_method_call_full (cfg, cmethod, fsig, sp, callvirt_this_arg, NULL, NULL);
 					}
+				} else if (cfg->gsharedvt && mini_is_gsharedvt_signature (cfg, fsig)) {
+					MonoInst *addr;
+
+					addr = emit_get_rgctx_method (cfg, context_used,
+												  cmethod, MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE);
+					mono_emit_calli (cfg, fsig, sp, addr, vtable_arg);
 				} else if (context_used &&
 						(!mono_method_is_generic_sharable_impl (cmethod, TRUE) ||
 							!mono_class_generic_sharing_enabled (cmethod->klass))) {

@@ -552,4 +552,35 @@ public class Tests
 		locals<Foo1> (new Foo1 () { i1 = 1, i2 = 2, i3 = 3 });
 		return 0;
 	}
+
+	public class Parent<T> {
+		public virtual T return_t_vcall (T t) {
+			throw new Exception ();
+			return t;
+		}
+	}
+
+	public class Child<T> : Parent<T> {
+		public override T return_t_vcall (T t) {
+			return t;
+		}
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static T return_t_vcall<T> (Parent<T> r, T t) {
+		return r.return_t_vcall (t);
+	}
+
+	public static int test_0_vcalls () {
+		if (return_t_vcall (new Child<int> (), 2) != 2)
+			return 1;
+		// Patching
+		for (int i = 0; i < 10; ++i) {
+			if (return_t_vcall (new Child<int> (), 2) != 2)
+				return 2;
+		}
+		if (return_t_vcall (new Child<double> (), 2.0) != 2.0)
+			return 3;
+		return 0;
+	}
 }

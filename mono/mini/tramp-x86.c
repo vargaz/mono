@@ -1308,7 +1308,7 @@ mono_arch_get_gsharedvt_out_trampoline (MonoTrampInfo **info, gboolean aot)
 	int buf_len, cfa_offset;
 	GSList *unwind_ops = NULL;
 	MonoJumpInfo *ji = NULL;
-	guint8 *br [16];
+	guint8 *br [16], *br_vcall [16];
 
 	buf_len = 192;
 	buf = code = mono_global_codeman_reserve (buf_len);
@@ -1370,10 +1370,27 @@ mono_arch_get_gsharedvt_out_trampoline (MonoTrampInfo **info, gboolean aot)
 	/* The stack is now setup for the real call */
 	/* Load info struct */
 	x86_mov_reg_membase (code, X86_ECX, X86_EBP, -4, 4);
-	/* Load rgctx */
-	x86_mov_reg_membase (code, MONO_ARCH_RGCTX_REG, X86_EBP, -8, sizeof (gpointer));
+	/* Check if it is a vcall */
+	x86_mov_reg_membase (code, X86_EAX, X86_ECX, G_STRUCT_OFFSET (GSharedVtCallInfo, vcall_offset), sizeof (gpointer));
+	x86_alu_reg_imm (code, X86_CMP, X86_EAX, -1);
+	br_vcall [0] = code;
+	x86_branch8 (code, X86_CC_NE, 0, TRUE);
 	/* Load method addr */
 	x86_mov_reg_membase (code, X86_EAX, X86_ECX, G_STRUCT_OFFSET (GSharedVtCallInfo, addr), sizeof (gpointer));
+	br_vcall [1] = code;
+	x86_jump8 (code, 0);
+	/* Virtual case */
+	x86_patch (br_vcall [0], code);
+	/* Load this */
+	x86_mov_reg_membase (code, MONO_ARCH_RGCTX_REG, X86_EBP, sizeof (gpointer) * 2, sizeof (gpointer));
+	/* Load vtable */
+	x86_mov_reg_membase (code, MONO_ARCH_RGCTX_REG, MONO_ARCH_RGCTX_REG, 0, sizeof (gpointer));
+	/* Load vcall addr */
+	x86_mov_reg_memindex (code, X86_EAX, MONO_ARCH_RGCTX_REG, 0, X86_EAX, 0, sizeof (gpointer));
+	/* Call begins, addr is in EAX */
+	x86_patch (br_vcall [1], code);
+	/* Load rgctx */
+	x86_mov_reg_membase (code, MONO_ARCH_RGCTX_REG, X86_EBP, -8, sizeof (gpointer));
 	/* Make the call */
 	x86_call_reg (code, X86_EAX);
 

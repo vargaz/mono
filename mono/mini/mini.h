@@ -1035,7 +1035,9 @@ typedef enum {
 	MONO_RGCTX_INFO_VALUE_SIZE,
 	MONO_RGCTX_INFO_FIELD_OFFSET,
 	/* Either the code for a gsharedvt method, or the address for a gsharedvt-out trampoline for the method */
-	MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE
+	MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE,
+	/* Same for virtual calls */
+	MONO_RGCTX_INFO_METHOD_GSHAREDVT_OUT_TRAMPOLINE_VIRT
 } MonoRgctxInfoType;
 
 typedef struct _MonoRuntimeGenericContextInfoTemplate {
@@ -2122,7 +2124,7 @@ void      mono_arch_set_target                  (char *mtriple) MONO_INTERNAL;
 gboolean  mono_arch_gsharedvt_sig_supported     (MonoMethodSignature *sig) MONO_INTERNAL;
 gpointer  mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot) MONO_INTERNAL;
 gpointer  mono_arch_get_gsharedvt_out_trampoline (MonoTrampInfo **info, gboolean aot) MONO_INTERNAL;
-gpointer  mono_arch_get_gsharedvt_call_info     (gpointer addr, MonoMethod *m, MonoMethod *gsharedvt_method, MonoGenericSharingContext *gsctx, gboolean gsharedvt_in) MONO_INTERNAL;
+gpointer  mono_arch_get_gsharedvt_call_info     (gpointer addr, MonoMethod *m, MonoMethod *gsharedvt_method, MonoGenericSharingContext *gsctx, gboolean gsharedvt_in, gboolean virtual) MONO_INTERNAL;
 
 /* Soft Debug support */
 #ifdef MONO_ARCH_SOFT_DEBUG_SUPPORTED

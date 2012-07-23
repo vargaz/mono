@@ -307,6 +307,8 @@ typedef struct {
 	/* The stack slot where the return value will be stored */
 	int vret_slot;
 	int stack_usage, map_count;
+	/* If not -1, then make a virtual call using this vtable offset */
+	int vcall_offset;
 	int map [MONO_ZERO_LEN_ARRAY];
 } GSharedVtCallInfo;
 
