@@ -605,4 +605,95 @@ public class Tests
 		return 0;
 	}
 
+	interface IGetter
+	{
+		T Get<T>();
+	}
+
+	class Getter : IGetter
+	{
+		public T Get<T>() { return default(T); }
+	}
+
+	abstract class Session
+	{
+		public abstract IGetter Getter { get; }
+	}
+
+	class IosSession : Session
+	{
+		private IGetter getter = new Getter();
+		public override IGetter Getter { get { return getter; } }
+	}
+
+	enum ENUM_TYPE {
+	}
+
+	public static int test_0_regress_5156 () {
+		new IosSession().Getter.Get<ENUM_TYPE>();
+		return 0;
+	}
+
+	public struct VT
+	{
+		public Action a;
+	}
+
+	public class D
+	{
+	}
+
+	public class A3
+	{
+		public void OuterMethod<TArg1>(TArg1 value)
+		{
+			this.InnerMethod<TArg1, long>(value, 0);
+		}
+
+		private void InnerMethod<TArg1, TArg2>(TArg1 v1, TArg2 v2)
+		{
+			//Console.WriteLine("{0} {1}",v1,v2);
+		}
+	}
+
+	public static int test_0_regress_2096 () {
+		var a = new A3();
+
+		// The following work:
+		a.OuterMethod<int>(1);
+		a.OuterMethod<DateTime>(DateTime.Now);
+
+		var v = new VT();
+		a.OuterMethod<VT>(v);
+
+		var x = new D();
+		// Next line will crash with Attempting to JIT compile method on device
+		//  Attempting to JIT compile method
+		a.OuterMethod<D>(x);
+		return 0;
+	}
+
+	public class B
+	{
+		public void Test<T>()
+		{
+			//System.Console.WriteLine(typeof(T));
+		}
+	}
+
+	public class A<T>
+	{
+		public void Test()
+		{
+			new B().Test<System.Collections.Generic.KeyValuePair<T, T>>();
+		}
+	}
+
+    public static int test_0_regress_6040 () {
+        //new B().Test<System.Collections.Generic.KeyValuePair<string, string>>();
+        new A<int>().Test();
+        new A<object>().Test();
+        new A<string>().Test();
+		return 0;
+    }
 }
