@@ -4318,9 +4318,10 @@ is_gsharedvt_method (MonoMethod *method)
  *
  *   Return the method which is actually compiled/registered when doing generic sharing.
  * If ALL_VT is true, return the shared method belonging to an all-vtype instantiation.
+ * If IS_GSHAREDVT is true, treat METHOD as a gsharedvt method even if it fails some constraints.
  */
 MonoMethod*
-mini_get_shared_method_full (MonoMethod *method, gboolean all_vt)
+mini_get_shared_method_full (MonoMethod *method, gboolean all_vt, gboolean is_gsharedvt)
 {
 	MonoGenericContext shared_context;
 	MonoMethod *declaring_method, *res;
@@ -4340,12 +4341,12 @@ mini_get_shared_method_full (MonoMethod *method, gboolean all_vt)
 
 	/* Handle partial sharing */
 	if ((method != declaring_method && method->is_inflated && !mono_method_is_generic_sharable_impl_full (method, FALSE, FALSE, TRUE)) ||
-		mini_is_gsharedvt_sharable_method (method)) {
+		is_gsharedvt || mini_is_gsharedvt_sharable_method (method)) {
 		MonoGenericContext *context = mono_method_get_context (method);
 		MonoGenericInst *inst;
 		MonoType **type_argv;
 
-		gsharedvt = mini_is_gsharedvt_sharable_method (method);
+		gsharedvt = is_gsharedvt || mini_is_gsharedvt_sharable_method (method);
 
 		/* 
 		 * Create the shared context by replacing the ref type arguments with
@@ -4396,7 +4397,7 @@ mini_get_shared_method_full (MonoMethod *method, gboolean all_vt)
 MonoMethod*
 mini_get_shared_method (MonoMethod *method)
 {
-	return mini_get_shared_method_full (method, FALSE);
+	return mini_get_shared_method_full (method, FALSE, FALSE);
 }
 
 static void
@@ -5264,10 +5265,8 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 		mono_domain_unlock (cfg->domain);
 	}
 
-	/*
 	if (cfg->gsharedvt)
 		printf ("GSHAREDVT: %s\n", mono_method_full_name (cfg->method, TRUE));
-	*/
 
 	/* collect statistics */
 	mono_perfcounters->jit_methods++;

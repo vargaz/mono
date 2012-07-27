@@ -5472,7 +5472,7 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 		MonoJitArgumentInfo *arg_info = alloca (sizeof (MonoJitArgumentInfo) * (sig->param_count + 1));
 
 		stack_to_pop = mono_arch_get_argument_info (NULL, sig, sig->param_count, arg_info);
-	} else if (MONO_TYPE_ISSTRUCT (mono_method_signature (cfg->method)->ret) && (cinfo->ret.storage == ArgOnStack))
+	} else if (cinfo->vtype_retaddr)
 		stack_to_pop = 4;
 	else
 		stack_to_pop = 0;

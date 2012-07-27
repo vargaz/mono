@@ -1192,6 +1192,15 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	x86_mov_reg_membase (code, X86_EAX, X86_EAX, G_STRUCT_OFFSET (GSharedVtCallInfo, stack_usage), sizeof (gpointer));
 	x86_alu_reg_reg (code, X86_SUB, X86_ESP, X86_EAX);
 
+#if 0
+	/* Stack alignment check */
+	x86_mov_reg_reg (code, X86_ECX, X86_ESP, 4);
+	x86_alu_reg_imm (code, X86_AND, X86_ECX, MONO_ARCH_FRAME_ALIGNMENT - 1);
+	x86_alu_reg_imm (code, X86_CMP, X86_ECX, 0);
+	x86_branch_disp (code, X86_CC_EQ, 3, FALSE);
+	x86_breakpoint (code);
+#endif
+
 	/* ecx = caller argument area */
 	x86_mov_reg_reg (code, X86_ECX, X86_EBP, 4);
 	x86_alu_reg_imm (code, X86_ADD, X86_ECX, 8);
@@ -1248,6 +1257,8 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	/* Compute ret area address */
 	x86_shift_reg_imm (code, X86_SHL, X86_EAX, 2);
 	x86_alu_reg_reg (code, X86_ADD, X86_EAX, X86_ESP);
+	/* The callee does a ret $4, so sp is off by 4 */
+	x86_alu_reg_imm (code, X86_SUB, X86_EAX, sizeof (gpointer));
 
 	/* Branch to specific marshalling code */
 	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_RET_DOUBLE_FPSTACK);
@@ -1339,6 +1350,15 @@ mono_arch_get_gsharedvt_out_trampoline (MonoTrampInfo **info, gboolean aot)
 	x86_mov_membase_reg (code, X86_EBP, -4, X86_EAX, 4);
 	/* Save rgctx */
 	x86_mov_membase_reg (code, X86_EBP, -8, MONO_ARCH_RGCTX_REG, 4);
+
+#if 0
+	/* Stack alignment check */
+	x86_mov_reg_reg (code, X86_ECX, X86_ESP, 4);
+	x86_alu_reg_imm (code, X86_AND, X86_ECX, MONO_ARCH_FRAME_ALIGNMENT - 1);
+	x86_alu_reg_imm (code, X86_CMP, X86_ECX, 0);
+	x86_branch_disp (code, X86_CC_EQ, 3, FALSE);
+	x86_breakpoint (code);
+#endif
 
 	x86_mov_reg_membase (code, X86_EAX, X86_EAX, G_STRUCT_OFFSET (GSharedVtCallInfo, stack_usage), sizeof (gpointer));
 	x86_alu_reg_reg (code, X86_SUB, X86_ESP, X86_EAX);
@@ -1442,20 +1462,20 @@ mono_arch_get_gsharedvt_out_trampoline (MonoTrampInfo **info, gboolean aot)
 	x86_mov_membase_reg (code, X86_ECX, sizeof (gpointer), X86_EDX, sizeof (gpointer));
 	x86_mov_membase_reg (code, X86_ECX, 0, X86_EAX, sizeof (gpointer));
 	x86_leave (code);
-	x86_ret (code);
+	x86_ret_imm (code, 4);
 	/* DOUBLE_FPSTACK case */
 	x86_alu_reg_imm (code, X86_ADD, X86_ESP, 4);
 	x86_patch (br [1], code);
 	x86_fst_membase (code, X86_EAX, 0, TRUE, TRUE);
 	x86_jump8 (code, 0);
 	x86_leave (code);
-	x86_ret (code);
+	x86_ret_imm (code, 4);
 	/* FLOAT_FPSTACK case */
 	x86_alu_reg_imm (code, X86_ADD, X86_ESP, 4);
 	x86_patch (br [2], code);
 	x86_fst_membase (code, X86_EAX, 0, FALSE, TRUE);
 	x86_leave (code);
-	x86_ret (code);
+	x86_ret_imm (code, 4);
 	/* STACK_POP case */
 	x86_patch (br [3], code);
 	x86_leave (code);

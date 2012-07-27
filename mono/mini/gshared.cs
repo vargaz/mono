@@ -583,4 +583,26 @@ public class Tests
 			return 3;
 		return 0;
 	}
+
+	static KeyValuePair<T1, T2> make_kvp<T1, T2> (T1 t1, T2 t2) {
+		return new KeyValuePair<T1, T2> (t1, t2);
+	}
+
+	static T2 use_kvp<T1, T2> (KeyValuePair<T1, T2> kvp) {
+		return kvp.Value;
+	}
+		
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static T do_kvp<T> (T a) {
+		var t = make_kvp (a, a);
+		// argument is an instance of a vtype instantiated with gsharedvt type arguments
+		return use_kvp (t);
+	}
+
+	public static int test_0_gsharedvt_ginstvt_constructed_arg () {
+		if (do_kvp<long> (1) != 1)
+			return 1;
+		return 0;
+	}
+
 }
