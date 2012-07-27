@@ -370,13 +370,16 @@ public class Tests
 		float f = return_t<float> (3.0f);
 		if (f != 3.0f)
 			return 4;
+		short s = return_t<short> (16);
+		if (s != 16)
+			return 5;
 		var v = new GFoo2<int> () { t = 55, t2 = 32 };
 		var v2 = return_t<GFoo2<int>> (v);
 		if (v2.t != 55 || v2.t2 != 32)
-			return 5;
+			return 6;
 		i = new Tests ().return_this_t<int> (42);
 		if (i != 42)
-			return 6;
+			return 7;
 		return 0;
 	}
 
@@ -696,4 +699,26 @@ public class Tests
         new A<string>().Test();
 		return 0;
     }
+
+	class ArrayContainer<T> {
+		private T[,] container = new T[1,1];
+
+		public T Prop {
+			[MethodImplAttribute (MethodImplOptions.NoInlining)]
+			get {
+				return container [0, 0];
+			}
+			[MethodImplAttribute (MethodImplOptions.NoInlining)]
+			set {
+				container [0, 0] = value;
+			}
+		}
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	public static int test_0_multi_dim_arrays () {
+		var c = new ArrayContainer<int> ();
+		c.Prop = 5;
+		return c.Prop == 5 ? 0 : 1;
+	}
 }

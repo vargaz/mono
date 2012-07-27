@@ -1261,6 +1261,7 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	x86_alu_reg_imm (code, X86_SUB, X86_EAX, sizeof (gpointer));
 
 	/* Branch to specific marshalling code */
+	// FIXME: Move the I4 case to the top */
 	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_RET_DOUBLE_FPSTACK);
 	br [1] = code;
 	x86_branch8 (code, X86_CC_E, 0, TRUE);
@@ -1269,6 +1270,9 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	x86_branch8 (code, X86_CC_E, 0, TRUE);
 	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_RET_STACK_POP);
 	br [3] = code;
+	x86_branch8 (code, X86_CC_E, 0, TRUE);
+	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_RET_I2);
+	br [4] = code;
 	x86_branch8 (code, X86_CC_E, 0, TRUE);
 	/* IREGS case */
 	/* Load both eax and edx for simplicity */
@@ -1289,6 +1293,12 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	x86_ret (code);
 	/* STACK_POP case */
 	x86_patch (br [3], code);
+	x86_leave (code);
+	x86_ret_imm (code, 4);
+	/* I2 case */
+	x86_patch (br [4], code);
+	x86_mov_reg_membase (code, X86_EAX, X86_EAX, 0, 2);
+	x86_widen_reg (code, X86_EAX, X86_EAX, TRUE, TRUE);
 	x86_leave (code);
 	x86_ret_imm (code, 4);
 
