@@ -2244,19 +2244,23 @@ inst_is_gsharedvt_sharable (MonoGenericInst *inst)
 	guint32 align1, align2;
 	gboolean has_vt = FALSE;
 	gboolean large_size = FALSE;
+	gboolean has_nullable = FALSE;
 
 	for (i = 0; i < inst->type_argc; ++i) {
 		MonoType *type = inst->type_argv [i];
 
 		if (MONO_TYPE_IS_REFERENCE (type) || (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)) {
 		} else {
+			// FIXME:
+			if (mono_class_is_nullable (mono_class_from_mono_type (type)))
+				has_nullable = TRUE;
 			if (mono_class_value_size (mono_class_from_mono_type (type), &align1) > mono_class_value_size (mini_get_gsharedvt_alloc_type (NULL), &align2))
 				large_size = TRUE;
 			has_vt = TRUE;
 		}
 	}
 
-	return has_vt && !large_size;
+	return has_vt && !large_size && !has_nullable;
 }
 
 // FIXME: Rename to 'gsharedvt_sharable_method'
