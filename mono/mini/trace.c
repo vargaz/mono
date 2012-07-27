@@ -398,7 +398,7 @@ mono_trace_enter_method (MonoMethod *method, char *ebp)
 		MonoJitInfo *ji = mini_jit_info_table_find (mono_domain_get (), __builtin_return_address (0), NULL);
 		if (ji) {
 			gsctx = mono_jit_info_get_generic_sharing_context (ji);
-			if (gsctx->var_is_vt || gsctx->mvar_is_vt) {
+			if (gsctx && (gsctx->var_is_vt || gsctx->mvar_is_vt)) {
 				/* Needs a ctx to get precise method */
 				printf (") <gsharedvt>\n");
 				return;
@@ -556,7 +556,7 @@ mono_trace_leave_method (MonoMethod *method, ...)
 		MonoJitInfo *ji = mini_jit_info_table_find (mono_domain_get (), __builtin_return_address (0), NULL);
 		if (ji) {
 			gsctx = mono_jit_info_get_generic_sharing_context (ji);
-			if (gsctx->var_is_vt || gsctx->mvar_is_vt) {
+			if (gsctx && (gsctx->var_is_vt || gsctx->mvar_is_vt)) {
 				/* Needs a ctx to get precise method */
 				printf (") <gsharedvt>\n");
 				return;
