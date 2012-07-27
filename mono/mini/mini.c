@@ -5513,8 +5513,8 @@ mono_jit_compile_method_inner (MonoMethod *method, MonoDomain *target_domain, in
 			 * FIXME: The caller signature doesn't match the callee, which might cause problems on some platforms
 			 */
 			if (mono_aot_only) {
-				/* The wrapper should be found in the mscorlib AOT image */
-				g_assert_not_reached ();
+				// FIXME: No EH
+				return mono_aot_get_trampoline ("gsharedvt_in_trampoline");
 			} else {
 				mono_arch_get_gsharedvt_in_trampoline (&tinfo, FALSE);
 				jinfo = create_jit_info_for_trampoline (method, tinfo);
@@ -5529,7 +5529,8 @@ mono_jit_compile_method_inner (MonoMethod *method, MonoDomain *target_domain, in
 				return tinfo->code;
 
 			if (mono_aot_only) {
-				g_assert_not_reached ();
+				// FIXME: No EH
+				return mono_aot_get_trampoline ("gsharedvt_out_trampoline");
 			} else {
 				mono_arch_get_gsharedvt_out_trampoline (&tinfo, FALSE);
 				jinfo = create_jit_info_for_trampoline (method, tinfo);

@@ -9111,6 +9111,7 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 
 				if (op == CEE_LDFLDA) {
 					if (is_magic_tls_access (field)) {
+						GSHAREDVT_FAILURE (*ip);
 						ins = sp [0];
 						*sp++ = create_magic_tls_access (cfg, field, &cached_tls_addr, ins);
 					} else {
