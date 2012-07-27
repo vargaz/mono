@@ -648,8 +648,21 @@ common_call_trampoline (mgreg_t *regs, guint8 *code, MonoMethod *m, guint8* tram
 	}
 	else {
 		guint8 *plt_entry = mono_aot_get_plt_entry (code);
+		gboolean no_patch = FALSE;
+		MonoJitInfo *target_ji;
 
 		if (plt_entry) {
+			if (generic_shared) {
+				target_ji =
+					mini_jit_info_table_find (mono_domain_get (), mono_get_addr_from_ftnptr (compiled_method), NULL);
+				if (!ji)
+					ji = mini_jit_info_table_find (mono_domain_get (), (char*)code, NULL);
+
+				if (ji && target_ji && generic_shared && ji->has_generic_jit_info && !target_ji->has_generic_jit_info) {
+					no_patch = TRUE;
+				}
+			}
+			if (!no_patch)
 				mono_aot_patch_plt_entry (plt_entry, NULL, regs, addr);
 		} else {
 			if (generic_shared) {
@@ -659,27 +672,22 @@ common_call_trampoline (mgreg_t *regs, guint8 *code, MonoMethod *m, guint8* tram
 			}
 
 			/* Patch calling code */
-			{
-				MonoJitInfo *target_ji = 
-					mono_jit_info_table_find (mono_domain_get (), mono_get_addr_from_ftnptr (compiled_method));
-				if (!target_ji)
-					target_ji = mono_jit_info_table_find (mono_get_root_domain (), mono_get_addr_from_ftnptr (compiled_method));
+			target_ji =
+				mini_jit_info_table_find (mono_domain_get (), mono_get_addr_from_ftnptr (compiled_method), NULL);
+			if (!ji)
+				ji = mini_jit_info_table_find (mono_domain_get (), (char*)code, NULL);
 
-				if (!ji)
-					ji = mono_jit_info_table_find (mono_domain_get (), (char*)code);
-				if (!ji)
-					ji = mono_jit_info_table_find (mono_get_root_domain (), (char*)code);
-
-				if (ji && target_ji && generic_shared && ji->has_generic_jit_info && !target_ji->has_generic_jit_info) {
-					/* 
-					 * Can't patch the call as the caller is gshared, but the callee is not. Happens when
-					 * generic sharing fails.
-					 * FIXME: Performance problem.
-					 */
-				} else if (mono_method_same_domain (ji, target_ji)) {
-					mono_arch_patch_callsite (ji->code_start, code, addr);
-				}
+			if (ji && target_ji && generic_shared && ji->has_generic_jit_info && !target_ji->has_generic_jit_info) {
+				/* 
+				 * Can't patch the call as the caller is gshared, but the callee is not. Happens when
+				 * generic sharing fails.
+				 * FIXME: Performance problem.
+				 */
+				no_patch = TRUE;
 			}
+
+			if (!no_patch && mono_method_same_domain (ji, target_ji))
+				mono_arch_patch_callsite (ji->code_start, code, addr);
 		}
 	}
 
