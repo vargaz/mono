@@ -2249,7 +2249,7 @@ inst_is_gsharedvt_sharable (MonoGenericInst *inst)
 	for (i = 0; i < inst->type_argc; ++i) {
 		MonoType *type = inst->type_argv [i];
 
-		if (MONO_TYPE_IS_REFERENCE (type) || (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR)) {
+		if (MONO_TYPE_IS_REFERENCE (type) || type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR) {
 		} else {
 			// FIXME:
 			if (mono_class_is_nullable (mono_class_from_mono_type (type)))
@@ -2284,6 +2284,29 @@ mini_is_gsharedvt_sharable_method (MonoMethod *method)
 		MonoMethodInflated *inflated = (MonoMethodInflated*)method;
 		MonoGenericContext *context = &inflated->context;
 		MonoGenericInst *inst;
+		MonoGenericContainer *container;
+		int i;
+		MonoClass **constraints;
+
+		// FIXME: Same for class parameters
+		container = mono_method_get_generic_container (inflated->declaring);
+		if (container) {
+			for (i = 0; i < container->type_argc; ++i) {
+				MonoGenericParamInfo *info = &container->type_params [i].info;
+
+				if (info && info->constraints) {
+					constraints = info->constraints;
+
+					while (*constraints) {
+						MonoClass *cklass = *constraints;
+						if (!(cklass == mono_defaults.object_class || (cklass->image == mono_defaults.corlib && !strcmp (cklass->name, "ValueType"))))
+							/* Inflaring the method with our vtype would not be valid */
+							return FALSE;
+						constraints ++;
+					}
+				}
+			}
+		}
 
 		if (context->class_inst && context->method_inst) {
 			/* At least one inst has to be gsharedvt sharable, and the other normal or gsharedvt sharable */
