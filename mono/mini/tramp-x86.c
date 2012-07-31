@@ -1300,7 +1300,7 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	x86_mov_reg_membase (code, X86_EAX, X86_EAX, 0, 2);
 	x86_widen_reg (code, X86_EAX, X86_EAX, TRUE, TRUE);
 	x86_leave (code);
-	x86_ret_imm (code, 4);
+	x86_ret (code);
 
 	g_assert ((code - buf) < buf_len);
 
