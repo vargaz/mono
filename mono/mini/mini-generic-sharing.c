@@ -2076,6 +2076,8 @@ mini_is_gsharedvt_type_gsctx (MonoGenericSharingContext *gsctx, MonoType *t)
 
 	if (!gsctx)
 		return FALSE;
+	if (t->byref)
+		return FALSE;
 	if (t->type == MONO_TYPE_VAR && gsctx->var_is_vt && gsctx->var_is_vt [t->data.generic_param->num])
 		return TRUE;
 	else if (t->type == MONO_TYPE_MVAR && gsctx->mvar_is_vt && gsctx->mvar_is_vt [t->data.generic_param->num])
@@ -2183,18 +2185,24 @@ mini_get_gsharedvt_alloc_type_gsctx (MonoGenericSharingContext *gsctx, MonoType 
 		if (context.class_inst) {
 			inst = context.class_inst;
 			type_argv = g_new0 (MonoType*, inst->type_argc);
-			for (i = 0; i < inst->type_argc; ++i)
-				type_argv [i] = mini_get_gsharedvt_alloc_type_gsctx (gsctx, inst->type_argv [i]);
-
+			for (i = 0; i < inst->type_argc; ++i) {
+				if (!gsctx || mini_is_gsharedvt_type_gsctx (gsctx, inst->type_argv [i]))
+					type_argv [i] = mini_get_gsharedvt_alloc_type_gsctx (gsctx, inst->type_argv [i]);
+				else
+					type_argv [i] = inst->type_argv [i];
+			}
 			context.class_inst = mono_metadata_get_generic_inst (inst->type_argc, type_argv);
 		}
 
 		if (context.method_inst) {
 			inst = context.method_inst;
 			type_argv = g_new0 (MonoType*, inst->type_argc);
-			for (i = 0; i < inst->type_argc; ++i)
-				type_argv [i] = mini_get_gsharedvt_alloc_type_gsctx (gsctx, inst->type_argv [i]);
-
+			for (i = 0; i < inst->type_argc; ++i) {
+				if (!gsctx || mini_is_gsharedvt_type_gsctx (gsctx, inst->type_argv [i]))
+					type_argv [i] = mini_get_gsharedvt_alloc_type_gsctx (gsctx, inst->type_argv [i]);
+				else
+					type_argv [i] = inst->type_argv [i];
+			}
 			context.method_inst = mono_metadata_get_generic_inst (inst->type_argc, type_argv);
 		}
 
@@ -2256,6 +2264,10 @@ inst_is_gsharedvt_sharable (MonoGenericInst *inst)
 			// FIXME:
 			if (mono_class_is_nullable (mono_class_from_mono_type (type)))
 				has_nullable = TRUE;
+			if (type->type == MONO_TYPE_GENERICINST && mono_type_generic_inst_is_valuetype (type))
+				/* These can be arbitrary large */
+				// FIXME: Check for type params
+				large_size = TRUE;
 			if (mono_class_value_size (mono_class_from_mono_type (type), &align1) > mono_class_value_size (mini_get_gsharedvt_alloc_type (NULL), &align2))
 				large_size = TRUE;
 			has_vt = TRUE;
