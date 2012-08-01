@@ -998,17 +998,19 @@ instantiate_info (MonoDomain *domain, MonoRuntimeGenericContextInfoTemplate *oti
 			gpointer info;
 			MonoMethod *wrapper;
 			MonoMethodInflated *inflated;
-			MonoGenericContext *context;
+			//MonoGenericContext *context;
 			MonoGenericSharingContext gsctx;
 			MonoMethod *gm;
 
 			g_assert (method->is_inflated);
 			inflated = (MonoMethodInflated*)method;
-			context = &inflated->context;
+			//context = &inflated->context;
 
 			/* Have to pass TRUE for is_gshared since METHOD might not be gsharedvt but we need its shared version */
 			gm = mini_get_shared_method_full (method, FALSE, TRUE);
 			g_assert (gm != method);
+
+			gm = oti->data;
 
 			mini_init_gsctx (context, &gsctx);
 

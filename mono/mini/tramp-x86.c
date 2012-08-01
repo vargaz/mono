@@ -1271,8 +1271,17 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_RET_STACK_POP);
 	br [3] = code;
 	x86_branch8 (code, X86_CC_E, 0, TRUE);
-	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_RET_I2);
+	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_RET_I1);
 	br [4] = code;
+	x86_branch8 (code, X86_CC_E, 0, TRUE);
+	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_RET_U1);
+	br [5] = code;
+	x86_branch8 (code, X86_CC_E, 0, TRUE);
+	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_RET_I2);
+	br [6] = code;
+	x86_branch8 (code, X86_CC_E, 0, TRUE);
+	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_RET_U2);
+	br [7] = code;
 	x86_branch8 (code, X86_CC_E, 0, TRUE);
 	/* IREGS case */
 	/* Load both eax and edx for simplicity */
@@ -1295,10 +1304,24 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	x86_patch (br [3], code);
 	x86_leave (code);
 	x86_ret_imm (code, 4);
-	/* I2 case */
+	/* I1 case */
 	x86_patch (br [4], code);
-	x86_mov_reg_membase (code, X86_EAX, X86_EAX, 0, 2);
-	x86_widen_reg (code, X86_EAX, X86_EAX, TRUE, TRUE);
+	x86_widen_membase (code, X86_EAX, X86_EAX, 0, TRUE, FALSE);
+	x86_leave (code);
+	x86_ret (code);
+	/* U1 case */
+	x86_patch (br [5], code);
+	x86_widen_membase (code, X86_EAX, X86_EAX, 0, FALSE, FALSE);
+	x86_leave (code);
+	x86_ret (code);
+	/* I2 case */
+	x86_patch (br [6], code);
+	x86_widen_membase (code, X86_EAX, X86_EAX, 0, TRUE, TRUE);
+	x86_leave (code);
+	x86_ret (code);
+	/* U2 case */
+	x86_patch (br [7], code);
+	x86_widen_membase (code, X86_EAX, X86_EAX, 0, FALSE, TRUE);
 	x86_leave (code);
 	x86_ret (code);
 

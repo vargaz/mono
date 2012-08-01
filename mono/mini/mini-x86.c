@@ -6804,9 +6804,15 @@ mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethod *normal_method, Mon
 	if (var_ret) {
 		switch (cinfo->ret.storage) {
 		case ArgInIReg:
-			// FIXME: More cases
-			if (gsharedvt_in && !sig->ret->byref && sig->ret->type == MONO_TYPE_I2)
+			// FIXME: More cases ?
+			if (gsharedvt_in && !sig->ret->byref && (sig->ret->type == MONO_TYPE_I1 || sig->ret->type == MONO_TYPE_BOOLEAN))
+				info->ret_marshal = GSHAREDVT_RET_I1;
+			if (gsharedvt_in && !sig->ret->byref && sig->ret->type == MONO_TYPE_U1)
+				info->ret_marshal = GSHAREDVT_RET_U1;
+			else if (gsharedvt_in && !sig->ret->byref && sig->ret->type == MONO_TYPE_I2)
 				info->ret_marshal = GSHAREDVT_RET_I2;
+			else if (gsharedvt_in && !sig->ret->byref && sig->ret->type == MONO_TYPE_U2)
+				info->ret_marshal = GSHAREDVT_RET_U2;
 			else
 				info->ret_marshal = GSHAREDVT_RET_IREGS;
 			break;
