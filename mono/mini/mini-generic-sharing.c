@@ -1032,7 +1032,6 @@ instantiate_info (MonoDomain *domain, MonoRuntimeGenericContextInfoTemplate *oti
 				printf ("OUT: %s\n", mono_method_full_name (method, TRUE));
 		} else if (!mini_is_gsharedvt_variable_signature (mono_method_signature (caller_method)) && ji_is_gsharedvt (ji)) {
 			/* This is the IN case handled by mini_add_method_trampoline () */
-			// FIXME: This is not always needed
 			static gpointer tramp_addr;
 			gpointer info;
 			MonoMethod *wrapper;
@@ -1040,22 +1039,27 @@ instantiate_info (MonoDomain *domain, MonoRuntimeGenericContextInfoTemplate *oti
 
 			mini_init_gsctx (context, &gsctx);
 
-			info = mono_arch_get_gsharedvt_call_info (ji->code_start, method, ji->method, &gsctx, TRUE, FALSE);
+			// FIXME: This is not always needed
+			// FIXME:
+			if (caller_method == method) {
+			} else {
+				info = mono_arch_get_gsharedvt_call_info (ji->code_start, method, ji->method, &gsctx, TRUE, FALSE);
 
-			if (!tramp_addr) {
-				wrapper = mono_marshal_get_gsharedvt_in_wrapper ();
-				addr = mono_compile_method (wrapper);
-				mono_memory_barrier ();
-				tramp_addr = addr;
+				if (!tramp_addr) {
+					wrapper = mono_marshal_get_gsharedvt_in_wrapper ();
+					addr = mono_compile_method (wrapper);
+					mono_memory_barrier ();
+					tramp_addr = addr;
+				}
+				addr = tramp_addr;
+
+				if (mono_aot_only)
+					addr = mono_aot_get_gsharedvt_trampoline (info, addr);
+				else
+					addr = mono_arch_get_gsharedvt_trampoline (mono_domain_get (), info, addr);
+
+				printf ("IN-RGCTX: %s\n", mono_method_full_name (method, TRUE));
 			}
-			addr = tramp_addr;
-
-			if (mono_aot_only)
-				addr = mono_aot_get_gsharedvt_trampoline (info, addr);
-			else
-				addr = mono_arch_get_gsharedvt_trampoline (mono_domain_get (), info, addr);
-
-			printf ("IN-RGCTX: %s\n", mono_method_full_name (method, TRUE));
 		}
 
 		return addr;
