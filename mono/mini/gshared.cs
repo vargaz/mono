@@ -23,6 +23,9 @@ struct GFoo2<T> {
 class GFoo3<T> {
 	public T t, t2;
 
+	public GFoo3 () {
+	}
+
 	[MethodImplAttribute (MethodImplOptions.NoInlining)]
 	public GFoo3 (T i1, T i2) {
 		t = i1;
@@ -720,5 +723,23 @@ public class Tests
 		var c = new ArrayContainer<int> ();
 		c.Prop = 5;
 		return c.Prop == 5 ? 0 : 1;
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static T2 rgctx_in_call_innner_inner<T1, T2> (T1 t1, T2 t2) {
+		return t2;
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static GFoo3<T> rgctx_in_call_inner<T> (T t) {
+		return rgctx_in_call_innner_inner (1, new GFoo3<T> ());
+	}
+
+    public static int test_0_rgctx_in_call () {
+		// The call is made through the rgctx call, and it needs an IN trampoline
+		var t = rgctx_in_call_inner (1);
+		if (t is GFoo3<int>)
+			return 0;
+		return 1;
 	}
 }
