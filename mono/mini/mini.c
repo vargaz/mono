@@ -1166,6 +1166,9 @@ mono_compile_create_var_for_vreg (MonoCompile *cfg, MonoType *type, int opcode, 
 	inst->backend.is_pinvoke = 0;
 	inst->dreg = vreg;
 
+	if (inst->klass->exception_type)
+		mono_cfg_set_exception (cfg, MONO_EXCEPTION_TYPE_LOAD);
+
 	if (cfg->compute_gc_maps) {
 		if (type->byref) {
 			mono_mark_vreg_as_mp (cfg, vreg);
