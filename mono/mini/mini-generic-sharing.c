@@ -1037,10 +1037,15 @@ instantiate_info (MonoDomain *domain, MonoRuntimeGenericContextInfoTemplate *oti
 			MonoMethod *wrapper;
 			MonoGenericSharingContext gsctx;
 
+			//
+			// FIXME:
+			// This is a combination of the normal in and out cases, since the caller is a gsharedvt method.
+			// A trampoline is not always needed, but its hard to determine when it can be omitted.
+			//
+
 			mini_init_gsctx (context, &gsctx);
 
-			// FIXME: This is not always needed
-			// FIXME:
+			// FIXME: This is just a workaround
 			if (caller_method == method) {
 			} else {
 				info = mono_arch_get_gsharedvt_call_info (ji->code_start, method, ji->method, &gsctx, TRUE, FALSE);
