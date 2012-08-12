@@ -2422,11 +2422,3 @@ mini_method_get_rgctx (MonoMethod *m)
 	else
 		return mono_class_vtable (mono_domain_get (), m->klass);
 }
-
-//
-// GSHAREDVT FIXME:
-// - more testing
-// - support more opcodes
-// - ARM support
-//
-
