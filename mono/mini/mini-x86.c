@@ -796,8 +796,7 @@ mono_arch_init (void)
 
 	mono_aot_register_jit_icall ("mono_x86_throw_exception", mono_x86_throw_exception);
 	mono_aot_register_jit_icall ("mono_x86_throw_corlib_exception", mono_x86_throw_corlib_exception);
-	mono_aot_register_jit_icall ("mono_x86_start_gsharedvt_in_call", mono_x86_start_gsharedvt_in_call);
-	mono_aot_register_jit_icall ("mono_x86_start_gsharedvt_out_call", mono_x86_start_gsharedvt_out_call);
+	mono_aot_register_jit_icall ("mono_x86_start_gsharedvt_call", mono_x86_start_gsharedvt_call);
 }
 
 /*

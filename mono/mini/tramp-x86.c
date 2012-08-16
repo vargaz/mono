@@ -1128,7 +1128,7 @@ mono_arch_get_plt_info_offset (guint8 *plt_entry, mgreg_t *regs, guint8 *code)
 }
 
 void
-mono_x86_start_gsharedvt_in_call (GSharedVtCallInfo *info, gpointer *caller, gpointer *callee)
+mono_x86_start_gsharedvt_call (GSharedVtCallInfo *info, gpointer *caller, gpointer *callee)
 {
 	int i;
 	int *map = info->map;
@@ -1204,7 +1204,7 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	/* ecx = caller argument area */
 	x86_mov_reg_reg (code, X86_ECX, X86_EBP, 4);
 	x86_alu_reg_imm (code, X86_ADD, X86_ECX, 8);
-	/* eax = caller argument area */
+	/* eax = callee argument area */
 	x86_mov_reg_reg (code, X86_EAX, X86_ESP, 4);
 
 	/* Call start_gsharedvt_call */
@@ -1218,10 +1218,10 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	/* Arg1 */
 	x86_push_membase (code, X86_EBP, -4);
 	if (aot) {
-		code = mono_arch_emit_load_aotconst (buf, code, &ji, MONO_PATCH_INFO_JIT_ICALL_ADDR, "mono_x86_start_gsharedvt_in_call");
+		code = mono_arch_emit_load_aotconst (buf, code, &ji, MONO_PATCH_INFO_JIT_ICALL_ADDR, "mono_x86_start_gsharedvt_call");
 		x86_call_reg (code, X86_EAX);
 	} else {
-		x86_call_code (code, mono_x86_start_gsharedvt_in_call);
+		x86_call_code (code, mono_x86_start_gsharedvt_call);
 	}
 	x86_alu_reg_imm (code, X86_ADD, X86_ESP, 4 * 4);
 
@@ -1334,17 +1334,6 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	return buf;
 }
 
-void
-mono_x86_start_gsharedvt_out_call (GSharedVtCallInfo *info, gpointer *caller, gpointer *callee)
-{
-	int i;
-	int *map = info->map;
-
-	/* Copy data from the caller argument area to the callee */
-	for (i = 0; i < info->map_count; ++i)
-		callee [map [i * 2 + 1]] = caller [map [i * 2]];
-}
-
 gpointer
 mono_arch_get_gsharedvt_out_trampoline (MonoTrampInfo **info, gboolean aot)
 {
@@ -1402,7 +1391,7 @@ mono_arch_get_gsharedvt_out_trampoline (MonoTrampInfo **info, gboolean aot)
 	/* eax = caller argument area */
 	x86_mov_reg_reg (code, X86_EAX, X86_ESP, 4);
 
-	/* Call start_gsharedvt_out_call */
+	/* Call start_gsharedvt_call */
 	// FIXME: Use moves
 	/* Alignment */
 	x86_push_reg (code, X86_EAX);
@@ -1413,10 +1402,10 @@ mono_arch_get_gsharedvt_out_trampoline (MonoTrampInfo **info, gboolean aot)
 	/* Arg1 */
 	x86_push_membase (code, X86_EBP, -4);
 	if (aot) {
-		code = mono_arch_emit_load_aotconst (buf, code, &ji, MONO_PATCH_INFO_JIT_ICALL_ADDR, "mono_x86_start_gsharedvt_out_call");
+		code = mono_arch_emit_load_aotconst (buf, code, &ji, MONO_PATCH_INFO_JIT_ICALL_ADDR, "mono_x86_start_gsharedvt_call");
 		x86_call_reg (code, X86_EAX);
 	} else {
-		x86_call_code (code, mono_x86_start_gsharedvt_out_call);
+		x86_call_code (code, mono_x86_start_gsharedvt_call);
 	}
 	x86_alu_reg_imm (code, X86_ADD, X86_ESP, 4 * 4);
 

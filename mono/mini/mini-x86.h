@@ -337,10 +337,7 @@ void
 mono_x86_patch (unsigned char* code, gpointer target) MONO_INTERNAL;
 
 void
-mono_x86_start_gsharedvt_in_call (GSharedVtCallInfo *info, gpointer *caller, gpointer *callee) MONO_INTERNAL;
-
-void
-mono_x86_start_gsharedvt_out_call (GSharedVtCallInfo *info, gpointer *caller, gpointer *callee) MONO_INTERNAL;
+mono_x86_start_gsharedvt_call (GSharedVtCallInfo *info, gpointer *caller, gpointer *callee) MONO_INTERNAL;
 
 #endif /* __MONO_MINI_X86_H__ */  
 
