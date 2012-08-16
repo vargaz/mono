@@ -354,7 +354,7 @@ mono_create_helper_signatures (void)
 #ifndef DISABLE_JIT
 
 /*
- * When using gsharedvt, some instatiations might be verifiable, and so not. i.e. 
+ * When using gsharedvt, some instatiations might be verifiable, and some might be not. i.e. 
  * foo<T> (int i) { ldarg.0; box T; }
  */
 #define UNVERIFIED do { \
