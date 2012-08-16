@@ -1150,6 +1150,7 @@ mono_arch_get_gsharedvt_trampoline (MonoTrampInfo **info, gboolean aot)
 	GSList *unwind_ops = NULL;
 	MonoJumpInfo *ji = NULL;
 	guint8 *br_out, *br_vcall [16], *br [16];
+	int info_offset, mrgctx_offset;
 
 	buf_len = 320;
 	buf = code = mono_global_codeman_reserve (buf_len);
@@ -1183,12 +1184,15 @@ mono_arch_get_gsharedvt_trampoline (MonoTrampInfo **info, gboolean aot)
 	mono_add_unwind_op_def_cfa_reg (unwind_ops, code, buf, X86_EBP);
 	/* Alloc stack frame/align stack */
 	x86_alu_reg_imm (code, X86_SUB, X86_ESP, 8);
+	info_offset = -4;
+	mrgctx_offset = - 8;
 	/* The info struct is put into EAX by the gsharedvt trampoline */
 	/* Save info struct addr */
-	x86_mov_membase_reg (code, X86_EBP, -4, X86_EAX, 4);
+	x86_mov_membase_reg (code, X86_EBP, info_offset, X86_EAX, 4);
 	/* Save rgctx */
-	x86_mov_membase_reg (code, X86_EBP, -8, MONO_ARCH_RGCTX_REG, 4);
+	x86_mov_membase_reg (code, X86_EBP, mrgctx_offset, MONO_ARCH_RGCTX_REG, 4);
 
+	/* Allocate stack area used to pass arguments to the method */
 	x86_mov_reg_membase (code, X86_EAX, X86_EAX, G_STRUCT_OFFSET (GSharedVtCallInfo, stack_usage), sizeof (gpointer));
 	x86_alu_reg_reg (code, X86_SUB, X86_ESP, X86_EAX);
 
@@ -1208,7 +1212,6 @@ mono_arch_get_gsharedvt_trampoline (MonoTrampInfo **info, gboolean aot)
 	x86_mov_reg_reg (code, X86_EAX, X86_ESP, 4);
 
 	/* Call start_gsharedvt_call */
-	// FIXME: Use moves
 	/* Alignment */
 	x86_push_reg (code, X86_EAX);
 	/* Arg3 */
@@ -1216,7 +1219,7 @@ mono_arch_get_gsharedvt_trampoline (MonoTrampInfo **info, gboolean aot)
 	/* Arg2 */
 	x86_push_reg (code, X86_ECX);
 	/* Arg1 */
-	x86_push_membase (code, X86_EBP, -4);
+	x86_push_membase (code, X86_EBP, info_offset);
 	if (aot) {
 		code = mono_arch_emit_load_aotconst (buf, code, &ji, MONO_PATCH_INFO_JIT_ICALL_ADDR, "mono_x86_start_gsharedvt_call");
 		x86_call_reg (code, X86_EAX);
@@ -1227,7 +1230,7 @@ mono_arch_get_gsharedvt_trampoline (MonoTrampInfo **info, gboolean aot)
 
 	/* The stack is now setup for the real call */
 	/* Load info struct */
-	x86_mov_reg_membase (code, X86_ECX, X86_EBP, -4, 4);
+	x86_mov_reg_membase (code, X86_ECX, X86_EBP, info_offset, 4);
 	/* Check if it is a vcall */
 	x86_mov_reg_membase (code, X86_EAX, X86_ECX, G_STRUCT_OFFSET (GSharedVtCallInfo, vcall_offset), sizeof (gpointer));
 	x86_alu_reg_imm (code, X86_CMP, X86_EAX, -1);
@@ -1248,13 +1251,13 @@ mono_arch_get_gsharedvt_trampoline (MonoTrampInfo **info, gboolean aot)
 	/* Call begins, addr is in EAX */
 	x86_patch (br_vcall [1], code);
 	/* Load rgctx */
-	x86_mov_reg_membase (code, MONO_ARCH_RGCTX_REG, X86_EBP, -8, sizeof (gpointer));
+	x86_mov_reg_membase (code, MONO_ARCH_RGCTX_REG, X86_EBP, mrgctx_offset, sizeof (gpointer));
 	/* Make the call */
 	x86_call_reg (code, X86_EAX);
 	/* The return value is either in registers, or stored to an area beginning at sp [info->vret_slot] */
 	/* EAX/EDX might contain the return value, only ECX is free */
 	/* Load info struct */
-	x86_mov_reg_membase (code, X86_ECX, X86_EBP, -4, 4);
+	x86_mov_reg_membase (code, X86_ECX, X86_EBP, info_offset, 4);
 
 	/* Branch to the in/out handling code */
 	x86_alu_membase_imm (code, X86_CMP, X86_ECX, G_STRUCT_OFFSET (GSharedVtCallInfo, gsharedvt_in), 1);	
@@ -1278,7 +1281,7 @@ mono_arch_get_gsharedvt_trampoline (MonoTrampInfo **info, gboolean aot)
 	/* Return value marshalling */
 	x86_patch (br [0], code);
 	/* Load info struct */
-	x86_mov_reg_membase (code, X86_EAX, X86_EBP, -4, 4);
+	x86_mov_reg_membase (code, X86_EAX, X86_EBP, info_offset, 4);
 	/* Load 'vret_slot' */
 	x86_mov_reg_membase (code, X86_EAX, X86_EAX, G_STRUCT_OFFSET (GSharedVtCallInfo, vret_slot), 4);
 	/* Compute ret area address */
@@ -1375,7 +1378,7 @@ mono_arch_get_gsharedvt_trampoline (MonoTrampInfo **info, gboolean aot)
 	x86_push_reg (code, X86_EAX);
 
 	/* Load info struct */
-	x86_mov_reg_membase (code, X86_EAX, X86_EBP, -4, 4);
+	x86_mov_reg_membase (code, X86_EAX, X86_EBP, info_offset, 4);
 	/* Load 'vret_arg_slot' */
 	x86_mov_reg_membase (code, X86_EAX, X86_EAX, G_STRUCT_OFFSET (GSharedVtCallInfo, vret_arg_slot), 4);
 	/* Compute ret area address in the caller frame in EAX */
