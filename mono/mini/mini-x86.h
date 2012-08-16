@@ -313,6 +313,8 @@ typedef struct {
 	int stack_usage, map_count;
 	/* If not -1, then make a virtual call using this vtable offset */
 	int vcall_offset;
+	/* Whenever this is a in or an out call */
+	int gsharedvt_in;
 	int map [MONO_ZERO_LEN_ARRAY];
 } GSharedVtCallInfo;
 

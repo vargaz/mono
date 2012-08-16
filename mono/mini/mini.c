@@ -5506,7 +5506,7 @@ mono_jit_compile_method_inner (MonoMethod *method, MonoDomain *target_domain, in
 	if (method->wrapper_type == MONO_WRAPPER_UNKNOWN) {
 		WrapperInfo *info = mono_marshal_get_wrapper_info (method);
 
-		if (info->subtype == WRAPPER_SUBTYPE_GSHAREDVT_IN) {
+		if (info->subtype == WRAPPER_SUBTYPE_GSHAREDVT_IN || info->subtype == WRAPPER_SUBTYPE_GSHAREDVT_OUT) {
 			static MonoTrampInfo *tinfo;
 			MonoJitInfo *jinfo;
 
@@ -5520,31 +5520,14 @@ mono_jit_compile_method_inner (MonoMethod *method, MonoDomain *target_domain, in
 			 */
 			if (mono_aot_only) {
 				// FIXME: No EH
-				return mono_aot_get_trampoline ("gsharedvt_in_trampoline");
+				return mono_aot_get_trampoline ("gsharedvt_trampoline");
 			} else {
-				mono_arch_get_gsharedvt_in_trampoline (&tinfo, FALSE);
-				jinfo = create_jit_info_for_trampoline (method, tinfo);
-				mono_jit_info_table_add (mono_get_root_domain (), jinfo);
-				return tinfo->code;
-			}
-		} else if (info->subtype == WRAPPER_SUBTYPE_GSHAREDVT_OUT) {
-			static MonoTrampInfo *tinfo;
-			MonoJitInfo *jinfo;
-
-			if (tinfo)
-				return tinfo->code;
-
-			if (mono_aot_only) {
-				// FIXME: No EH
-				return mono_aot_get_trampoline ("gsharedvt_out_trampoline");
-			} else {
-				mono_arch_get_gsharedvt_out_trampoline (&tinfo, FALSE);
+				mono_arch_get_gsharedvt_trampoline (&tinfo, FALSE);
 				jinfo = create_jit_info_for_trampoline (method, tinfo);
 				mono_jit_info_table_add (mono_get_root_domain (), jinfo);
 				return tinfo->code;
 			}
 		}
-
 	}
 
 	if (mono_aot_only) {

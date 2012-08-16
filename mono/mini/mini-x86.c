@@ -6781,6 +6781,7 @@ mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethod *normal_method, Mon
 	info->addr = addr;
 	info->stack_usage = callee_cinfo->stack_usage;
 	info->ret_marshal = GSHAREDVT_RET_NONE;
+	info->gsharedvt_in = gsharedvt_in ? 1 : 0;
 	info->vret_slot = -1;
 	if (var_ret)
 		info->vret_arg_slot = gcinfo->vret_arg_offset / sizeof (gpointer);

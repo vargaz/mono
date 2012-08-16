@@ -107,12 +107,12 @@ mono_arch_get_llvm_imt_trampoline (MonoDomain *domain, MonoMethod *m, int vt_off
 }
 
 /*
- * mono_arch_get_gsharedvt_trampoline:
+ * mono_arch_get_gsharedvt_arg_trampoline:
  *
  *   Return a trampoline which passes ARG to the gsharedvt in/out trampoline ADDR.
  */
 gpointer
-mono_arch_get_gsharedvt_trampoline (MonoDomain *domain, gpointer arg, gpointer addr)
+mono_arch_get_gsharedvt_arg_trampoline (MonoDomain *domain, gpointer arg, gpointer addr)
 {
 	guint8 *code, *start;
 	int buf_len;
@@ -1143,15 +1143,15 @@ mono_x86_start_gsharedvt_call (GSharedVtCallInfo *info, gpointer *caller, gpoint
 }
 
 gpointer
-mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
+mono_arch_get_gsharedvt_trampoline (MonoTrampInfo **info, gboolean aot)
 {
 	guint8 *code, *buf;
 	int buf_len, cfa_offset;
 	GSList *unwind_ops = NULL;
 	MonoJumpInfo *ji = NULL;
-	guint8 *br [16];
+	guint8 *br_out, *br_vcall [16], *br [16];
 
-	buf_len = 192;
+	buf_len = 320;
 	buf = code = mono_global_codeman_reserve (buf_len);
 
 	/*
@@ -1228,16 +1228,43 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	/* The stack is now setup for the real call */
 	/* Load info struct */
 	x86_mov_reg_membase (code, X86_ECX, X86_EBP, -4, 4);
-	/* Load rgctx */
-	x86_mov_reg_membase (code, MONO_ARCH_RGCTX_REG, X86_EBP, -8, sizeof (gpointer));
+	/* Check if it is a vcall */
+	x86_mov_reg_membase (code, X86_EAX, X86_ECX, G_STRUCT_OFFSET (GSharedVtCallInfo, vcall_offset), sizeof (gpointer));
+	x86_alu_reg_imm (code, X86_CMP, X86_EAX, -1);
+	br_vcall [0] = code;
+	x86_branch8 (code, X86_CC_NE, 0, TRUE);
 	/* Load method addr */
 	x86_mov_reg_membase (code, X86_EAX, X86_ECX, G_STRUCT_OFFSET (GSharedVtCallInfo, addr), sizeof (gpointer));
+	br_vcall [1] = code;
+	x86_jump8 (code, 0);
+	/* Virtual case */
+	x86_patch (br_vcall [0], code);
+	/* Load this */
+	x86_mov_reg_membase (code, MONO_ARCH_RGCTX_REG, X86_EBP, sizeof (gpointer) * 2, sizeof (gpointer));
+	/* Load vtable */
+	x86_mov_reg_membase (code, MONO_ARCH_RGCTX_REG, MONO_ARCH_RGCTX_REG, 0, sizeof (gpointer));
+	/* Load vcall addr */
+	x86_mov_reg_memindex (code, X86_EAX, MONO_ARCH_RGCTX_REG, 0, X86_EAX, 0, sizeof (gpointer));
+	/* Call begins, addr is in EAX */
+	x86_patch (br_vcall [1], code);
+	/* Load rgctx */
+	x86_mov_reg_membase (code, MONO_ARCH_RGCTX_REG, X86_EBP, -8, sizeof (gpointer));
 	/* Make the call */
 	x86_call_reg (code, X86_EAX);
 	/* The return value is either in registers, or stored to an area beginning at sp [info->vret_slot] */
 	/* EAX/EDX might contain the return value, only ECX is free */
 	/* Load info struct */
 	x86_mov_reg_membase (code, X86_ECX, X86_EBP, -4, 4);
+
+	/* Branch to the in/out handling code */
+	x86_alu_membase_imm (code, X86_CMP, X86_ECX, G_STRUCT_OFFSET (GSharedVtCallInfo, gsharedvt_in), 1);	
+	br_out = code;
+	x86_branch32 (code, X86_CC_NE, 0, TRUE);
+
+	/*
+	 * IN CASE
+	 */
+
 	/* Load ret marshal type */
 	x86_mov_reg_membase (code, X86_ECX, X86_ECX, G_STRUCT_OFFSET (GSharedVtCallInfo, ret_marshal), 4);
 	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_RET_NONE);
@@ -1325,121 +1352,11 @@ mono_arch_get_gsharedvt_in_trampoline (MonoTrampInfo **info, gboolean aot)
 	x86_leave (code);
 	x86_ret (code);
 
-	g_assert ((code - buf) < buf_len);
-
-	if (info)
-		*info = mono_tramp_info_create ("gsharedvt_in_trampoline", buf, code - buf, ji, unwind_ops);
-
-	mono_arch_flush_icache (buf, code - buf);
-	return buf;
-}
-
-gpointer
-mono_arch_get_gsharedvt_out_trampoline (MonoTrampInfo **info, gboolean aot)
-{
-	guint8 *code, *buf;
-	int buf_len, cfa_offset;
-	GSList *unwind_ops = NULL;
-	MonoJumpInfo *ji = NULL;
-	guint8 *br [16], *br_vcall [16];
-
-	buf_len = 192;
-	buf = code = mono_global_codeman_reserve (buf_len);
-
 	/*
-	 * This trampoline is responsible for marshalling calls between gsharedvt code and normal code. This is like the
-	 * gsharedvt_in trampoline in reverse.
-	 * caller:
-	 * T=<type used to represent vtype type arguments, currently TypedByRef>
-	 * foo<T> (T b)
-	 * callee:
-	 * foo<bool> (bool b)
+	 * OUT CASE
 	 */
 
-	cfa_offset = sizeof (gpointer);
-	mono_add_unwind_op_def_cfa (unwind_ops, code, buf, X86_ESP, cfa_offset);
-	mono_add_unwind_op_offset (unwind_ops, code, buf, X86_NREG, -cfa_offset);
-	x86_push_reg (code, X86_EBP);
-	cfa_offset += sizeof (gpointer);
-	mono_add_unwind_op_def_cfa_offset (unwind_ops, code, buf, cfa_offset);
-	mono_add_unwind_op_offset (unwind_ops, code, buf, X86_EBP, - cfa_offset);
-	x86_mov_reg_reg (code, X86_EBP, X86_ESP, sizeof (gpointer));
-	mono_add_unwind_op_def_cfa_reg (unwind_ops, code, buf, X86_EBP);
-	/* Alloc stack frame/align stack */
-	x86_alu_reg_imm (code, X86_SUB, X86_ESP, 8);
-	/* The info struct is put into EAX by the gsharedvt trampoline */
-	/* Save info struct addr */
-	x86_mov_membase_reg (code, X86_EBP, -4, X86_EAX, 4);
-	/* Save rgctx */
-	x86_mov_membase_reg (code, X86_EBP, -8, MONO_ARCH_RGCTX_REG, 4);
-
-#if 0
-	/* Stack alignment check */
-	x86_mov_reg_reg (code, X86_ECX, X86_ESP, 4);
-	x86_alu_reg_imm (code, X86_AND, X86_ECX, MONO_ARCH_FRAME_ALIGNMENT - 1);
-	x86_alu_reg_imm (code, X86_CMP, X86_ECX, 0);
-	x86_branch_disp (code, X86_CC_EQ, 3, FALSE);
-	x86_breakpoint (code);
-#endif
-
-	x86_mov_reg_membase (code, X86_EAX, X86_EAX, G_STRUCT_OFFSET (GSharedVtCallInfo, stack_usage), sizeof (gpointer));
-	x86_alu_reg_reg (code, X86_SUB, X86_ESP, X86_EAX);
-
-	/* ecx = caller argument area */
-	x86_mov_reg_reg (code, X86_ECX, X86_EBP, 4);
-	x86_alu_reg_imm (code, X86_ADD, X86_ECX, 8);
-	/* eax = caller argument area */
-	x86_mov_reg_reg (code, X86_EAX, X86_ESP, 4);
-
-	/* Call start_gsharedvt_call */
-	// FIXME: Use moves
-	/* Alignment */
-	x86_push_reg (code, X86_EAX);
-	/* Arg3 */
-	x86_push_reg (code, X86_EAX);
-	/* Arg2 */
-	x86_push_reg (code, X86_ECX);
-	/* Arg1 */
-	x86_push_membase (code, X86_EBP, -4);
-	if (aot) {
-		code = mono_arch_emit_load_aotconst (buf, code, &ji, MONO_PATCH_INFO_JIT_ICALL_ADDR, "mono_x86_start_gsharedvt_call");
-		x86_call_reg (code, X86_EAX);
-	} else {
-		x86_call_code (code, mono_x86_start_gsharedvt_call);
-	}
-	x86_alu_reg_imm (code, X86_ADD, X86_ESP, 4 * 4);
-
-	/* The stack is now setup for the real call */
-	/* Load info struct */
-	x86_mov_reg_membase (code, X86_ECX, X86_EBP, -4, 4);
-	/* Check if it is a vcall */
-	x86_mov_reg_membase (code, X86_EAX, X86_ECX, G_STRUCT_OFFSET (GSharedVtCallInfo, vcall_offset), sizeof (gpointer));
-	x86_alu_reg_imm (code, X86_CMP, X86_EAX, -1);
-	br_vcall [0] = code;
-	x86_branch8 (code, X86_CC_NE, 0, TRUE);
-	/* Load method addr */
-	x86_mov_reg_membase (code, X86_EAX, X86_ECX, G_STRUCT_OFFSET (GSharedVtCallInfo, addr), sizeof (gpointer));
-	br_vcall [1] = code;
-	x86_jump8 (code, 0);
-	/* Virtual case */
-	x86_patch (br_vcall [0], code);
-	/* Load this */
-	x86_mov_reg_membase (code, MONO_ARCH_RGCTX_REG, X86_EBP, sizeof (gpointer) * 2, sizeof (gpointer));
-	/* Load vtable */
-	x86_mov_reg_membase (code, MONO_ARCH_RGCTX_REG, MONO_ARCH_RGCTX_REG, 0, sizeof (gpointer));
-	/* Load vcall addr */
-	x86_mov_reg_memindex (code, X86_EAX, MONO_ARCH_RGCTX_REG, 0, X86_EAX, 0, sizeof (gpointer));
-	/* Call begins, addr is in EAX */
-	x86_patch (br_vcall [1], code);
-	/* Load rgctx */
-	x86_mov_reg_membase (code, MONO_ARCH_RGCTX_REG, X86_EBP, -8, sizeof (gpointer));
-	/* Make the call */
-	x86_call_reg (code, X86_EAX);
-
-	/* The return value is either in registers, or stored to an area beginning at sp [info->vret_slot] */
-	/* EAX/EDX might contain the return value, only ECX is free */
-	/* Load info struct */
-	x86_mov_reg_membase (code, X86_ECX, X86_EBP, -4, 4);
+	x86_patch (br_out, code);
 	/* Load ret marshal type into ECX */
 	x86_mov_reg_membase (code, X86_ECX, X86_ECX, G_STRUCT_OFFSET (GSharedVtCallInfo, ret_marshal), 4);
 	x86_alu_reg_imm (code, X86_CMP, X86_ECX, GSHAREDVT_RET_NONE);
@@ -1506,7 +1423,7 @@ mono_arch_get_gsharedvt_out_trampoline (MonoTrampInfo **info, gboolean aot)
 	g_assert ((code - buf) < buf_len);
 
 	if (info)
-		*info = mono_tramp_info_create ("gsharedvt_out_trampoline", buf, code - buf, ji, unwind_ops);
+		*info = mono_tramp_info_create ("gsharedvt_trampoline", buf, code - buf, ji, unwind_ops);
 
 	mono_arch_flush_icache (buf, code - buf);
 	return buf;

@@ -4076,7 +4076,7 @@ mono_aot_get_imt_thunk (MonoVTable *vtable, MonoDomain *domain, MonoIMTCheckItem
 }
 
 gpointer
-mono_aot_get_gsharedvt_trampoline (gpointer arg, gpointer addr)
+mono_aot_get_gsharedvt_arg_trampoline (gpointer arg, gpointer addr)
 {
 	MonoAotModule *amodule;
 	guint8 *code;

@@ -5053,9 +5053,7 @@ emit_trampolines (MonoAotCompile *acfg)
 		emit_trampoline (acfg, acfg->got_offset, info);
 
 #ifdef MONO_ARCH_GSHAREDVT_SUPPORTED
-		mono_arch_get_gsharedvt_in_trampoline (&info, TRUE);
-		emit_trampoline (acfg, acfg->got_offset, info);
-		mono_arch_get_gsharedvt_out_trampoline (&info, TRUE);
+		mono_arch_get_gsharedvt_trampoline (&info, TRUE);
 		emit_trampoline (acfg, acfg->got_offset, info);
 #endif
 
