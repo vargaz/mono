@@ -1026,10 +1026,12 @@ instantiate_info (MonoDomain *domain, MonoRuntimeGenericContextInfoTemplate *oti
 			else
 				addr = mono_arch_get_gsharedvt_arg_trampoline (mono_domain_get (), info, addr);
 
+#if 0
 			if (virtual)
 				printf ("OUT-VCALL: %s\n", mono_method_full_name (method, TRUE));
 			else
 				printf ("OUT: %s\n", mono_method_full_name (method, TRUE));
+#endif
 		} else if (!mini_is_gsharedvt_variable_signature (mono_method_signature (caller_method)) && ji_is_gsharedvt (ji)) {
 			/* This is the IN case handled by mini_add_method_trampoline () */
 			static gpointer tramp_addr;
@@ -1063,7 +1065,7 @@ instantiate_info (MonoDomain *domain, MonoRuntimeGenericContextInfoTemplate *oti
 				else
 					addr = mono_arch_get_gsharedvt_arg_trampoline (mono_domain_get (), info, addr);
 
-				printf ("IN-RGCTX: %s\n", mono_method_full_name (method, TRUE));
+				//printf ("IN-RGCTX: %s\n", mono_method_full_name (method, TRUE));
 			}
 		}
 

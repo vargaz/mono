@@ -368,7 +368,7 @@ mini_add_method_trampoline (MonoMethod *orig_method, MonoMethod *m, gpointer com
 		else
 			addr = mono_arch_get_gsharedvt_arg_trampoline (mono_domain_get (), info, addr);
 
-		printf ("IN: %s\n", mono_method_full_name (m, TRUE));
+		//printf ("IN: %s\n", mono_method_full_name (m, TRUE));
 	}
 
 	if (add_static_rgctx_tramp && !callee_array_helper)
