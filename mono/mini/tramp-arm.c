@@ -19,6 +19,7 @@
 
 #include "mini.h"
 #include "mini-arm.h"
+#include "info.h"
 
 #define ALIGN_TO(val,align) ((((guint64)val) + ((align) - 1)) & ~((align) - 1))
 
@@ -805,4 +806,23 @@ mono_arm_get_thumb_plt_entry (guint8 *code)
 	target += 4;
 
 	return target;
+}
+
+/*
+ * mono_arch_get_gsharedvt_arg_trampoline:
+ *
+ *   See tramp-x86.c for documentation.
+ */
+gpointer
+mono_arch_get_gsharedvt_arg_trampoline (MonoDomain *domain, gpointer arg, gpointer addr)
+{
+	g_assert_not_reached ();
+	return NULL;
+}
+
+gpointer
+mono_arch_get_gsharedvt_trampoline (MonoTrampInfo **info, gboolean aot)
+{
+	g_assert_not_reached ();
+	return NULL;
 }
