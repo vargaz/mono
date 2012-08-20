@@ -6341,6 +6341,181 @@ mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethod *normal_method, Mon
 	 */
 	map = g_ptr_array_new ();
 
-	g_assert_not_reached ();
-	return NULL;
+	if (cinfo->vtype_retaddr) {
+		/*
+		 * Map ret arg.
+		 * This handles the case when the method returns a normal vtype, and when it returns a type arg, and its instantiated
+		 * with a vtype.
+		 */
+		// FIXME:
+		NOT_IMPLEMENTED;
+		/*
+		g_ptr_array_add (map, GUINT_TO_POINTER (caller_cinfo->vret_arg_offset / sizeof (gpointer)));
+		g_ptr_array_add (map, GUINT_TO_POINTER (callee_cinfo->vret_arg_offset / sizeof (gpointer)));
+		*/
+	}
+
+	//g_assert (gsharedvt_in);
+
+	for (i = 0; i < cinfo->nargs; ++i) {
+		ArgInfo *ainfo = &caller_cinfo->args [i];
+		ArgInfo *ainfo2 = &callee_cinfo->args [i];
+		int nslots, j;
+
+		switch (ainfo->storage) {
+		case RegTypeGeneral:
+			switch (ainfo2->storage) {
+			case RegTypeGeneral:
+				g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo->reg + 1)));
+				g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo2->reg + 1)));
+				break;
+			case RegTypeStructByVal:
+				/* Copy just one reg */
+				g_assert (ainfo2->size > 0);
+				g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo->reg + 1)));
+				g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo2->reg + 1)));
+				break;
+			default:
+				NOT_IMPLEMENTED;
+			}
+			break;
+		case RegTypeIRegPair:
+			switch (ainfo2->storage) {
+			case RegTypeIRegPair:
+				g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo->reg + 1)));
+				g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo2->reg + 1)));
+				g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo->reg + 1 + 1)));
+				g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo2->reg + 1 + 1)));
+				break;
+			case RegTypeStructByVal:
+				if (ainfo2->size > 1) {
+					g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo->reg + 1)));
+					g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo2->reg + 1)));
+					g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo->reg + 1 + 1)));
+					g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo2->reg + 1 + 1)));
+				} else if (ainfo2->size == 1) {
+					g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo->reg + 1)));
+					g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo2->reg + 1)));
+					/* The second word is passed on the stack */
+					g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo->reg + 1 + 1)));
+					g_ptr_array_add (map, GUINT_TO_POINTER (ainfo2->offset));
+				} else {
+					g_assert_not_reached ();
+				}
+				break;
+			default:
+				NOT_IMPLEMENTED;
+			}
+			break;
+		case RegTypeStructByVal:
+			if (ainfo2->storage == RegTypeStructByVal) {
+				// FIXME:
+				g_assert (ainfo->struct_size == ainfo->size * 4);
+				g_assert (ainfo2->struct_size == ainfo2->size * 4);
+				for (j = 0; j < ainfo->size; ++j) {
+					g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo->reg + j + 1)));
+					g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo2->reg + j + 1)));
+				}
+			} else if (ainfo2->storage == RegTypeGeneral) {
+				g_assert (!gsharedvt_in);
+				// FIXME:
+				g_assert (ainfo->struct_size == ainfo->size * 4);
+				g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo->reg + 1)));
+				g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo2->reg + 1)));
+			} else {
+				NOT_IMPLEMENTED;
+			}
+			break;
+		default:
+			g_assert_not_reached ();
+		}
+			
+#if 0		
+		/* Have to use the non-gsharedvt size */ 
+		nslots = cinfo->args [i].nslots;
+		if (!nslots)
+			nslots = 1;
+		g_assert (ainfo->storage == ArgOnStack);
+		for (j = 0; j < nslots; ++j) {
+			g_ptr_array_add (map, GUINT_TO_POINTER ((ainfo->offset / sizeof (gpointer)) + j));
+			g_ptr_array_add (map, GUINT_TO_POINTER ((ainfo2->offset / sizeof (gpointer)) + j));
+		}
+#endif
+	}
+
+	info = mono_domain_alloc0 (mono_domain_get (), sizeof (GSharedVtCallInfo) + (map->len * sizeof (int)));
+	info->addr = addr;
+	info->stack_usage = callee_cinfo->stack_usage;
+	info->ret_marshal = GSHAREDVT_RET_NONE;
+	info->gsharedvt_in = gsharedvt_in ? 1 : 0;
+	info->vret_slot = -1;
+	if (var_ret) {
+		g_assert (gcinfo->ret.storage == RegTypeStructByAddr);
+		info->vret_arg_reg = gcinfo->ret.reg;
+	} else {
+		info->vret_arg_reg = -1;
+	}
+	if (virtual) {
+		g_assert (!gsharedvt_in);
+		/* Same as in mono_emit_method_call_full () */
+		info->vcall_offset = G_STRUCT_OFFSET (MonoVTable, vtable) +
+			((mono_method_get_vtable_index (normal_method)) * (SIZEOF_VOID_P));
+	} else {
+		info->vcall_offset = -1;
+	}
+	info->map_count = map->len / 2;
+	for (i = 0; i < map->len; ++i)
+		info->map [i] = GPOINTER_TO_UINT (g_ptr_array_index (map, i));
+	g_ptr_array_free (map, TRUE);
+
+	/* Compute return value marshalling */
+	if (var_ret) {
+		switch (cinfo->ret.storage) {
+		case RegTypeGeneral:
+		case RegTypeIRegPair:
+			// FIXME: More cases ?
+			if (gsharedvt_in && !sig->ret->byref && (sig->ret->type == MONO_TYPE_I1 || sig->ret->type == MONO_TYPE_BOOLEAN))
+				info->ret_marshal = GSHAREDVT_RET_I1;
+			if (gsharedvt_in && !sig->ret->byref && sig->ret->type == MONO_TYPE_U1)
+				info->ret_marshal = GSHAREDVT_RET_U1;
+			else if (gsharedvt_in && !sig->ret->byref && sig->ret->type == MONO_TYPE_I2)
+				info->ret_marshal = GSHAREDVT_RET_I2;
+			else if (gsharedvt_in && !sig->ret->byref && sig->ret->type == MONO_TYPE_U2)
+				info->ret_marshal = GSHAREDVT_RET_U2;
+			else
+				info->ret_marshal = GSHAREDVT_RET_IREGS;
+			break;
+		case RegTypeFP:
+			// FIXME: VFP
+			info->ret_marshal = GSHAREDVT_RET_IREGS;
+			break;
+#if 0
+		case ArgOnDoubleFpStack:
+			info->ret_marshal = GSHAREDVT_RET_DOUBLE_FPSTACK;
+			break;
+		case ArgOnFloatFpStack:
+			info->ret_marshal = GSHAREDVT_RET_FLOAT_FPSTACK;
+			break;
+		case ArgOnStack:
+			/* The caller passes in a vtype ret arg as well */
+			g_assert (gcinfo->vtype_retaddr);
+			/* Just have to pop the arg, as done by normal methods in their epilog */
+			info->ret_marshal = GSHAREDVT_RET_STACK_POP;
+			break;
+#endif
+		default:
+			g_assert_not_reached ();
+		}
+	}
+
+	if (gsharedvt_in && var_ret && !caller_cinfo->vtype_retaddr) {
+		/* Allocate stack space for the return value */
+		info->vret_slot = info->stack_usage / sizeof (gpointer);
+		// FIXME:
+		info->stack_usage += sizeof (gpointer) * 3;
+	}
+
+	info->stack_usage = ALIGN_TO (info->stack_usage, MONO_ARCH_FRAME_ALIGNMENT);
+
+	return info;
 }

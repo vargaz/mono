@@ -816,13 +816,259 @@ mono_arm_get_thumb_plt_entry (guint8 *code)
 gpointer
 mono_arch_get_gsharedvt_arg_trampoline (MonoDomain *domain, gpointer arg, gpointer addr)
 {
-	g_assert_not_reached ();
-	return NULL;
+	guint8 *code, *start;
+	int buf_len;
+	gpointer *constants;
+
+	buf_len = 24;
+
+	start = code = mono_domain_code_reserve (domain, buf_len);
+
+	/* Similar to the specialized trampoline code */
+	ARM_PUSH (code, (1 << ARMREG_R0) | (1 << ARMREG_R1) | (1 << ARMREG_R2) | (1 << ARMREG_R3) | (1 << ARMREG_LR));
+	ARM_LDR_IMM (code, ARMREG_IP, ARMREG_PC, 8);
+	/* arg is passed in LR */
+	ARM_LDR_IMM (code, ARMREG_LR, ARMREG_PC, 0);
+	code = emit_bx (code, ARMREG_IP);
+	constants = (gpointer*)code;
+	constants [0] = arg;
+	constants [1] = addr;
+	code += 8;
+
+	g_assert ((code - start) <= buf_len);
+
+	nacl_domain_code_validate (domain, &start, buf_len, &code);
+	mono_arch_flush_icache (start, code - start);
+
+	return start;
+}
+
+void
+mono_arm_start_gsharedvt_call (GSharedVtCallInfo *info, gpointer *caller, gpointer *callee, gpointer *caller_regs, gpointer *callee_regs)
+{
+	int i;
+
+	/* Set vtype ret arg */
+	if (info->vret_slot != -1) {
+		callee_regs [info->vret_arg_reg] = &callee [info->vret_slot];
+	}
+
+	for (i = 0; i < info->map_count; ++i) {
+		int src = info->map [i * 2];
+		int dst = info->map [(i * 2) + 1];
+		gpointer val;
+
+		if (src < 0) {
+			int sreg = (- src) - 1;
+			val = caller_regs [sreg];
+		} else {
+			val = caller [src];
+		}
+
+		if (dst < 0) {
+			int dreg = (- dst) - 1;
+			callee_regs [dreg] = val;
+		} else {
+			callee [dst] = val;
+		}
+	}
+
+	g_assert (info->vcall_offset == -1);
+	if (!info->gsharedvt_in) {
+		printf ("HIT!\n");
+	}
 }
 
 gpointer
 mono_arch_get_gsharedvt_trampoline (MonoTrampInfo **info, gboolean aot)
 {
-	g_assert_not_reached ();
-	return NULL;
+	guint8 *code, *buf;
+	int buf_len, cfa_offset;
+	GSList *unwind_ops = NULL;
+	MonoJumpInfo *ji = NULL;
+	guint8 *br_out, *br_vcall [16], *br [16], *br_ret [16];
+	int i, info_offset, mrgctx_offset, caller_reg_area_offset, callee_reg_area_offset;
+	int lr_offset, fp, br_ret_index;
+
+	buf_len = 320;
+	buf = code = mono_global_codeman_reserve (buf_len);
+
+	// ios abi compatible frame
+	fp = ARMREG_R7;
+	/* Registers pushed by the arg trampoline */
+	cfa_offset = 5 * sizeof (gpointer);
+	mono_add_unwind_op_def_cfa (unwind_ops, code, buf, ARMREG_SP, cfa_offset);
+	/* The last reg saved by the STM in the trampoline */
+	mono_add_unwind_op_offset (unwind_ops, code, buf, ARMREG_LR, -4);
+	ARM_PUSH (code, (1 << fp));
+	cfa_offset += sizeof (gpointer);
+	mono_add_unwind_op_def_cfa_offset (unwind_ops, code, buf, cfa_offset);
+	mono_add_unwind_op_offset (unwind_ops, code, buf, fp, (- cfa_offset));
+	ARM_MOV_REG_REG (code, fp, ARMREG_SP);
+	mono_add_unwind_op_def_cfa_reg (unwind_ops, code, buf, fp);
+	/* Allocate stack frame */
+	ARM_SUB_REG_IMM8 (code, ARMREG_SP, ARMREG_SP, 32);
+	info_offset = -4;
+	mrgctx_offset = -8;
+	callee_reg_area_offset = - (6 * 4);
+	caller_reg_area_offset = cfa_offset - (5 * sizeof (gpointer));
+	lr_offset = cfa_offset - 4;
+	/* Save info struct which is in lr */
+	ARM_STR_IMM (code, ARMREG_LR, fp, info_offset);
+	/* Save rgctx reg */
+	ARM_STR_IMM (code, MONO_ARCH_RGCTX_REG, fp, mrgctx_offset);
+	/* Allocate callee area */
+	ARM_LDR_IMM (code, ARMREG_IP, ARMREG_LR, G_STRUCT_OFFSET (GSharedVtCallInfo, stack_usage));
+	ARM_SUB_REG_REG (code, ARMREG_SP, ARMREG_SP, ARMREG_IP);
+
+	/*
+	 * The stack now looks like this:
+	 * <caller frame>
+	 * <saved r0-r3, lr>
+	 * <saved fp> <- fp
+	 * <our frame>
+	 * <callee area> <- sp
+	 */
+	g_assert (mono_arm_thumb_supported ());
+
+	/* Call start_gsharedvt_call () */
+	/* 5 arguments, needs 1 stack slot */
+	ARM_SUB_REG_IMM8 (code, ARMREG_SP, ARMREG_SP, 4);
+	/* arg1 == info */
+	ARM_LDR_IMM (code, ARMREG_R0, fp, info_offset);
+	/* arg2 == caller stack area */
+	ARM_ADD_REG_IMM8 (code, ARMREG_R1, fp, cfa_offset);
+	/* arg3 == callee stack area */
+	ARM_ADD_REG_IMM8 (code, ARMREG_R2, ARMREG_SP, 4);
+	/* arg4 == caller register save area */
+	ARM_ADD_REG_IMM8 (code, ARMREG_R3, fp, caller_reg_area_offset);
+	/* arg5 == callee register save area */
+	ARM_ADD_REG_IMM8 (code, ARMREG_IP, fp, callee_reg_area_offset);
+	ARM_STR_IMM (code, ARMREG_IP, ARMREG_SP, 0);
+	/* Make the call */
+	ARM_LDR_IMM (code, ARMREG_IP, ARMREG_PC, 0);
+	ARM_B (code, 0);
+	*(gpointer*)code = mono_arm_start_gsharedvt_call;
+	code += 4;
+	ARM_BLX_REG (code, ARMREG_IP);
+	g_assert (!aot);
+	/* Clean up stack */
+	ARM_ADD_REG_IMM8 (code, ARMREG_SP, ARMREG_SP, 4);
+
+	/* Make the real method call */
+	/* Load argument registers */
+	ARM_ADD_REG_IMM8 (code, ARMREG_R0, fp, callee_reg_area_offset);
+	ARM_LDM (code, ARMREG_R0, (1 << ARMREG_R0) | (1 << ARMREG_R1) | (1 << ARMREG_R2) | (1 << ARMREG_R3));
+	/* Load rgctx */
+	ARM_LDR_IMM (code, MONO_ARCH_RGCTX_REG, fp, mrgctx_offset);
+	/* Make the call */
+	ARM_LDR_IMM (code, ARMREG_IP, fp, info_offset);
+	ARM_LDR_IMM (code, ARMREG_IP, ARMREG_IP, G_STRUCT_OFFSET (GSharedVtCallInfo, addr));
+	ARM_BLX_REG (code, ARMREG_IP);
+
+	br_ret_index = 0;
+
+	/* Branch between IN/OUT cases */
+	ARM_LDR_IMM (code, ARMREG_IP, fp, info_offset);
+	ARM_LDR_IMM (code, ARMREG_IP, ARMREG_IP, G_STRUCT_OFFSET (GSharedVtCallInfo, gsharedvt_in));
+
+	ARM_CMP_REG_IMM8 (code, ARMREG_IP, 1);
+	br_out = code;
+	ARM_B_COND (code, ARMCOND_NE, 0);
+
+	/* IN CASE */
+
+	/* Marshal return value */
+	ARM_LDR_IMM (code, ARMREG_IP, fp, info_offset);
+	ARM_LDR_IMM (code, ARMREG_IP, ARMREG_IP, G_STRUCT_OFFSET (GSharedVtCallInfo, ret_marshal));
+
+	ARM_CMP_REG_IMM8 (code, ARMREG_IP, GSHAREDVT_RET_IREGS);
+	br [0] = code;
+	ARM_B_COND (code, ARMCOND_NE, 0);
+
+	/* IN IREGS case */
+	/* Compute vret area address */
+	ARM_LDR_IMM (code, ARMREG_IP, fp, info_offset);
+	ARM_LDR_IMM (code, ARMREG_IP, ARMREG_IP, G_STRUCT_OFFSET (GSharedVtCallInfo, vret_slot));
+	ARM_SHL_IMM (code, ARMREG_IP, ARMREG_IP, 2);
+	ARM_ADD_REG_REG (code, ARMREG_IP, ARMREG_IP, ARMREG_SP);
+	/* Load both registers for simplicity */
+	ARM_LDR_IMM (code, ARMREG_R0, ARMREG_IP, 0);
+	ARM_LDR_IMM (code, ARMREG_R1, ARMREG_IP, 4);
+
+	br_ret [br_ret_index ++] = code;
+	ARM_B (code, 0);
+
+	arm_patch (br [0], code);
+
+	ARM_CMP_REG_IMM8 (code, ARMREG_IP, GSHAREDVT_RET_I2);
+	br [0] = code;
+	ARM_B_COND (code, ARMCOND_NE, 0);
+
+	/* I2 case */
+	/* Compute vret area address */
+	ARM_LDR_IMM (code, ARMREG_IP, fp, info_offset);
+	ARM_LDR_IMM (code, ARMREG_IP, ARMREG_IP, G_STRUCT_OFFSET (GSharedVtCallInfo, vret_slot));
+	ARM_SHL_IMM (code, ARMREG_IP, ARMREG_IP, 2);
+	ARM_ADD_REG_REG (code, ARMREG_IP, ARMREG_IP, ARMREG_SP);
+	ARM_LDRSH_IMM (code, ARMREG_R0, ARMREG_IP, 0);
+
+	br_ret [br_ret_index ++] = code;
+	ARM_B (code, 0);
+
+	/* IN other cases */
+	arm_patch (br [0], code);
+	br_ret [br_ret_index ++] = code;
+	ARM_B (code, 0);
+
+	/* OUT CASE */
+	arm_patch (br_out, code);
+
+	/* Marshal return value */
+	ARM_LDR_IMM (code, ARMREG_IP, fp, info_offset);
+	ARM_LDR_IMM (code, ARMREG_IP, ARMREG_IP, G_STRUCT_OFFSET (GSharedVtCallInfo, ret_marshal));
+
+	ARM_CMP_REG_IMM8 (code, ARMREG_IP, GSHAREDVT_RET_IREGS);
+	br [0] = code;
+	ARM_B_COND (code, ARMCOND_NE, 0);
+
+	/* OUT IREGS case */
+	/* Load vtype ret addr from the caller arg regs */
+	ARM_LDR_IMM (code, ARMREG_IP, fp, info_offset);
+	ARM_LDR_IMM (code, ARMREG_IP, ARMREG_IP, G_STRUCT_OFFSET (GSharedVtCallInfo, vret_arg_reg));
+	ARM_SHL_IMM (code, ARMREG_IP, ARMREG_IP, 2);
+	ARM_ADD_REG_REG (code, ARMREG_IP, ARMREG_IP, fp);
+	ARM_ADD_REG_IMM8 (code, ARMREG_IP, ARMREG_IP, caller_reg_area_offset);
+	ARM_LDR_IMM (code, ARMREG_IP, ARMREG_IP, 0);
+	/* Save both registers for simplicity */
+	ARM_STR_IMM (code, ARMREG_R0, ARMREG_IP, 0);
+	ARM_STR_IMM (code, ARMREG_R1, ARMREG_IP, 4);
+	br_ret [br_ret_index ++] = code;
+	ARM_B (code, 0);
+
+	/* OUT other cases */
+	arm_patch (br [0], code);
+	br_ret [br_ret_index ++] = code;
+	ARM_B (code, 0);
+
+	for (i = 0; i < br_ret_index; ++i)
+		arm_patch (br_ret [i], code);
+
+	/* Normal return */
+	/* The real return address is saved in the arg trampoline */
+	ARM_LDR_IMM (code, ARMREG_LR, fp, lr_offset);
+	/* Restore registers + stack */
+	ARM_MOV_REG_REG (code, ARMREG_SP, fp);
+	ARM_LDM (code, ARMREG_FP, (1 << fp));
+	ARM_ADD_REG_IMM8 (code, ARMREG_SP, ARMREG_SP, cfa_offset);
+	/* Return */
+	ARM_BX (code, ARMREG_LR);
+
+	g_assert ((code - buf) < buf_len);
+
+	if (info)
+		*info = mono_tramp_info_create ("gsharedvt_trampoline", buf, code - buf, ji, unwind_ops);
+
+	mono_arch_flush_icache (buf, code - buf);
+	return buf;
 }
