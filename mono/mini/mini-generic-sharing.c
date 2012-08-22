@@ -1980,8 +1980,11 @@ mini_class_get_context (MonoClass *class)
 MonoType*
 mini_get_basic_type_from_generic (MonoGenericSharingContext *gsctx, MonoType *type)
 {
+	/* FIXME: Some callers don't pass in a gsctx, like mono_dyn_call_prepare () */
+	/*
 	if (!type->byref && (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR))
 		g_assert (gsctx);
+	*/
 	if (!type->byref && (type->type == MONO_TYPE_VAR || type->type == MONO_TYPE_MVAR) && mini_is_gsharedvt_type_gsctx (gsctx, type))
 		return &(mini_get_gsharedvt_alloc_type (NULL))->byval_arg;
 	else

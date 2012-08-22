@@ -7198,7 +7198,9 @@ mono_set_optimizations (guint32 opts)
 {
 	default_opt = opts;
 	default_opt_set = TRUE;
-	mono_set_generic_sharing_vt_supported ((default_opt & MONO_OPT_GSHAREDVT) != 0);
+#ifdef MONO_ARCH_GSHAREDVT_SUPPORTED
+	mono_set_generic_sharing_vt_supported (mono_aot_only || ((default_opt & MONO_OPT_GSHAREDVT) != 0));
+#endif
 }
 
 void

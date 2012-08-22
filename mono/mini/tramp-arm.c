@@ -951,12 +951,22 @@ mono_arch_get_gsharedvt_trampoline (MonoTrampInfo **info, gboolean aot)
 	ARM_SUB_REG_IMM8 (code, ARMREG_IP, fp, -callee_reg_area_offset);
 	ARM_STR_IMM (code, ARMREG_IP, ARMREG_SP, 0);
 	/* Make the call */
-	ARM_LDR_IMM (code, ARMREG_IP, ARMREG_PC, 0);
-	ARM_B (code, 0);
-	*(gpointer*)code = mono_arm_start_gsharedvt_call;
-	code += 4;
-	ARM_BLX_REG (code, ARMREG_IP);
-	g_assert (!aot);
+	if (aot) {
+		ji = mono_patch_info_list_prepend (ji, code - buf, MONO_PATCH_INFO_JIT_ICALL_ADDR, "mono_arm_start_gsharedvt_call");
+		ARM_LDR_IMM (code, ARMREG_IP, ARMREG_PC, 0);
+		ARM_B (code, 0);
+		*(gpointer*)code = NULL;
+		code += 4;
+		ARM_LDR_REG_REG (code, ARMREG_IP, ARMREG_PC, ARMREG_IP);
+	} else {
+		ARM_LDR_IMM (code, ARMREG_IP, ARMREG_PC, 0);
+		ARM_B (code, 0);
+		*(gpointer*)code = mono_arm_start_gsharedvt_call;
+		code += 4;
+	}
+	ARM_MOV_REG_REG (code, ARMREG_LR, ARMREG_PC);
+	code = emit_bx (code, ARMREG_IP);
+
 	/* Clean up stack */
 	ARM_ADD_REG_IMM8 (code, ARMREG_SP, ARMREG_SP, 4);
 

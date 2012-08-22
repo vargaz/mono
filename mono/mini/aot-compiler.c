@@ -128,7 +128,7 @@ typedef struct MonoAotOptions {
 	int ntrampolines;
 	int nrgctx_trampolines;
 	int nimt_trampolines;
-	int ngsharedvt_trampolines;
+	int ngsharedvt_arg_trampolines;
 	gboolean print_skipped_methods;
 	gboolean stats;
 	char *tool_prefix;
@@ -1596,9 +1596,9 @@ arch_emit_imt_thunk (MonoAotCompile *acfg, int offset, int *tramp_size)
 }
 
 /*
- * arch_emit_gsharedvt_trampoline:
+ * arch_emit_gsharedvt_arg_trampoline:
  *
- *   Emit code for a gsharedvt trampoline. OFFSET is the offset of the first of
+ *   Emit code for a gsharedvt arg trampoline. OFFSET is the offset of the first of
  * two GOT slots which contain the argument, and the code to jump to.
  * TRAMP_SIZE is set to the size of the emitted trampoline.
  * These kinds of trampolines cannot be enumerated statically, since there could
@@ -1606,7 +1606,7 @@ arch_emit_imt_thunk (MonoAotCompile *acfg, int offset, int *tramp_size)
  * trampolines, and parameterize them using two GOT slots.
  */
 static void
-arch_emit_gsharedvt_trampoline (MonoAotCompile *acfg, int offset, int *tramp_size)
+arch_emit_gsharedvt_arg_trampoline (MonoAotCompile *acfg, int offset, int *tramp_size)
 {
 #if defined(TARGET_X86)
 	guint8 buf [128];
@@ -1636,6 +1636,28 @@ arch_emit_gsharedvt_trampoline (MonoAotCompile *acfg, int offset, int *tramp_siz
 
 	*tramp_size = NACL_SIZE (15, kNaClAlignment);
 	g_assert (code - buf == *tramp_size);
+#elif defined(TARGET_ARM)
+	guint8 buf [128];
+	guint8 *code;
+
+	/* The same as mono_arch_get_gsharedvt_arg_trampoline (), but for AOT */
+	/* Similar to arch_emit_specific_trampoline () */
+	*tramp_size = 24;
+	code = buf;
+	ARM_PUSH (code, (1 << ARMREG_R0) | (1 << ARMREG_R1) | (1 << ARMREG_R2) | (1 << ARMREG_R3) | (1 << ARMREG_LR));
+	ARM_LDR_IMM (code, ARMREG_R1, ARMREG_PC, 8);
+	/* Load the arg value from the GOT */
+	ARM_LDR_REG_REG (code, ARMREG_LR, ARMREG_PC, ARMREG_R1);
+	/* Load the addr from the GOT */
+	ARM_LDR_REG_REG (code, ARMREG_R1, ARMREG_PC, ARMREG_R1);
+	/* Branch to it */
+	ARM_BX (code, ARMREG_R1);
+
+	g_assert (code - buf == 20);
+
+	/* Emit it */
+	emit_bytes (acfg, buf, code - buf);
+	emit_symbol_diff (acfg, acfg->got_symbol, ".", (offset * sizeof (gpointer)) + 4);
 #else
 	g_assert_not_reached ();
 #endif
@@ -5176,7 +5198,7 @@ emit_trampolines (MonoAotCompile *acfg)
 					tramp_got_offset += 1;
 					break;
 				case MONO_AOT_TRAMP_GSHAREDVT:
-					arch_emit_gsharedvt_trampoline (acfg, tramp_got_offset, &tramp_size);				
+					arch_emit_gsharedvt_arg_trampoline (acfg, tramp_got_offset, &tramp_size);				
 					tramp_got_offset += 2;
 					break;
 				default:
@@ -5330,7 +5352,7 @@ mono_aot_parse_options (const char *aot_options, MonoAotOptions *opts)
 		} else if (str_begins_with (arg, "nimt-trampolines=")) {
 			opts->nimt_trampolines = atoi (arg + strlen ("nimt-trampolines="));
 		} else if (str_begins_with (arg, "ngsharedvt-trampolines=")) {
-			opts->ngsharedvt_trampolines = atoi (arg + strlen ("ngsharedvt-trampolines="));
+			opts->ngsharedvt_arg_trampolines = atoi (arg + strlen ("ngsharedvt-trampolines="));
 		} else if (str_begins_with (arg, "autoreg")) {
 			opts->autoreg = TRUE;
 		} else if (str_begins_with (arg, "tool-prefix=")) {
@@ -7636,7 +7658,7 @@ mono_compile_assembly (MonoAssembly *ass, guint32 opts, const char *aot_options)
 	acfg->aot_opts.ntrampolines = 1024;
 	acfg->aot_opts.nrgctx_trampolines = 1024;
 	acfg->aot_opts.nimt_trampolines = 128;
-	acfg->aot_opts.ngsharedvt_trampolines = 128;
+	acfg->aot_opts.ngsharedvt_arg_trampolines = 128;
 	acfg->aot_opts.llvm_path = g_strdup ("");
 
 	mono_aot_parse_options (aot_options, &acfg->aot_opts);
@@ -7695,7 +7717,10 @@ mono_compile_assembly (MonoAssembly *ass, guint32 opts, const char *aot_options)
 	acfg->num_trampolines [MONO_AOT_TRAMP_STATIC_RGCTX] = acfg->aot_opts.full_aot ? acfg->aot_opts.nrgctx_trampolines : 0;
 #endif
 	acfg->num_trampolines [MONO_AOT_TRAMP_IMT_THUNK] = acfg->aot_opts.full_aot ? acfg->aot_opts.nimt_trampolines : 0;
-	acfg->num_trampolines [MONO_AOT_TRAMP_GSHAREDVT] = acfg->aot_opts.full_aot ? acfg->aot_opts.ngsharedvt_trampolines : 0;
+#ifdef MONO_ARCH_GSHAREDVT_SUPPORTED
+	if (acfg->opts & MONO_OPT_GSHAREDVT)
+		acfg->num_trampolines [MONO_AOT_TRAMP_GSHAREDVT] = acfg->aot_opts.full_aot ? acfg->aot_opts.ngsharedvt_arg_trampolines : 0;
+#endif
 
 	acfg->temp_prefix = img_writer_get_temp_label_prefix (NULL);
 
