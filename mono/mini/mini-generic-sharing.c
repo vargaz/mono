@@ -2024,12 +2024,17 @@ mini_type_stack_size (MonoGenericSharingContext *gsctx, MonoType *t, int *align)
 /*
  * mini_type_stack_size_full:
  *
- *   Same as mini_type_stack_size, but handle pinvoke data types as well.
+ *   Same as mini_type_stack_size, but handle gsharedvt and pinvoke data types as well.
  */
 int
 mini_type_stack_size_full (MonoGenericSharingContext *gsctx, MonoType *t, guint32 *align, gboolean pinvoke)
 {
 	int size;
+
+	/*
+	if (t->type == MONO_TYPE_VAR || t->type == MONO_TYPE_MVAR)
+		g_assert (gsctx);
+	*/
 
 	if (mini_is_gsharedvt_type_gsctx (gsctx, t))
 		t = mini_get_gsharedvt_alloc_type_gsctx (gsctx, t);

@@ -19,7 +19,6 @@
 
 #include "mini.h"
 #include "mini-arm.h"
-#include "info.h"
 
 #define ALIGN_TO(val,align) ((((guint64)val) + ((align) - 1)) & ~((align) - 1))
 
@@ -843,7 +842,7 @@ mono_arch_get_gsharedvt_arg_trampoline (MonoDomain *domain, gpointer arg, gpoint
 	return start;
 }
 
-void
+gpointer
 mono_arm_start_gsharedvt_call (GSharedVtCallInfo *info, gpointer *caller, gpointer *callee, gpointer *caller_regs, gpointer *callee_regs)
 {
 	int i;
@@ -873,9 +872,14 @@ mono_arm_start_gsharedvt_call (GSharedVtCallInfo *info, gpointer *caller, gpoint
 		}
 	}
 
-	g_assert (info->vcall_offset == -1);
-	if (!info->gsharedvt_in) {
-		printf ("HIT!\n");
+	if (info->vcall_offset != -1) {
+		MonoObject *this_obj = caller_regs [0];
+
+		// FIXME:
+		g_assert (this_obj != NULL);
+		return *(gpointer*)((char*)this_obj->vtable + info->vcall_offset);
+	} else {
+		return info->addr;
 	}
 }
 
@@ -886,7 +890,7 @@ mono_arch_get_gsharedvt_trampoline (MonoTrampInfo **info, gboolean aot)
 	int buf_len, cfa_offset;
 	GSList *unwind_ops = NULL;
 	MonoJumpInfo *ji = NULL;
-	guint8 *br_out, *br_vcall [16], *br [16], *br_ret [16];
+	guint8 *br_out, *br [16], *br_ret [16];
 	int i, info_offset, mrgctx_offset, caller_reg_area_offset, callee_reg_area_offset;
 	int lr_offset, fp, br_ret_index;
 
@@ -943,7 +947,8 @@ mono_arch_get_gsharedvt_trampoline (MonoTrampInfo **info, gboolean aot)
 	/* arg4 == caller register save area */
 	ARM_ADD_REG_IMM8 (code, ARMREG_R3, fp, caller_reg_area_offset);
 	/* arg5 == callee register save area */
-	ARM_ADD_REG_IMM8 (code, ARMREG_IP, fp, callee_reg_area_offset);
+	g_assert (callee_reg_area_offset < 0);
+	ARM_SUB_REG_IMM8 (code, ARMREG_IP, fp, -callee_reg_area_offset);
 	ARM_STR_IMM (code, ARMREG_IP, ARMREG_SP, 0);
 	/* Make the call */
 	ARM_LDR_IMM (code, ARMREG_IP, ARMREG_PC, 0);
@@ -956,14 +961,19 @@ mono_arch_get_gsharedvt_trampoline (MonoTrampInfo **info, gboolean aot)
 	ARM_ADD_REG_IMM8 (code, ARMREG_SP, ARMREG_SP, 4);
 
 	/* Make the real method call */
+	/* R0 contains the addr to call */
+	ARM_MOV_REG_REG (code, ARMREG_IP, ARMREG_R0);
 	/* Load argument registers */
-	ARM_ADD_REG_IMM8 (code, ARMREG_R0, fp, callee_reg_area_offset);
+	g_assert (callee_reg_area_offset < 0);
+	ARM_SUB_REG_IMM8 (code, ARMREG_R0, fp, -callee_reg_area_offset);
 	ARM_LDM (code, ARMREG_R0, (1 << ARMREG_R0) | (1 << ARMREG_R1) | (1 << ARMREG_R2) | (1 << ARMREG_R3));
 	/* Load rgctx */
 	ARM_LDR_IMM (code, MONO_ARCH_RGCTX_REG, fp, mrgctx_offset);
 	/* Make the call */
+#if 0
 	ARM_LDR_IMM (code, ARMREG_IP, fp, info_offset);
 	ARM_LDR_IMM (code, ARMREG_IP, ARMREG_IP, G_STRUCT_OFFSET (GSharedVtCallInfo, addr));
+#endif
 	ARM_BLX_REG (code, ARMREG_IP);
 
 	br_ret_index = 0;
@@ -1059,7 +1069,7 @@ mono_arch_get_gsharedvt_trampoline (MonoTrampInfo **info, gboolean aot)
 	ARM_LDR_IMM (code, ARMREG_LR, fp, lr_offset);
 	/* Restore registers + stack */
 	ARM_MOV_REG_REG (code, ARMREG_SP, fp);
-	ARM_LDM (code, ARMREG_FP, (1 << fp));
+	ARM_LDM (code, fp, (1 << fp));
 	ARM_ADD_REG_IMM8 (code, ARMREG_SP, ARMREG_SP, cfa_offset);
 	/* Return */
 	ARM_BX (code, ARMREG_LR);

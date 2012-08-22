@@ -24,7 +24,6 @@
 #include "mini-gc.h"
 #include "mono/arch/arm/arm-fpa-codegen.h"
 #include "mono/arch/arm/arm-vfp-codegen.h"
-#include "info.h"
 
 #if defined(__ARM_EABI__) && defined(__linux__) && !defined(PLATFORM_ANDROID)
 #define HAVE_AEABI_READ_TP 1
@@ -1144,10 +1143,9 @@ get_call_info (MonoGenericSharingContext *gsctx, MonoMemPool *mp, MonoMethodSign
 				if (is_pinvoke)
 					size = mono_class_native_size (klass, &align);
 				else
-					size = mono_class_value_size (klass, &align);
+					size = mini_type_stack_size_full (gsctx, simpletype, &align, FALSE);
 			}
-			DEBUG(printf ("load %d bytes struct\n",
-				      mono_class_native_size (sig->params [i]->data.klass, NULL)));
+			DEBUG(printf ("load %d bytes struct\n", size));
 			align_size = size;
 			nwords = 0;
 			align_size += (sizeof (gpointer) - 1);
@@ -1599,7 +1597,7 @@ mono_arch_allocate_vars (MonoCompile *cfg)
 		if (ins->opcode != OP_REGVAR) {
 			ins->opcode = OP_REGOFFSET;
 			ins->inst_basereg = cfg->frame_reg;
-			size = mini_type_stack_size_full (NULL, sig->params [i], &ualign, sig->pinvoke);
+			size = mini_type_stack_size_full (cfg->generic_sharing_context, sig->params [i], &ualign, sig->pinvoke);
 			align = ualign;
 			/* FIXME: if a structure is misaligned, our memcpy doesn't work,
 			 * since it loads/stores misaligned words, which don't do the right thing.
@@ -6276,6 +6274,65 @@ mono_arch_gsharedvt_sig_supported (MonoMethodSignature *sig)
 	return TRUE;
 }
 
+static inline void
+add_to_map (GPtrArray *map, int src, int dst)
+{
+	g_ptr_array_add (map, GUINT_TO_POINTER (src));
+	g_ptr_array_add (map, GUINT_TO_POINTER (dst));
+}
+
+static inline int
+map_reg (int reg)
+{
+	return - (reg + 1);
+}
+
+static int
+get_arg_slots (ArgInfo *ainfo, int **out_slots)
+{
+	int sreg = ainfo->reg;
+	int sslot = ainfo->offset / 4;
+	int *src = NULL;
+	int i, nsrc;
+
+	switch (ainfo->storage) {
+	case RegTypeGeneral:
+		nsrc = 1;
+		src = g_malloc (nsrc * sizeof (int));
+		src [0] = map_reg (sreg);
+		break;
+	case RegTypeIRegPair:
+		nsrc = 2;
+		src = g_malloc (nsrc * sizeof (int));
+		src [0] = map_reg (sreg);
+		src [1] = map_reg (sreg + 1);
+		break;
+	case RegTypeStructByVal:
+		nsrc = ainfo->struct_size / 4;
+		src = g_malloc (nsrc * sizeof (int));
+		g_assert (ainfo->size <= nsrc);
+		for (i = 0; i < ainfo->size; ++i)
+			src [i] = map_reg (sreg + i);
+		for (i = ainfo->size; i < nsrc; ++i)
+			src [i] = sslot + (i - ainfo->size);
+		break;
+	case RegTypeBase:
+		// FIXME:
+		g_assert (ainfo->size == 8);
+		nsrc = 2;
+		src = g_malloc (nsrc * sizeof (int));
+		for (i = 0; i < nsrc; ++i)
+			src [i] = sslot + i;
+		break;
+	default:
+		g_assert_not_reached ();
+		break;
+	}
+
+	*out_slots = src;
+	return nsrc;
+}
+
 /*
  * mono_arch_get_gsharedvt_call_info:
  *
@@ -6287,7 +6344,7 @@ mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethod *normal_method, Mon
 	GSharedVtCallInfo *info;
 	CallInfo *caller_cinfo, *callee_cinfo;
 	MonoMethodSignature *caller_sig, *callee_sig;
-	int i, j;
+	int aindex, i;
 	gboolean var_ret = FALSE;
 	CallInfo *cinfo, *gcinfo;
 	MonoMethodSignature *sig, *gsig;
@@ -6347,100 +6404,28 @@ mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethod *normal_method, Mon
 		 * This handles the case when the method returns a normal vtype, and when it returns a type arg, and its instantiated
 		 * with a vtype.
 		 */
-		// FIXME:
-		NOT_IMPLEMENTED;
-		/*
-		g_ptr_array_add (map, GUINT_TO_POINTER (caller_cinfo->vret_arg_offset / sizeof (gpointer)));
-		g_ptr_array_add (map, GUINT_TO_POINTER (callee_cinfo->vret_arg_offset / sizeof (gpointer)));
-		*/
+		g_assert (caller_cinfo->ret.storage == RegTypeStructByAddr);
+		g_assert (callee_cinfo->ret.storage == RegTypeStructByAddr);
+		add_to_map (map, map_reg (caller_cinfo->ret.reg), map_reg (callee_cinfo->ret.reg));
 	}
 
 	//g_assert (gsharedvt_in);
 
-	for (i = 0; i < cinfo->nargs; ++i) {
-		ArgInfo *ainfo = &caller_cinfo->args [i];
-		ArgInfo *ainfo2 = &callee_cinfo->args [i];
-		int nslots, j;
+	for (aindex = 0; aindex < cinfo->nargs; ++aindex) {
+		ArgInfo *ainfo = &caller_cinfo->args [aindex];
+		ArgInfo *ainfo2 = &callee_cinfo->args [aindex];
+		int *src = NULL, *dst = NULL;
+		int nsrc, ndst, nslots;
 
-		switch (ainfo->storage) {
-		case RegTypeGeneral:
-			switch (ainfo2->storage) {
-			case RegTypeGeneral:
-				g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo->reg + 1)));
-				g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo2->reg + 1)));
-				break;
-			case RegTypeStructByVal:
-				/* Copy just one reg */
-				g_assert (ainfo2->size > 0);
-				g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo->reg + 1)));
-				g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo2->reg + 1)));
-				break;
-			default:
-				NOT_IMPLEMENTED;
-			}
-			break;
-		case RegTypeIRegPair:
-			switch (ainfo2->storage) {
-			case RegTypeIRegPair:
-				g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo->reg + 1)));
-				g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo2->reg + 1)));
-				g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo->reg + 1 + 1)));
-				g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo2->reg + 1 + 1)));
-				break;
-			case RegTypeStructByVal:
-				if (ainfo2->size > 1) {
-					g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo->reg + 1)));
-					g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo2->reg + 1)));
-					g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo->reg + 1 + 1)));
-					g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo2->reg + 1 + 1)));
-				} else if (ainfo2->size == 1) {
-					g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo->reg + 1)));
-					g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo2->reg + 1)));
-					/* The second word is passed on the stack */
-					g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo->reg + 1 + 1)));
-					g_ptr_array_add (map, GUINT_TO_POINTER (ainfo2->offset));
-				} else {
-					g_assert_not_reached ();
-				}
-				break;
-			default:
-				NOT_IMPLEMENTED;
-			}
-			break;
-		case RegTypeStructByVal:
-			if (ainfo2->storage == RegTypeStructByVal) {
-				// FIXME:
-				g_assert (ainfo->struct_size == ainfo->size * 4);
-				g_assert (ainfo2->struct_size == ainfo2->size * 4);
-				for (j = 0; j < ainfo->size; ++j) {
-					g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo->reg + j + 1)));
-					g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo2->reg + j + 1)));
-				}
-			} else if (ainfo2->storage == RegTypeGeneral) {
-				g_assert (!gsharedvt_in);
-				// FIXME:
-				g_assert (ainfo->struct_size == ainfo->size * 4);
-				g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo->reg + 1)));
-				g_ptr_array_add (map, GUINT_TO_POINTER (- (ainfo2->reg + 1)));
-			} else {
-				NOT_IMPLEMENTED;
-			}
-			break;
-		default:
-			g_assert_not_reached ();
-		}
-			
-#if 0		
-		/* Have to use the non-gsharedvt size */ 
-		nslots = cinfo->args [i].nslots;
-		if (!nslots)
-			nslots = 1;
-		g_assert (ainfo->storage == ArgOnStack);
-		for (j = 0; j < nslots; ++j) {
-			g_ptr_array_add (map, GUINT_TO_POINTER ((ainfo->offset / sizeof (gpointer)) + j));
-			g_ptr_array_add (map, GUINT_TO_POINTER ((ainfo2->offset / sizeof (gpointer)) + j));
-		}
-#endif
+		nsrc = get_arg_slots (ainfo, &src);
+		ndst = get_arg_slots (ainfo2, &dst);
+		nslots = MIN (nsrc, ndst);
+
+		for (i = 0; i < nslots; ++i)
+			add_to_map (map, src [i], dst [i]);
+
+		g_free (src);
+		g_free (dst);
 	}
 
 	info = mono_domain_alloc0 (mono_domain_get (), sizeof (GSharedVtCallInfo) + (map->len * sizeof (int)));
@@ -6488,6 +6473,9 @@ mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethod *normal_method, Mon
 		case RegTypeFP:
 			// FIXME: VFP
 			info->ret_marshal = GSHAREDVT_RET_IREGS;
+			break;
+		case RegTypeStructByAddr:
+			info->ret_marshal = GSHAREDVT_RET_NONE;
 			break;
 #if 0
 		case ArgOnDoubleFpStack:

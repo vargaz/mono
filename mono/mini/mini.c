@@ -5271,8 +5271,10 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, gbool
 		mono_domain_unlock (cfg->domain);
 	}
 
+#if 0
 	if (cfg->gsharedvt)
 		printf ("GSHAREDVT: %s\n", mono_method_full_name (cfg->method, TRUE));
+#endif
 
 	/* collect statistics */
 	mono_perfcounters->jit_methods++;
