@@ -106,31 +106,6 @@ mono_arch_get_llvm_imt_trampoline (MonoDomain *domain, MonoMethod *m, int vt_off
 	return start;
 }
 
-/*
- * mono_arch_get_gsharedvt_arg_trampoline:
- *
- *   Return a trampoline which passes ARG to the gsharedvt in/out trampoline ADDR.
- */
-gpointer
-mono_arch_get_gsharedvt_arg_trampoline (MonoDomain *domain, gpointer arg, gpointer addr)
-{
-	guint8 *code, *start;
-	int buf_len;
-
-	buf_len = 10;
-
-	start = code = mono_domain_code_reserve (domain, buf_len);
-
-	x86_mov_reg_imm (code, X86_EAX, arg);
-	x86_jump_code (code, addr);
-	g_assert ((code - start) <= buf_len);
-
-	nacl_domain_code_validate (domain, &start, buf_len, &code);
-	mono_arch_flush_icache (start, code - start);
-
-	return start;
-}
-
 void
 mono_arch_patch_callsite (guint8 *method_start, guint8 *orig_code, guint8 *addr)
 {
@@ -1125,6 +1100,31 @@ guint32
 mono_arch_get_plt_info_offset (guint8 *plt_entry, mgreg_t *regs, guint8 *code)
 {
 	return *(guint32*)(plt_entry + NACL_SIZE (6, 12));
+}
+
+/*
+ * mono_arch_get_gsharedvt_arg_trampoline:
+ *
+ *   Return a trampoline which passes ARG to the gsharedvt in/out trampoline ADDR.
+ */
+gpointer
+mono_arch_get_gsharedvt_arg_trampoline (MonoDomain *domain, gpointer arg, gpointer addr)
+{
+	guint8 *code, *start;
+	int buf_len;
+
+	buf_len = 10;
+
+	start = code = mono_domain_code_reserve (domain, buf_len);
+
+	x86_mov_reg_imm (code, X86_EAX, arg);
+	x86_jump_code (code, addr);
+	g_assert ((code - start) <= buf_len);
+
+	nacl_domain_code_validate (domain, &start, buf_len, &code);
+	mono_arch_flush_icache (start, code - start);
+
+	return start;
 }
 
 void
