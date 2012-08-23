@@ -6318,9 +6318,7 @@ get_arg_slots (ArgInfo *ainfo, int **out_slots)
 			src [i] = sslot + (i - ainfo->size);
 		break;
 	case RegTypeBase:
-		// FIXME:
-		g_assert (ainfo->size == 8);
-		nsrc = 2;
+		nsrc = ainfo->size / 4;
 		src = g_malloc (nsrc * sizeof (int));
 		for (i = 0; i < nsrc; ++i)
 			src [i] = sslot + i;
@@ -6478,20 +6476,6 @@ mono_arch_get_gsharedvt_call_info (gpointer addr, MonoMethod *normal_method, Mon
 		case RegTypeStructByAddr:
 			info->ret_marshal = GSHAREDVT_RET_NONE;
 			break;
-#if 0
-		case ArgOnDoubleFpStack:
-			info->ret_marshal = GSHAREDVT_RET_DOUBLE_FPSTACK;
-			break;
-		case ArgOnFloatFpStack:
-			info->ret_marshal = GSHAREDVT_RET_FLOAT_FPSTACK;
-			break;
-		case ArgOnStack:
-			/* The caller passes in a vtype ret arg as well */
-			g_assert (gcinfo->vtype_retaddr);
-			/* Just have to pop the arg, as done by normal methods in their epilog */
-			info->ret_marshal = GSHAREDVT_RET_STACK_POP;
-			break;
-#endif
 		default:
 			g_assert_not_reached ();
 		}

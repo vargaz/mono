@@ -742,4 +742,18 @@ public class Tests
 			return 0;
 		return 1;
 	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static void arm_params1<T> (T t1, T t2, T t3, T t4, T t5, T t6) {
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	static void arm_params2<T> (T t1, T t2, T t3, long t4, T t5, T t6) {
+	}
+
+	public static int test_0_arm_param_passing () {
+		arm_params1<int> (1, 2, 3, 4, 5, 6);
+		arm_params1<int> (1, 2, 3, 4, 5, 6);
+		return 0;
+	}
 }
