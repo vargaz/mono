@@ -51,6 +51,12 @@ static gboolean is_win32 = TRUE;
 static gboolean is_win32 = FALSE;
 #endif
 
+#ifdef __APPLE__
+static gboolean is_darwin = TRUE;
+#else
+static gboolean is_darwin = FALSE;
+#endif
+
 /* This mutex protects architecture specific caches */
 #define mono_mini_arch_lock() EnterCriticalSection (&mini_arch_mutex)
 #define mono_mini_arch_unlock() LeaveCriticalSection (&mini_arch_mutex)
@@ -2282,7 +2288,7 @@ emit_move_return_value (MonoCompile *cfg, MonoInst *ins, guint8 *code)
 	return code;
 }
 
-#ifdef __APPLE__
+#if defined(__APPLE__) && !defined(HAVE_KW_THREAD)
 static int tls_gs_offset;
 #endif
 
@@ -2290,6 +2296,9 @@ gboolean
 mono_x86_have_tls_get (void)
 {
 #ifdef __APPLE__
+#ifdef HAVE_KW_THREAD
+	return TRUE;
+#else
 	static gboolean have_tls_get = FALSE;
 	static gboolean inited = FALSE;
 	guint32 *ins;
@@ -2310,6 +2319,7 @@ mono_x86_have_tls_get (void)
 	inited = TRUE;
 
 	return have_tls_get;
+#endif
 #elif defined(TARGET_ANDROID)
 	return FALSE;
 #else
@@ -2317,12 +2327,54 @@ mono_x86_have_tls_get (void)
 #endif
 }
 
+#if defined(__APPLE__) && defined(HAVE_KW_THREAD)
+typedef struct {
+	void *thunk;
+	unsigned long key;
+	unsigned long offset;
+} MonoTLVDescriptor;
+
+static inline guint8*
+emit_osx_tls_getaddr (guint8 *code, int tmpreg, MonoTLVDescriptor *tls_desc)
+{
+	/*
+	 * clang generates code which makes an indirect call through the 'thunk'
+	 * field of the structure to a function named tlv_get_addr:
+	 * mov 0x4(%eax),%ecx -> load TLS key
+	 * mov %gs:0x0(%ecx,4),%ecx -> load TLS block addr
+	 * test %ecx,%ecx
+	 * je <lazy init>
+	 * mov    0x8(%eax),%eax -> load TLS variable offset
+	 * add    %ecx,%eax -> compute TLS variable address
+	 * FIXME: Hopefully this is ABI stable.
+	 * FIXME: Support on older osx versions ?
+	 */
+	x86_mov_reg_imm (code, tmpreg, tls_desc->key * 4);
+	x86_prefix (code, X86_GS_PREFIX);
+	x86_mov_reg_membase (code, tmpreg, tmpreg, 0, 4);
+#if 0
+	x86_mov_reg_mem (code, tmpreg, (tls_desc->key * 4), 4);
+#endif
+	if (tls_desc->offset)
+		x86_alu_reg_imm (code, X86_ADD, tmpreg, tls_desc->offset);
+	return code;
+}
+#endif
+
+// This might clobber EAX
 static guint8*
 mono_x86_emit_tls_set (guint8* code, int sreg, int tls_offset)
 {
 #if defined(__APPLE__)
+#ifdef HAVE_KW_THREAD
+	/* TLS_OFFSET points to a MonoTLVDescriptor structure */
+	g_assert (sreg != X86_EAX);
+	code = emit_osx_tls_getaddr (code, X86_EAX, (MonoTLVDescriptor*)tls_offset);
+	x86_mov_membase_reg (code, X86_EAX, 0, sreg, sizeof (mgreg_t));
+#else
 	x86_prefix (code, X86_GS_PREFIX);
 	x86_mov_mem_reg (code, tls_gs_offset + (tls_offset * 4), sreg, 4);
+#endif
 #elif defined(TARGET_WIN32)
 	g_assert_not_reached ();
 #else
@@ -2348,8 +2400,13 @@ guint8*
 mono_x86_emit_tls_get (guint8* code, int dreg, int tls_offset)
 {
 #if defined(__APPLE__)
+#ifdef HAVE_KW_THREAD
+	code = emit_osx_tls_getaddr (code, dreg, (MonoTLVDescriptor*)tls_offset);
+	x86_mov_reg_membase (code, dreg, dreg, 0, sizeof (mgreg_t));
+#else
 	x86_prefix (code, X86_GS_PREFIX);
 	x86_mov_reg_mem (code, dreg, tls_gs_offset + (tls_offset * 4), 4);
+#endif
 #elif defined(TARGET_WIN32)
 	/* 
 	 * See the Under the Hood article in the May 1996 issue of Microsoft Systems 
@@ -5095,7 +5152,7 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 		mono_emit_unwind_op_offset (cfg, code, X86_EBX, - cfa_offset);
 		mini_gc_set_slot_type_from_cfa (cfg, -cfa_offset, SLOT_NOREF);
 
-		if ((lmf_tls_offset != -1) && !is_win32 && !optimize_for_xen) {
+		if ((lmf_tls_offset != -1) && !is_win32 && !optimize_for_xen && !is_darwin) {
 			/*
 			 * Optimized version which uses the mono_lmf TLS variable instead of indirection
 			 * through the mono_lmf_addr TLS variable.
@@ -5350,10 +5407,11 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 		} else {
 			/* FIXME: maybe save the jit tls in the prolog */
 		}
-		if ((lmf_tls_offset != -1) && !is_win32 && !optimize_for_xen) {
+		if ((lmf_tls_offset != -1) && !is_win32 && !optimize_for_xen && !is_darwin) {
 			/*
 			 * Optimized version which uses the mono_lmf TLS variable instead of indirection
 			 * through the mono_lmf_addr TLS variable.
+			 * We can't use this on darwin since emit_tls_set () clobbers EAX.
 			 */
 			/* reg = previous_lmf */
 			x86_mov_reg_membase (code, X86_ECX, X86_EBP, lmf_offset + G_STRUCT_OFFSET (MonoLMF, previous_lmf), 4);

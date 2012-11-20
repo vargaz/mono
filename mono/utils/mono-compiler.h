@@ -63,11 +63,43 @@
 #endif
 
 #if defined(__GNUC__) && defined(__i386__)
+
+#ifdef __APPLE__
+
+/*
+ * var@TLVP points to a TLVDescriptor structure:
+ * http://www.opensource.apple.com/source/dyld/dyld-210.2.3/src/threadLocalVariables.c
+ * word 0: - tlv_get_addr
+ * word 1: TLS offset for the module
+ * word 2: offset of the variable within the module TLS block
+ * clang seems to generate an indirect call through the first word to obtain the address of the variable, so at least that is part of the ABI.
+ */
+
+#ifndef __clang__
+#error "--tls=__thread is only supported when using clang."
+#endif
+
+#define MONO_THREAD_VAR_OFFSET(var,offset) do { \
+		int tmp; \
+		asm volatile ("calll 1f; 1: popl %0; movl _" #var "@TLVP-1b(%%eax), %0" : "=a" (offset)); \
+	} while (0)
+
+/* Example implementation of getting the address/value of a TLS variable */
+#define MONO_THREAD_VAR_GET_ADDR(offset,res) do {							\
+	asm volatile ("call *(%0)" : "=a" (res) : "r" (offset)); \
+	} while (0)
+
+#else
+
+/* Linux */
 #if defined(PIC)
 #define MONO_THREAD_VAR_OFFSET(var,offset) do { int tmp; __asm ("call 1f; 1: popl %0; addl $_GLOBAL_OFFSET_TABLE_+[.-1b], %0; movl " #var "@gotntpoff(%0), %1" : "=r" (tmp), "=r" (offset)); } while (0)
 #else
 #define MONO_THREAD_VAR_OFFSET(var,offset) __asm ("movl $" #var "@ntpoff, %0" : "=r" (offset))
 #endif
+
+#endif
+
 #elif defined(__x86_64__)
 #if defined(PIC)
 // This only works if libmono is linked into the application

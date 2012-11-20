@@ -84,6 +84,9 @@ mono_mach_arch_set_thread_state (thread_port_t thread, thread_state_t state, mac
 void *
 mono_mach_get_tls_address_from_thread (pthread_t thread, pthread_key_t key)
 {
+#ifdef HAVE_KW_THREAD
+	NOT_IMPLEMENTED;
+#else
 	/* OSX stores TLS values in a hidden array inside the pthread_t structure
 	 * They are keyed off a giant array offset 0x48 into the pointer.  This value
 	 * is baked into their pthread_getspecific implementation
@@ -92,6 +95,7 @@ mono_mach_get_tls_address_from_thread (pthread_t thread, pthread_key_t key)
 	intptr_t **tsd = (intptr_t **) ((char*)p + 0x48);
 
 	return (void *) &tsd [key];	
+#endif
 }
 
 void *
