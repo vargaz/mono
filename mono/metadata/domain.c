@@ -53,6 +53,7 @@ static MonoNativeTlsKey appdomain_thread_id;
 MONO_FAST_TLS_DECLARE(tls_appdomain);
 
 #define GET_APPDOMAIN() ((MonoDomain*)MONO_FAST_TLS_GET(tls_appdomain))
+#define GET_APPDOMAIN_ADDR() ((MonoDomain**)MONO_FAST_TLS_ADDR(tls_appdomain))
 
 #define SET_APPDOMAIN(x) do { \
 	MONO_FAST_TLS_SET (tls_appdomain,x); \
@@ -63,6 +64,7 @@ MONO_FAST_TLS_DECLARE(tls_appdomain);
 #else /* !MONO_HAVE_FAST_TLS */
 
 #define GET_APPDOMAIN() ((MonoDomain *)mono_native_tls_get_value (appdomain_thread_id))
+#define GET_APPDOMAIN_ADDR() (NULL)
 #define SET_APPDOMAIN(x) do {						\
 		mono_native_tls_set_value (appdomain_thread_id, x);	\
 		mono_gc_set_current_thread_appdomain (x);		\
@@ -1803,6 +1805,15 @@ void
 mono_domain_unset (void)
 {
 	SET_APPDOMAIN (NULL);
+}
+
+/*
+ * Return the address of the TLS variable holding the current domain, or NULL.
+ */
+MonoDomain **
+mono_domain_addr (void)
+{
+	return GET_APPDOMAIN_ADDR ();
 }
 
 void

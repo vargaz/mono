@@ -275,7 +275,7 @@ mono_gdb_render_native_backtraces (pid_t crashed_pid)
 }
 
 gboolean
-mono_thread_state_init_from_handle (MonoThreadUnwindState *tctx, MonoNativeThreadId thread_id, MonoNativeThreadHandle thread_handle)
+mono_thread_state_init_from_handle (MonoThreadInfo *info, MonoThreadUnwindState *tctx, MonoNativeThreadId thread_id, MonoNativeThreadHandle thread_handle)
 {
 	kern_return_t ret;
 	mach_msg_type_number_t num_state;
@@ -285,6 +285,7 @@ mono_thread_state_init_from_handle (MonoThreadUnwindState *tctx, MonoNativeThrea
 	guint32 domain_key, jit_key;
 	MonoJitTlsData *jit_tls;
 	void *domain;
+	gpointer lmf;
 #if defined (MONO_ARCH_ENABLE_MONO_LMF_VAR)
 	guint32 lmf_key;
 #endif
@@ -310,8 +311,15 @@ mono_thread_state_init_from_handle (MonoThreadUnwindState *tctx, MonoNativeThrea
 	domain_key = mono_domain_get_tls_key ();
 	jit_key = mono_get_jit_tls_key ();
 
+#ifdef MONO_HAVE_FAST_TLS
+	jit_tls = info->jit_tls;
+	domain = info->domain_addr ? *(MonoDomain**)info->domain_addr : NULL;
+	lmf = info->lmf_addr ? *(gpointer*)info->lmf_addr : NULL;
+#else
 	jit_tls = mono_mach_arch_get_tls_value_from_thread (thread_id, jit_key);
 	domain = mono_mach_arch_get_tls_value_from_thread (thread_id, domain_key);
+	lmf = mono_mach_arch_get_tls_value_from_thread (thread_id, lmf_key);
+#endif
 
 	/*Thread already started to cleanup, can no longer capture unwind state*/
 	if (!jit_tls || !domain)
@@ -319,7 +327,7 @@ mono_thread_state_init_from_handle (MonoThreadUnwindState *tctx, MonoNativeThrea
 
 #if defined (MONO_ARCH_ENABLE_MONO_LMF_VAR)
 	lmf_key =  mono_get_lmf_tls_offset ();
-	tctx->unwind_data [MONO_UNWIND_DATA_LMF] = mono_mach_arch_get_tls_value_from_thread (thread_id, lmf_key);;
+	tctx->unwind_data [MONO_UNWIND_DATA_LMF] = lmf;
 #else
 	tctx->unwind_data [MONO_UNWIND_DATA_LMF] = jit_tls ? jit_tls->lmf : NULL;
 #endif

@@ -117,6 +117,11 @@ typedef struct {
 	/*async call machinery, thread MUST be suspended before accessing those fields*/
 	void (*async_target)(void*);
 	void *user_data;
+
+	/* Used by mini-darwin.c for cross-thread TLS access */
+	gpointer jit_tls;
+	gpointer domain_addr;
+	gpointer lmf_addr;
 } MonoThreadInfo;
 
 typedef struct {
@@ -136,7 +141,7 @@ typedef struct {
 typedef struct {
 	void (*setup_async_callback) (MonoContext *ctx, void (*async_cb)(void *fun), gpointer user_data);
 	gboolean (*thread_state_init_from_sigctx) (MonoThreadUnwindState *state, void *sigctx);
-	gboolean (*thread_state_init_from_handle) (MonoThreadUnwindState *tctx, MonoNativeThreadId thread_id, MonoNativeThreadHandle thread_handle);
+	gboolean (*thread_state_init_from_handle) (MonoThreadInfo *info, MonoThreadUnwindState *tctx, MonoNativeThreadId thread_id, MonoNativeThreadHandle thread_handle);
 } MonoThreadInfoRuntimeCallbacks;
 
 /*

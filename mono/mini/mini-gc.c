@@ -599,7 +599,7 @@ thread_suspend_func (gpointer user_data, void *sigctx, MonoContext *ctx)
 		gboolean res;
 
 		g_assert (tls->info);
-		res = mono_thread_state_init_from_handle (&tls->unwind_state, (MonoNativeThreadId)tls->tid, tls->info->native_handle);
+		res = mono_thread_state_init_from_handle (tls->info, &tls->unwind_state, (MonoNativeThreadId)tls->tid, tls->info->native_handle);
 	} else {
 		tls->unwind_state.unwind_data [MONO_UNWIND_DATA_LMF] = mono_get_lmf ();
 		if (sigctx) {

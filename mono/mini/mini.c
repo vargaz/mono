@@ -2588,11 +2588,15 @@ mono_set_lmf (MonoLMF *lmf)
 static void
 mono_set_jit_tls (MonoJitTlsData *jit_tls)
 {
-	mono_native_tls_set_value (mono_jit_tls_id, jit_tls);
-
 #ifdef MONO_HAVE_FAST_TLS
+	MonoThreadInfo *tinfo = mono_thread_info_current ();
+
+	if (tinfo)
+		tinfo->jit_tls = jit_tls;
 	MONO_FAST_TLS_SET (mono_jit_tls, jit_tls);
 #endif
+
+	mono_native_tls_set_value (mono_jit_tls_id, jit_tls);
 }
 
 static void
@@ -2675,6 +2679,7 @@ setup_jit_tls_data (gpointer stack_start, gpointer abort_func)
 {
 	MonoJitTlsData *jit_tls;
 	MonoLMF *lmf;
+	MonoThreadInfo *tinfo;
 
 	jit_tls = mono_native_tls_get_value (mono_jit_tls_id);
 	if (jit_tls)
@@ -2700,6 +2705,14 @@ setup_jit_tls_data (gpointer stack_start, gpointer abort_func)
 	mono_set_lmf_addr (&jit_tls->lmf);
 
 	jit_tls->lmf = lmf;
+#endif
+
+#if defined(MONO_HAVE_FAST_TLS)
+	tinfo = mono_thread_info_current ();
+	if (tinfo) {
+		tinfo->domain_addr = mono_domain_addr ();
+		tinfo->lmf_addr = mono_get_lmf_addr ();
+	}
 #endif
 
 	mono_setup_altstack (jit_tls);

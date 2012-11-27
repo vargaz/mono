@@ -2799,8 +2799,10 @@ if test "x$icall_tables" = "xno"; then
 fi
 
 if test "x$mono_cv_clang" = "xyes"; then
-   # FIXME: This causes many compilation errors
-   with_tls=pthread
+  if test "x$TARGET" = "xAMD64"; then
+  	 # Not supported yet
+     with_tls=pthread
+  fi
 fi
 
 if test "x$with_tls" = "x__thread"; then

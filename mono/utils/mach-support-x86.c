@@ -85,7 +85,8 @@ void *
 mono_mach_get_tls_address_from_thread (pthread_t thread, pthread_key_t key)
 {
 #ifdef HAVE_KW_THREAD
-	NOT_IMPLEMENTED;
+	g_assert_not_reached ();
+	return NULL;
 #else
 	/* OSX stores TLS values in a hidden array inside the pthread_t structure
 	 * They are keyed off a giant array offset 0x48 into the pointer.  This value
