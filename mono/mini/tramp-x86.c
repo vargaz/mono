@@ -817,6 +817,7 @@ mono_arch_create_monitor_enter_trampoline (MonoTrampInfo **info, gboolean aot)
 		x86_branch8 (code, X86_CC_Z, -1, 1);
 
 		/* load MonoInternalThread* into EDX */
+		// FIXME: Clobbers registers on osx.
 		code = mono_x86_emit_tls_get (code, X86_EDX, mono_thread_get_tls_offset ());
 		/* load TID into EDX */
 		x86_mov_reg_membase (code, X86_EDX, X86_EDX, G_STRUCT_OFFSET (MonoInternalThread, tid), 4);
