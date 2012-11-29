@@ -2335,7 +2335,7 @@ typedef struct {
 } MonoTLVDescriptor;
 
 static inline guint8*
-emit_osx_tls_getaddr (guint8 *code, MonoTLVDescriptor *tls_desc)
+emit_osx_tls_getaddr (guint8 *code, int tmpreg, MonoTLVDescriptor *tls_desc)
 {
 	/*
 	 * clang generates code which makes an indirect call through the 'thunk'
@@ -2346,28 +2346,34 @@ emit_osx_tls_getaddr (guint8 *code, MonoTLVDescriptor *tls_desc)
 	 * je <lazy init>
 	 * mov    0x8(%eax),%eax -> load TLS variable offset
 	 * add    %ecx,%eax -> compute TLS variable address
-	 * We generate a call instead of inlining it for the following reasons:
+	 * FIXME: Support on older osx versions ?
+	 * FIXME: AOT ?
+	 */
+#if 0
+	/*
+	 * Generating a call instead of inline code has the following advantages:
 	 * - its ABI stable
 	 * - we need lazy initialization for example for thread attach on native-to-managed calls.
-	 * FIXME: Support on older osx versions ?
+	 * The problem is that this can clobber caller save registers and that breaks a lot of places like
+	 * OP_TLS_GET, prolog/epilog, the monitor trampolines etc.
 	 */
-	// FIXME: AOT
-	// FIXME: Clobbers eax + callee save regs
 	x86_mov_reg_imm (code, X86_EAX, tls_desc);
 	x86_call_membase (code, X86_EAX, 0);
 	return code;
+#endif
 
 #if 0
 	x86_mov_reg_imm (code, tmpreg, tls_desc->key * 4);
 	x86_prefix (code, X86_GS_PREFIX);
 	x86_mov_reg_membase (code, tmpreg, tmpreg, 0, 4);
-#if 0
+#endif
+#if 1
+	x86_prefix (code, X86_GS_PREFIX);
 	x86_mov_reg_mem (code, tmpreg, (tls_desc->key * 4), 4);
 #endif
 	if (tls_desc->offset)
 		x86_alu_reg_imm (code, X86_ADD, tmpreg, tls_desc->offset);
 	return code;
-#endif
 }
 #endif
 
@@ -2381,7 +2387,7 @@ mono_x86_emit_tls_set (guint8* code, int sreg, int tls_offset)
 	g_assert (sreg != X86_EAX);
 	// FIXME: Unwinding
 	x86_push_reg (code, sreg);
-	code = emit_osx_tls_getaddr (code, (MonoTLVDescriptor*)tls_offset);
+	code = emit_osx_tls_getaddr (code, X86_EAX, (MonoTLVDescriptor*)tls_offset);
 	x86_pop_reg (code, sreg);
 	x86_mov_membase_reg (code, X86_EAX, 0, sreg, sizeof (mgreg_t));
 #else
@@ -2414,9 +2420,8 @@ mono_x86_emit_tls_get (guint8* code, int dreg, int tls_offset)
 {
 #if defined(__APPLE__)
 #ifdef HAVE_KW_THREAD
-	// FIXME: Clobbers EAX in epilog.
-	code = emit_osx_tls_getaddr (code, (MonoTLVDescriptor*)tls_offset);
-	x86_mov_reg_membase (code, dreg, X86_EAX, 0, sizeof (mgreg_t));
+	code = emit_osx_tls_getaddr (code, dreg, (MonoTLVDescriptor*)tls_offset);
+	x86_mov_reg_membase (code, dreg, dreg, 0, sizeof (mgreg_t));
 #else
 	x86_prefix (code, X86_GS_PREFIX);
 	x86_mov_reg_mem (code, dreg, tls_gs_offset + (tls_offset * 4), 4);
@@ -5405,8 +5410,6 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 		gint32 lmf_offset = -sizeof (MonoLMF);
 
 		/* check if we need to restore protection of the stack after a stack overflow */
-#if FALSE
-		// FIXME: emit_tls_get () clobbers regs on darwin
 		// FIXME: Put this into lmf instead of jit_tls
 		if (mono_get_jit_tls_offset () != -1) {
 			guint8 *patch;
@@ -5424,7 +5427,6 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 		} else {
 			/* FIXME: maybe save the jit tls in the prolog */
 		}
-#endif
 		if ((lmf_tls_offset != -1) && !is_win32 && !optimize_for_xen && !is_darwin) {
 			/*
 			 * Optimized version which uses the mono_lmf TLS variable instead of indirection
