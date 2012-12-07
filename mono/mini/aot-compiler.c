@@ -2268,6 +2268,10 @@ encode_method_ref (MonoAotCompile *acfg, MonoMethod *method, guint8 *buf, guint8
 			break;
 		}
 		case MONO_WRAPPER_WRITE_BARRIER:
+			if (!strcmp (method->name, "wbarrier_no_check"))
+				encode_value (1, p, &p);
+			else
+				encode_value (0, p, &p);
 			break;
 		case MONO_WRAPPER_STELEMREF: {
 			WrapperInfo *info = mono_marshal_get_wrapper_info (method);
@@ -2922,6 +2926,13 @@ add_wrappers (MonoAotCompile *acfg)
 			if (m)
 				add_method (acfg, m);
 		}
+
+		m = mono_gc_get_write_barrier (TRUE);
+		if (m)
+			add_method (acfg, m);
+		m = mono_gc_get_write_barrier (FALSE);
+		if (m)
+			add_method (acfg, m);
 
 		/* Monitor Enter/Exit */
 		desc = mono_method_desc_new ("Monitor:Enter(object,bool&)", FALSE);

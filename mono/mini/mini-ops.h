@@ -597,6 +597,7 @@ MINI_OP(OP_RESTORE_LMF, "restore_lmf", NONE, NONE, NONE)
 
 /* write barrier */
 MINI_OP(OP_CARD_TABLE_WBARRIER, "card_table_wbarrier", NONE, IREG, IREG)
+MINI_OP(OP_SSB_WBARRIER, "ssb_wbarrier", NONE, IREG, IREG)
 
 /* arch-dep tls access */
 MINI_OP(OP_TLS_GET,            "tls_get", IREG, NONE, NONE)

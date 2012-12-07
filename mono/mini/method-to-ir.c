@@ -2669,6 +2669,7 @@ emit_write_barrier (MonoCompile *cfg, MonoInst *ptr, MonoInst *value, int value_
 	int nursery_shift_bits;
 	size_t nursery_size;
 	gboolean has_card_table_wb = FALSE;
+	gboolean has_ssb_wb = FALSE;
 
 	if (!cfg->gen_write_barriers)
 		return;
@@ -2679,6 +2680,10 @@ emit_write_barrier (MonoCompile *cfg, MonoInst *ptr, MonoInst *value, int value_
 
 #ifdef MONO_ARCH_HAVE_CARD_TABLE_WBARRIER
 	has_card_table_wb = TRUE;
+#endif
+
+#ifdef MONO_ARCH_HAVE_SSB_WBARRIER
+	has_ssb_wb = TRUE;
 #endif
 
 	if (has_card_table_wb && !cfg->compile_aot && card_table && nursery_shift_bits > 0) {
@@ -2714,8 +2719,20 @@ emit_write_barrier (MonoCompile *cfg, MonoInst *ptr, MonoInst *value, int value_
 
 		MONO_EMIT_NEW_BIALU (cfg, OP_PADD, offset_reg, offset_reg, card_reg);
 		MONO_EMIT_NEW_STORE_MEMBASE_IMM (cfg, OP_STOREI1_MEMBASE_IMM, offset_reg, 0, 1);
+	} else if (!COMPILE_LLVM (cfg) && !cfg->compile_aot && has_ssb_wb && nursery_shift_bits > 0) {
+		MonoInst *wbarrier;
+
+		// FIXME: AOT
+		// FIXME: LLVM
+		MONO_INST_NEW (cfg, wbarrier, OP_SSB_WBARRIER);
+		wbarrier->sreg1 = ptr->dreg;
+		if (value)
+			wbarrier->sreg2 = value->dreg;
+		else
+			wbarrier->sreg2 = value_reg;
+		MONO_ADD_INS (cfg->cbb, wbarrier);
 	} else {
-		MonoMethod *write_barrier = mono_gc_get_write_barrier ();
+		MonoMethod *write_barrier = mono_gc_get_write_barrier (TRUE);
 		mono_emit_method_call (cfg, write_barrier, &ptr, NULL);
 	}
 

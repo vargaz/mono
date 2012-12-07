@@ -287,7 +287,7 @@ mono_gc_get_suspend_signal (void)
 }
 
 MonoMethod*
-mono_gc_get_write_barrier (void)
+mono_gc_get_write_barrier (gboolean nursery_check)
 {
 	g_assert_not_reached ();
 	return NULL;

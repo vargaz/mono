@@ -809,9 +809,11 @@ decode_method_ref_with_target (MonoAotModule *module, MethodRef *ref, MonoMethod
 			g_assert (ref->method);
 			break;
 		}
-		case MONO_WRAPPER_WRITE_BARRIER:
-			ref->method = mono_gc_get_write_barrier ();
+		case MONO_WRAPPER_WRITE_BARRIER: {
+			gboolean nursery_check = decode_value (p, &p);
+			ref->method = mono_gc_get_write_barrier (nursery_check);
 			break;
+		}
 		case MONO_WRAPPER_STELEMREF: {
 			int subtype = decode_value (p, &p);
 

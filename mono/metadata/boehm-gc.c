@@ -1084,7 +1084,7 @@ mono_gc_get_managed_allocator_types (void)
 }
 
 MonoMethod*
-mono_gc_get_write_barrier (void)
+mono_gc_get_write_barrier (gboolean nursery_check)
 {
 	g_assert_not_reached ();
 	return NULL;
@@ -1123,7 +1123,7 @@ mono_gc_get_managed_allocator_types (void)
 }
 
 MonoMethod*
-mono_gc_get_write_barrier (void)
+mono_gc_get_write_barrier (gboolean nursery_check)
 {
 	g_assert_not_reached ();
 	return NULL;

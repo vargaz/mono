@@ -4619,18 +4619,18 @@ mono_gc_get_gc_name (void)
 	return "sgen";
 }
 
-static MonoMethod *write_barrier_method;
+static MonoMethod *write_barrier_method [2];
 
 gboolean
 sgen_is_critical_method (MonoMethod *method)
 {
-	return (method == write_barrier_method || sgen_is_managed_allocator (method));
+	return (method == write_barrier_method [0] || method == write_barrier_method [1] || sgen_is_managed_allocator (method));
 }
 
 gboolean
 sgen_has_critical_method (void)
 {
-	return write_barrier_method || sgen_has_managed_allocator ();
+	return write_barrier_method [0] || write_barrier_method [1] || sgen_has_managed_allocator ();
 }
 
 static void
@@ -4696,7 +4696,7 @@ emit_nursery_check (MonoMethodBuilder *mb, int *nursery_check_return_labels)
 }
 
 MonoMethod*
-mono_gc_get_write_barrier (void)
+mono_gc_get_write_barrier (gboolean nursery_check)
 {
 	MonoMethod *res;
 	MonoMethodBuilder *mb;
@@ -4723,15 +4723,15 @@ mono_gc_get_write_barrier (void)
 
 	// FIXME: Maybe create a separate version for ctors (the branch would be
 	// correctly predicted more times)
-	if (write_barrier_method)
-		return write_barrier_method;
+	if (write_barrier_method [nursery_check])
+		return write_barrier_method [nursery_check];
 
 	/* Create the IL version of mono_gc_barrier_generic_store () */
 	sig = mono_metadata_signature_alloc (mono_defaults.corlib, 1);
 	sig->ret = &mono_defaults.void_class->byval_arg;
 	sig->params [0] = &mono_defaults.int_class->byval_arg;
 
-	mb = mono_mb_new (mono_defaults.object_class, "wbarrier", MONO_WRAPPER_WRITE_BARRIER);
+	mb = mono_mb_new (mono_defaults.object_class, nursery_check ? "wbarrier" : "wbarrier_no_check", MONO_WRAPPER_WRITE_BARRIER);
 
 #ifdef MANAGED_WBARRIER
 	if (use_cardtable) {
@@ -4774,7 +4774,8 @@ mono_gc_get_write_barrier (void)
 		}		
 		mono_mb_emit_byte (mb, CEE_RET);
 	} else if (mono_runtime_has_tls_get ()) {
-		emit_nursery_check (mb, nursery_check_labels);
+		if (nursery_check)
+			emit_nursery_check (mb, nursery_check_labels);
 
 		// if (ptr >= stack_end) goto need_wb;
 		mono_mb_emit_ldarg (mb, 0);
@@ -4838,9 +4839,12 @@ mono_gc_get_write_barrier (void)
 		mono_mb_emit_byte (mb, CEE_STIND_I);
 
 		// return;
-		for (i = 0; i < 3; ++i) {
-			if (nursery_check_labels [i])
-				mono_mb_patch_branch (mb, nursery_check_labels [i]);
+
+		if (nursery_check) {
+			for (i = 0; i < 3; ++i) {
+				if (nursery_check_labels [i])
+					mono_mb_patch_branch (mb, nursery_check_labels [i]);
+			}
 		}
 		mono_mb_patch_branch (mb, label_no_wb_3);
 		mono_mb_patch_branch (mb, label_no_wb_4);
@@ -4864,17 +4868,17 @@ mono_gc_get_write_barrier (void)
 	mono_mb_free (mb);
 
 	mono_loader_lock ();
-	if (write_barrier_method) {
+	if (write_barrier_method [nursery_check]) {
 		/* Already created */
 		mono_free_method (res);
 	} else {
 		/* double-checked locking */
 		mono_memory_barrier ();
-		write_barrier_method = res;
+		write_barrier_method [nursery_check] = res;
 	}
 	mono_loader_unlock ();
 
-	return write_barrier_method;
+	return write_barrier_method [nursery_check];
 }
 
 char*

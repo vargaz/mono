@@ -4280,6 +4280,45 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			x86_patch (br, code);
 			break;
 		}
+		case OP_SSB_WBARRIER: {
+			int ptr = ins->sreg1;
+			int value = ins->sreg2;
+			int tmp;
+			guchar *br [16];
+			int brindex = 0;
+			int nursery_shift;
+			size_t nursery_size;
+			gulong nursery_start = (gulong)mono_gc_get_nursery (&nursery_shift, &nursery_size);
+			MonoMethod *write_barrier = mono_gc_get_write_barrier (FALSE);
+
+			g_assert (ins->sreg1 == X86_EAX);
+			if (value == X86_ECX)
+				tmp = X86_EDX;
+			else
+				tmp = X86_ECX;
+
+			x86_mov_reg_reg (code, tmp, ptr, 4);
+			x86_shift_reg_imm (code, X86_SHR, tmp, nursery_shift);
+			x86_alu_reg_imm (code, X86_CMP, tmp, nursery_start >> nursery_shift);
+			br [brindex ++] = code; x86_branch8 (code, X86_CC_EQ, -1, FALSE);
+
+			x86_mov_reg_reg (code, tmp, value, 4);
+			x86_shift_reg_imm (code, X86_SHR, tmp, nursery_shift);
+			x86_alu_reg_imm (code, X86_CMP, tmp, nursery_start >> nursery_shift);
+			br [brindex ++] = code; x86_branch8 (code, X86_CC_NE, -1, FALSE);
+
+			// FIXME: Call a trampoline which doesn't do these checks again
+			x86_alu_reg_imm (code, X86_SUB, X86_ESP, 12);
+			x86_push_reg (code, ptr);
+			// FIXME: GC Callsite
+			code = emit_call (cfg, code, MONO_PATCH_INFO_METHOD, write_barrier);
+			x86_alu_reg_imm (code, X86_ADD, X86_ESP, 16);
+
+			x86_patch (br [0], code);
+			x86_patch (br [1], code);
+			break;
+		}
+
 #ifdef MONO_ARCH_SIMD_INTRINSICS
 		case OP_ADDPS:
 			x86_sse_alu_ps_reg_reg (code, X86_SSE_ADD, ins->sreg1, ins->sreg2);

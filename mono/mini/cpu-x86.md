@@ -307,6 +307,7 @@ atomic_cas_i4: src1:b src2:i src3:a dest:a len:24
 memory_barrier: len:16
 
 card_table_wbarrier: src1:a src2:i clob:d len:34
+ssb_wbarrier: src1:a src2:i clob:c len:36
 
 relaxed_nop: len:2
 hard_nop: len:1
