@@ -152,3 +152,28 @@ package-inputs:
 		echo "    </project>") >> msvc/scripts/order.xml; \
 	done
 	echo "</root>" >> msvc/scripts/order.xml
+
+#
+# Utility targets to turn features on/off without running configure
+# Only works when using mk
+#
+
+# Same as --enable-shared-mono
+enable-shared-mono:
+	echo "SHARED_MONO = yes" >> conf.mk
+disable-shared-mono:
+	grep -v "SHARED_MONO = yes" < conf.mk > conf.mk.tmp && mv conf.mk.tmp conf.mk
+
+# Same as --with-sgen
+enable-sgen:
+	echo "SUPPORT_SGEN = yes" >> conf.mk
+disable-sgen:
+	grep -v "SUPPORT_SGEN = " < conf.mk > conf.mk.tmp && mv conf.mk.tmp conf.mk
+
+# Enable optimized runtime builds
+enable-opt:
+	sed -e 's/-O0/-O2/g' < conf.mk > conf.mk.tmp && mv conf.mk.tmp conf.mk
+
+# Disable optimized runtime builds
+disable-opt:
+	sed -e 's/-O2/-O0/g' < conf.mk > conf.mk.tmp && mv conf.mk.tmp conf.mk
