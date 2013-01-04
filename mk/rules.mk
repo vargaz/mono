@@ -14,20 +14,25 @@
 # We can't define temporary variables inside a define, so have to duplicate a lot of stuff.
 #
 
+NULL :=
+# OSX's /bin/echo can't handle -e so we have to generate a variable with spaces as its value
+INDENT := $(NULL)      # end of line
+ECHO=echo
+
 #
 # Compilation
 #
 
 DEFAULT_INCLUDES=-I. -I$(top_builddir)
-CFLAGS += $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CFLAGS) -DHAVE_CONFIG_H
+CFLAGS += $(DEFAULT_INCLUDES) $(AM_CPPFLAGS) $(AM_CFLAGS) -DHAVE_CONFIG_H
 
 PIC_CFLAGS=-fPIC -DPIC
 
 %.o: $(srcdir)/%.c
-	$(if $(V),,@echo -e "CC\\t$@";) $(CC) -c $(CPPFLAGS) $(CFLAGS) -o $@ $< -MD -MP -MF .deps/$(patsubst %.o,%.Po,$@)
+	$(if $(V),,@$(ECHO) "CC$(INDENT)$@";) $(CC) -c $(CPPFLAGS) $(CFLAGS) -o $@ $< -MD -MP -MF .deps/$(patsubst %.o,%.Po,$@)
 
 %.o: %.s
-	$(if $(V),,@echo -e "AS\\t$@";) $(AS) $(ASFLAGS) -o $@ $<
+	$(if $(V),,@$(ECHO) "AS$(INDENT)$@";) $(AS) $(ASFLAGS) -o $@ $<
 
 # A macro for adding custom C compilation rules
 define add-cc-comp-rule
@@ -35,10 +40,10 @@ define add-cc-comp-rule
 # $(2) is the name of the source
 # $(3) is the name of the CFLAGS var to use
 $(1): $(2)
-	$(if $(V),,@echo -e "CC\\t$$@";) $$(CC) -c $$(CPPFLAGS) $$(CFLAGS) $$($(3)) -o $$@ $$< -MD -MP -MF .deps/$$(patsubst %.o,%.Po,$$@)
+	$(if $(V),,@$(ECHO) "CC$(INDENT)$$@";) $$(CC) -c $$(CPPFLAGS) $$(CFLAGS) $$($(3)) -o $$@ $$< -MD -MP -MF .deps/$$(patsubst %.o,%.Po,$$@)
 
 $(patsubst %.o,%-pic.o,$(1)): $(2)
-	$(if $(V),,@echo -e "CC\\t$$@";) $$(CC) -c $$(CPPFLAGS) $$(CFLAGS) $(PIC_CFLAGS) $$($(3)) -o $$@ $$< -MD -MP -MF .deps/$$(patsubst %.o,%.Po,$$@)
+	$(if $(V),,@$(ECHO) "CC$(INDENT)$$@";) $$(CC) -c $$(CPPFLAGS) $$(CFLAGS) $(PIC_CFLAGS) $$($(3)) -o $$@ $$< -MD -MP -MF .deps/$$(patsubst %.o,%.Po,$$@)
 endef # add-cc-comp-rule
 
 #
@@ -99,11 +104,11 @@ endif
 
 # Rules for creating the library
 $(1)$(STATIC_LIB_SUFFIX): $$($(1)_OBJECTS) $$($(1)_LT_DIRS) $$($(1)_LT_DIRS_2)
-	$(if $(V),,@echo -e "LD\\t$$@";) $(RM) $$@ && $(AR) qc $$@ $$($(1)_OBJECTS) $$($(1)_LT_FILES) $$($(1)_LT_FILES_2)
+	$(if $(V),,@$(ECHO) "LD$(INDENT)$$@";) $(RM) $$@ && $(AR) qc $$@ $$($(1)_OBJECTS) $$($(1)_LT_FILES) $$($(1)_LT_FILES_2)
 $(1)$(PIC_LIB_SUFFIX): $$($(1)_PIC_OBJECTS) $$($(1)_LT_DIRS) $$($(1)_LT_DIRS_2)
-	$(if $(V),,@echo -e "LD\\t$$@";) $(RM) $$@ && $(AR) qc $$@ $$($(1)_PIC_OBJECTS) $$($(1)_LT_FILES) $$($(1)_LT_FILES_2)
+	$(if $(V),,@$(ECHO) "LD$(INDENT)$$@";) $(RM) $$@ && $(AR) qc $$@ $$($(1)_PIC_OBJECTS) $$($(1)_LT_FILES) $$($(1)_LT_FILES_2)
 $(1)$(SHARED_LIB_SUFFIX): $$($(1)_PIC_OBJECTS) $$($(1)_PIC_LIBS)
-	$(if $(V),,@echo -e "LD\\t$$@";) $(RM) $$@ && $(CC) --shared -o $$@ $$($(1)_PIC_OBJECTS) $$($(1)_PIC_LIBS)
+	$(if $(V),,@$(ECHO) "LD$(INDENT)$$@";) $(RM) $$@ && $(CC) --shared -o $$@ $$($(1)_PIC_OBJECTS) $$($(1)_PIC_LIBS)
 endef # add-ltlib-rules
 
 # Add rules for each library
@@ -144,7 +149,7 @@ all-am: $(1)
 
 # The rule linking the executable
 $(1): $$($(1)_OBJECTS) $$($(1)_LIB_DEPS)
-	$(if $(V),,@echo -e "LD\\t$$@";) $(CC) -o $$@ $$($(1)_OBJECTS) $$($(2)_REAL_LDFLAGS) $$($(1)_REAL_LDADD) $(LIBS)
+	$(if $(V),,@$(ECHO) "LD$(INDENT)$$@";) $(CC) -o $$@ $$($(1)_OBJECTS) $$($(2)_REAL_LDFLAGS) $$($(1)_REAL_LDADD) $(LIBS)
 endef # add-program-rules
 
 # Add rules for each entry in $(bin/noinst_PROGRAMS)

@@ -221,7 +221,7 @@ mono_LDADD = \
 	$(MONO_DTRACE_OBJECT)
 
 mono_LDFLAGS = \
-	$(static_flags) -export-dynamic $(monobinldflags) $(monobin_platform_ldflags)
+	$(static_flags) -rdynamic $(monobinldflags) $(monobin_platform_ldflags)
 
 mono_sgen_LDADD = \
 	$(MONO_SGEN_LIB)	\
@@ -231,7 +231,7 @@ mono_sgen_LDADD = \
 	-lm			\
 	$(MONO_DTRACE_OBJECT)
 
-mono_sgen_LDFLAGS = $(static_flags) -export-dynamic $(monobinldflags) $(monobin_platform_ldflags)
+mono_sgen_LDFLAGS = $(static_flags) -rdynamic $(monobinldflags) $(monobin_platform_ldflags)
 
 if DTRACE_G_REQUIRED
 
