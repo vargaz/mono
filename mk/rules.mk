@@ -10,7 +10,8 @@
 # FIXME: Add a namespace like in quagmire ?
 #
 # The code below uses complex variable substitutions, read the GNU Make manual
-# to understand it.
+# to understand it:
+# http://www.gnu.org/software/make/manual/make.html
 # We can't define temporary variables inside a define, so have to duplicate a lot of stuff.
 #
 
@@ -18,6 +19,9 @@ NULL :=
 # OSX's /bin/echo can't handle -e so we have to generate a variable with spaces as its value
 INDENT := $(NULL)      # end of line
 ECHO=echo
+
+# FIXME: Cross compilation
+IS_DARWIN := $(subst Darwin,1,$(findstring Darwin,$(shell uname)))
 
 #
 # Compilation
@@ -51,7 +55,7 @@ endef # add-cc-comp-rule
 #
 
 STATIC_LIB_SUFFIX = .a
-SHARED_LIB_SUFFIX = .so
+SHARED_LIB_SUFFIX = $(if $(IS_DARWIN),.dylib,.so)
 PIC_LIB_SUFFIX = -pic.a
 PIC_OBJ_SUFFIX = -pic.o
 
@@ -96,8 +100,13 @@ ifeq ($(3),yes)
 # Create a static lib + a shared lib
 $(1): $(1)$(STATIC_LIB_SUFFIX) $(1)$(SHARED_LIB_SUFFIX)
 else ifeq ($(enable_shared),yes)
+ifneq ($(findstring -static,$($(2)_LDFLAGS)),)
+# Create a static lib only
+$(1): $(1)$(STATIC_LIB_SUFFIX)
+else
 # Create a static lib + a pic lib
 $(1): $(1)$(STATIC_LIB_SUFFIX) $(1)$(PIC_LIB_SUFFIX)
+endif
 else
 $(1): $(1)$(STATIC_LIB_SUFFIX)
 endif
