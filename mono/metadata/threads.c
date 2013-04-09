@@ -320,23 +320,10 @@ static gboolean handle_remove(MonoInternalThread *thread)
 	return ret;
 }
 
-static void ensure_synch_cs_set (MonoInternalThread *thread)
+static void
+ensure_synch_cs_set (MonoInternalThread *thread)
 {
-	CRITICAL_SECTION *synch_cs;
-	
-	if (thread->synch_cs != NULL) {
-		return;
-	}
-	
-	synch_cs = g_new0 (CRITICAL_SECTION, 1);
-	InitializeCriticalSection (synch_cs);
-	
-	if (InterlockedCompareExchangePointer ((gpointer *)&thread->synch_cs,
-					       synch_cs, NULL) != NULL) {
-		/* Another thread must have installed this CS */
-		DeleteCriticalSection (synch_cs);
-		g_free (synch_cs);
-	}
+	g_assert (thread->synch_cs);
 }
 
 /*
@@ -416,7 +403,6 @@ static void thread_cleanup (MonoInternalThread *thread)
 		MONO_GC_UNREGISTER_ROOT (thread->thread_pinning_ref);
 		thread->thread_pinning_ref = NULL;
 	}
-		
 }
 
 static gpointer
@@ -480,6 +466,19 @@ new_thread_with_internal (MonoDomain *domain, MonoInternalThread *internal)
 {
 	MonoThread *thread = create_thread_object (domain);
 	MONO_OBJECT_SETREF (thread, internal_thread, internal);
+	return thread;
+}
+
+static MonoInternalThread*
+create_internal_thread (void)
+{
+	MonoInternalThread *thread;
+
+	thread = create_internal_thread_object ();
+
+	thread->synch_cs = g_new0 (CRITICAL_SECTION, 1);
+	InitializeCriticalSection (thread->synch_cs);
+
 	return thread;
 }
 
@@ -724,7 +723,7 @@ mono_thread_create_internal (MonoDomain *domain, gpointer func, gpointer arg, gb
 	guint32 create_flags;
 
 	thread = create_thread_object (domain);
-	internal = create_internal_thread_object ();
+	internal = create_internal_thread ();
 	MONO_OBJECT_SETREF (thread, internal_thread, internal);
 
 	start_info=g_new0 (struct StartInfo, 1);
@@ -779,9 +778,6 @@ mono_thread_create_internal (MonoDomain *domain, gpointer func, gpointer arg, gb
 		internal->thread_pinning_ref = internal;
 		MONO_GC_REGISTER_ROOT_PINNING (internal->thread_pinning_ref);
 	}
-
-	internal->synch_cs = g_new0 (CRITICAL_SECTION, 1);
-	InitializeCriticalSection (internal->synch_cs);
 
 	internal->threadpool_thread = threadpool_thread;
 	if (threadpool_thread)
@@ -908,7 +904,7 @@ mono_thread_attach (MonoDomain *domain)
 		g_error ("Thread %"G_GSIZE_FORMAT" calling into managed code is not registered with the GC. On UNIX, this can be fixed by #include-ing <gc.h> before <pthread.h> in the file containing the thread creation code.", GetCurrentThreadId ());
 	}
 
-	thread = create_internal_thread_object ();
+	thread = create_internal_thread ();
 
 	thread_handle = GetCurrentThread ();
 	g_assert (thread_handle);
@@ -935,9 +931,6 @@ mono_thread_attach (MonoDomain *domain)
 	}
 
 	thread->stack_ptr = &tid;
-
-	thread->synch_cs = g_new0 (CRITICAL_SECTION, 1);
-	InitializeCriticalSection (thread->synch_cs);
 
 	THREAD_DEBUG (g_message ("%s: Attached thread ID %"G_GSIZE_FORMAT" (handle %p)", __func__, tid, thread_handle));
 
@@ -1021,7 +1014,7 @@ mono_thread_exit ()
 void
 ves_icall_System_Threading_Thread_ConstructInternalThread (MonoThread *this)
 {
-	MonoInternalThread *internal = create_internal_thread_object ();
+	MonoInternalThread *internal = create_internal_thread ();
 
 	internal->state = ThreadState_Unstarted;
 	internal->apartment_state = ThreadApartmentState_Unknown;
@@ -1122,7 +1115,13 @@ HANDLE ves_icall_System_Threading_Thread_Thread_internal(MonoThread *this,
 	}
 }
 
-void ves_icall_System_Threading_InternalThread_Thread_free_internal (MonoInternalThread *this, HANDLE thread)
+/*
+ * This is called from the finalizer of the internal thread object. Since threads keep a reference to their
+ * thread object while running, by the time this function is called, the thread has already exited/detached,
+ * i.e. thread_cleanup () has ran.
+ */
+void
+ves_icall_System_Threading_InternalThread_Thread_free_internal (MonoInternalThread *this, HANDLE thread)
 {
 	MONO_ARCH_SAVE_REGS;
 
