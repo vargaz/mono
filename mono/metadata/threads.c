@@ -89,13 +89,13 @@ size_t pthread_get_stacksize_np(pthread_t);
 #   endif
 #endif
 
-struct StartInfo 
+typedef struct
 {
 	guint32 (*func)(void *);
 	MonoThread *obj;
 	MonoObject *delegate;
 	void *start_arg;
-};
+}  StartInfo;
 
 typedef union {
 	gint32 ival;
@@ -197,7 +197,6 @@ static void mono_free_static_data (gpointer* static_data, gboolean threadlocal);
 static void mono_init_static_data_info (StaticDataInfo *static_data);
 static guint32 mono_alloc_static_data_slot (StaticDataInfo *static_data, guint32 size, guint32 align);
 static gboolean mono_thread_resume (MonoInternalThread* thread);
-static void mono_thread_start (MonoThread *thread);
 static void signal_thread_state_change (MonoInternalThread *thread);
 static void abort_thread_internal (MonoInternalThread *thread, gboolean can_raise_exception, gboolean install_async_abort);
 static void suspend_thread_internal (MonoInternalThread *thread, gboolean interrupt);
@@ -407,10 +406,8 @@ static void thread_cleanup (MonoInternalThread *thread)
 	if (mono_thread_cleanup_fn)
 		mono_thread_cleanup_fn (thread);
 
-	if (mono_gc_is_moving ()) {
-		MONO_GC_UNREGISTER_ROOT (thread->thread_pinning_ref);
-		thread->thread_pinning_ref = NULL;
-	}
+	/* The root is unregistered in the finalizer */
+	thread->thread_pinning_ref = NULL;
 }
 
 static gpointer
@@ -455,13 +452,6 @@ set_current_thread_for_domain (MonoDomain *domain, MonoInternalThread *thread, M
 	*current_thread_ptr = current;
 }
 
-static MonoInternalThread*
-create_internal_thread_object (void)
-{
-	MonoVTable *vt = mono_class_vtable (mono_get_root_domain (), mono_defaults.internal_thread_class);
-	return (MonoInternalThread*)mono_gc_alloc_mature (vt);
-}
-
 static MonoThread*
 create_thread_object (MonoDomain *domain)
 {
@@ -481,11 +471,20 @@ static MonoInternalThread*
 create_internal_thread (void)
 {
 	MonoInternalThread *thread;
+	MonoVTable *vt;
 
-	thread = create_internal_thread_object ();
+	vt = mono_class_vtable (mono_get_root_domain (), mono_defaults.internal_thread_class);
+	thread = (MonoInternalThread*)mono_gc_alloc_mature (vt);
 
 	thread->synch_cs = g_new0 (CRITICAL_SECTION, 1);
 	InitializeCriticalSection (thread->synch_cs);
+
+	thread->apartment_state=ThreadApartmentState_Unknown;
+	thread->managed_id = get_next_managed_thread_id ();
+	if (mono_gc_is_moving ()) {
+		thread->thread_pinning_ref = thread;
+		MONO_GC_REGISTER_ROOT_PINNING (thread->thread_pinning_ref);
+	}
 
 	return thread;
 }
@@ -505,7 +504,7 @@ init_root_domain_thread (MonoInternalThread *thread, MonoThread *candidate)
 static guint32 WINAPI start_wrapper_internal(void *data)
 {
 	MonoThreadInfo *info;
-	struct StartInfo *start_info=(struct StartInfo *)data;
+	StartInfo *start_info=(StartInfo *)data;
 	guint32 (*start_func)(void *);
 	void *start_arg;
 	gsize tid;
@@ -695,49 +694,16 @@ gpointer mono_create_thread (WapiSecurityAttributes *security,
 	return res;
 }
 
-/* 
- * The thread start argument may be an object reference, and there is
- * no ref to keep it alive when the new thread is started but not yet
- * registered with the collector. So we store it in a GC tracked hash
- * table.
- *
- * LOCKING: Assumes the threads lock is held.
- */
-static void
-register_thread_start_argument (MonoThread *thread, struct StartInfo *start_info)
-{
-	if (thread_start_args == NULL) {
-		MONO_GC_REGISTER_ROOT_FIXED (thread_start_args);
-		thread_start_args = mono_g_hash_table_new (NULL, NULL);
-	}
-	mono_g_hash_table_insert (thread_start_args, thread, start_info->start_arg);
-}
-
 /*
- * mono_thread_create_internal:
- * 
- * If NO_DETACH is TRUE, then the thread is not detached using pthread_detach (). This is needed to fix the race condition where waiting for a thred to exit only waits for its exit event to be
- * signalled, which can cause shutdown crashes if the thread shutdown code accesses data already freed by the runtime shutdown.
- * Currently, this is only used for the finalizer thread.
+ * Common thread start code used by both mono_thread_create_internal () and ves_icall_System_Threading_Thread_Thread_internal ().
  */
-MonoInternalThread*
-mono_thread_create_internal (MonoDomain *domain, gpointer func, gpointer arg, gboolean threadpool_thread, gboolean no_detach, guint32 stack_size)
+static MonoInternalThread*
+start_thread (MonoThread *thread, MonoInternalThread *internal, StartInfo *start_info, gboolean threadpool_thread,
+			  gboolean no_detach, gboolean raise_on_error, guint32 stack_size)
 {
-	MonoThread *thread;
-	MonoInternalThread *internal;
 	HANDLE thread_handle;
-	struct StartInfo *start_info;
 	gsize tid;
 	guint32 create_flags;
-
-	thread = create_thread_object (domain);
-	internal = create_internal_thread ();
-	MONO_OBJECT_SETREF (thread, internal_thread, internal);
-
-	start_info=g_new0 (struct StartInfo, 1);
-	start_info->func = func;
-	start_info->obj = thread;
-	start_info->start_arg = arg;
 
 	mono_threads_lock ();
 	if (shutting_down) {
@@ -745,12 +711,21 @@ mono_thread_create_internal (MonoDomain *domain, gpointer func, gpointer arg, gb
 		g_free (start_info);
 		return NULL;
 	}
+	/* 
+	 * The thread start argument may be an object reference, and there is
+	 * no ref to keep it alive when the new thread is started but not yet
+	 * registered with the collector. So we store it in a GC tracked hash
+	 * table.
+	 */
+	if (thread_start_args == NULL) {
+		MONO_GC_REGISTER_ROOT_FIXED (thread_start_args);
+		thread_start_args = mono_g_hash_table_new (NULL, NULL);
+	}
+	mono_g_hash_table_insert (thread_start_args, thread, start_info->start_arg);
 	if (threads_starting_up == NULL) {
 		MONO_GC_REGISTER_ROOT_FIXED (threads_starting_up);
 		threads_starting_up = mono_g_hash_table_new_type (NULL, NULL, MONO_HASH_KEY_VALUE_GC);
 	}
-
-	register_thread_start_argument (thread, start_info);
  	mono_g_hash_table_insert (threads_starting_up, thread, thread);
 	mono_threads_unlock ();	
 
@@ -774,31 +749,75 @@ mono_thread_create_internal (MonoDomain *domain, gpointer func, gpointer arg, gb
 		mono_g_hash_table_remove (threads_starting_up, thread);
 		mono_threads_unlock ();
 		g_free (start_info);
-		mono_raise_exception (mono_get_exception_execution_engine ("Couldn't create thread"));
+		if (raise_on_error)
+			mono_raise_exception (mono_get_exception_execution_engine ("Couldn't create thread"));
 		return NULL;
 	}
 
 	internal->handle=thread_handle;
 	internal->tid=tid;
-	internal->apartment_state=ThreadApartmentState_Unknown;
-	internal->managed_id = get_next_managed_thread_id ();
-	if (mono_gc_is_moving ()) {
-		internal->thread_pinning_ref = internal;
-		MONO_GC_REGISTER_ROOT_PINNING (internal->thread_pinning_ref);
-	}
 
 	internal->threadpool_thread = threadpool_thread;
 	if (threadpool_thread)
 		mono_thread_set_state (internal, ThreadState_Background);
 
-	if (handle_store (thread))
-		ResumeThread (thread_handle);
+	THREAD_DEBUG (g_message ("%s: (%"G_GSIZE_FORMAT") Launching thread %p (%"G_GSIZE_FORMAT")", __func__, GetCurrentThreadId (), internal, (gsize)internal->tid));
+
+	/* Only store the handle when the thread is about to be
+	 * launched, to avoid the main thread deadlocking while trying
+	 * to clean up a thread that will never be signalled.
+	 */
+	if (!handle_store (thread))
+		return internal;
+
+	ResumeThread (internal->handle);
+
+	if (internal->start_notify) {
+		/* Wait for the thread to set up its TLS data etc, so
+		 * theres no potential race condition if someone tries
+		 * to look up the data believing the thread has
+		 * started
+		 */
+		THREAD_DEBUG (g_message ("%s: (%"G_GSIZE_FORMAT") waiting for thread %p (%"G_GSIZE_FORMAT") to start", __func__, GetCurrentThreadId (), internal, (gsize)internal->tid));
+
+		WaitForSingleObjectEx (internal->start_notify, INFINITE, FALSE);
+		CloseHandle (internal->start_notify);
+		internal->start_notify = NULL;
+	}
+
+	THREAD_DEBUG (g_message ("%s: (%"G_GSIZE_FORMAT") Done launching thread %p (%"G_GSIZE_FORMAT")", __func__, GetCurrentThreadId (), internal, (gsize)internal->tid));
 
 	/* Check that the managed and unmanaged layout of MonoInternalThread matches */
 	if (mono_check_corlib_version () == NULL)
 		g_assert (((char*)&internal->unused2 - (char*)internal) == mono_defaults.internal_thread_class->fields [mono_defaults.internal_thread_class->field.count - 1].offset);
 
 	return internal;
+}
+
+/*
+ * mono_thread_create_internal:
+ * 
+ * If NO_DETACH is TRUE, then the thread is not detached using pthread_detach (). This is needed to fix the race condition where waiting for a thred to exit only waits for its exit event to be
+ * signalled, which can cause shutdown crashes if the thread shutdown code accesses data already freed by the runtime shutdown.
+ * Currently, this is only used for the finalizer thread.
+ */
+MonoInternalThread*
+mono_thread_create_internal (MonoDomain *domain, gpointer func, gpointer arg, gboolean threadpool_thread, gboolean no_detach, guint32 stack_size)
+{
+	MonoThread *thread;
+	MonoInternalThread *internal;
+	StartInfo *start_info;
+
+	thread = create_thread_object (domain);
+	internal = create_internal_thread ();
+	MONO_OBJECT_SETREF (thread, internal_thread, internal);
+
+	start_info=g_new0 (StartInfo, 1);
+	start_info->func = func;
+	start_info->obj = thread;
+	start_info->start_arg = arg;
+
+	return start_thread (thread, internal, start_info, threadpool_thread, no_detach, TRUE, stack_size);
 }
 
 void
@@ -931,12 +950,6 @@ mono_thread_attach (MonoDomain *domain)
 #ifdef PLATFORM_ANDROID
 	thread->android_tid = (gpointer) gettid ();
 #endif
-	thread->apartment_state=ThreadApartmentState_Unknown;
-	thread->managed_id = get_next_managed_thread_id ();
-	if (mono_gc_is_moving ()) {
-		thread->thread_pinning_ref = thread;
-		MONO_GC_REGISTER_ROOT_PINNING (thread->thread_pinning_ref);
-	}
 
 	thread->stack_ptr = &tid;
 
@@ -1025,8 +1038,6 @@ ves_icall_System_Threading_Thread_ConstructInternalThread (MonoThread *this)
 	MonoInternalThread *internal = create_internal_thread ();
 
 	internal->state = ThreadState_Unstarted;
-	internal->apartment_state = ThreadApartmentState_Unknown;
-	internal->managed_id = get_next_managed_thread_id ();
 
 	InterlockedCompareExchangePointer ((gpointer)&this->internal_thread, internal, NULL);
 }
@@ -1034,11 +1045,8 @@ ves_icall_System_Threading_Thread_ConstructInternalThread (MonoThread *this)
 HANDLE ves_icall_System_Threading_Thread_Thread_internal(MonoThread *this,
 							 MonoObject *start)
 {
-	guint32 (*start_func)(void *);
-	struct StartInfo *start_info;
-	HANDLE thread;
-	gsize tid;
-	MonoInternalThread *internal;
+	StartInfo *start_info;
+	MonoInternalThread *internal, *res;
 
 	THREAD_DEBUG (g_message("%s: Trying to start a new thread: this (%p) start (%p)", __func__, this, start));
 
@@ -1058,67 +1066,30 @@ HANDLE ves_icall_System_Threading_Thread_Thread_internal(MonoThread *this,
 		UNLOCK_THREAD (internal);
 		return this;
 	}
-	start_func = NULL;
-	{
-		/* This is freed in start_wrapper */
-		start_info = g_new0 (struct StartInfo, 1);
-		start_info->func = start_func;
-		start_info->start_arg = this->start_obj; /* FIXME: GC object stored in unmanaged memory */
-		start_info->delegate = start;
-		start_info->obj = this;
-		g_assert (this->obj.vtable->domain == mono_domain_get ());
+	/* This is freed in start_wrapper */
+	start_info = g_new0 (StartInfo, 1);
+	start_info->func = NULL;
+	start_info->start_arg = this->start_obj; /* FIXME: GC object stored in unmanaged memory */
+	start_info->delegate = start;
+	start_info->obj = this;
+	g_assert (this->obj.vtable->domain == mono_domain_get ());
 
-		internal->start_notify=CreateSemaphore (NULL, 0, 0x7fffffff, NULL);
-		if (internal->start_notify==NULL) {
-			UNLOCK_THREAD (internal);
-			g_warning ("%s: CreateSemaphore error 0x%x", __func__, GetLastError ());
-			g_free (start_info);
-			return(NULL);
-		}
-
-		mono_threads_lock ();
-		register_thread_start_argument (this, start_info);
-		if (threads_starting_up == NULL) {
-			MONO_GC_REGISTER_ROOT_FIXED (threads_starting_up);
-			threads_starting_up = mono_g_hash_table_new_type (NULL, NULL, MONO_HASH_KEY_VALUE_GC);
-		}
-		mono_g_hash_table_insert (threads_starting_up, this, this);
-		mono_threads_unlock ();	
-
-		thread=mono_create_thread(NULL, default_stacksize_for_thread (internal), (LPTHREAD_START_ROUTINE)start_wrapper, start_info,
-				    CREATE_SUSPENDED, &tid);
-		if(thread==NULL) {
-			UNLOCK_THREAD (internal);
-			mono_threads_lock ();
-			mono_g_hash_table_remove (threads_starting_up, this);
-			mono_threads_unlock ();
-			g_warning("%s: CreateThread error 0x%x", __func__, GetLastError());
-			return(NULL);
-		}
-		
-		internal->handle=thread;
-		internal->tid=tid;
-		if (mono_gc_is_moving ()) {
-			internal->thread_pinning_ref = internal;
-			MONO_GC_REGISTER_ROOT_PINNING (internal->thread_pinning_ref);
-		}
-		
-
-		/* Don't call handle_store() here, delay it to Start.
-		 * We can't join a thread (trying to will just block
-		 * forever) until it actually starts running, so don't
-		 * store the handle till then.
-		 */
-
-		mono_thread_start (this);
-		
-		internal->state &= ~ThreadState_Unstarted;
-
-		THREAD_DEBUG (g_message ("%s: Started thread ID %"G_GSIZE_FORMAT" (handle %p)", __func__, tid, thread));
-
+	internal->start_notify=CreateSemaphore (NULL, 0, 0x7fffffff, NULL);
+	if (internal->start_notify==NULL) {
 		UNLOCK_THREAD (internal);
-		return(thread);
+		g_warning ("%s: CreateSemaphore error 0x%x", __func__, GetLastError ());
+		g_free (start_info);
+		return(NULL);
 	}
+
+	res = start_thread (this, internal, start_info, FALSE, FALSE, FALSE, 0);
+	if (!res) {
+		UNLOCK_THREAD (internal);
+		return NULL;
+	}
+	internal->state &= ~ThreadState_Unstarted;
+	UNLOCK_THREAD (internal);
+	return internal->handle;
 }
 
 /*
@@ -1148,38 +1119,9 @@ ves_icall_System_Threading_InternalThread_Thread_free_internal (MonoInternalThre
 		this->name = NULL;
 		g_free (name);
 	}
-}
 
-static void mono_thread_start (MonoThread *thread)
-{
-	MonoInternalThread *internal = thread->internal_thread;
-
-	THREAD_DEBUG (g_message ("%s: (%"G_GSIZE_FORMAT") Launching thread %p (%"G_GSIZE_FORMAT")", __func__, GetCurrentThreadId (), internal, (gsize)internal->tid));
-
-	/* Only store the handle when the thread is about to be
-	 * launched, to avoid the main thread deadlocking while trying
-	 * to clean up a thread that will never be signalled.
-	 */
-	if (!handle_store (thread))
-		return;
-
-	ResumeThread (internal->handle);
-
-	if(internal->start_notify!=NULL) {
-		/* Wait for the thread to set up its TLS data etc, so
-		 * theres no potential race condition if someone tries
-		 * to look up the data believing the thread has
-		 * started
-		 */
-
-		THREAD_DEBUG (g_message ("%s: (%"G_GSIZE_FORMAT") waiting for thread %p (%"G_GSIZE_FORMAT") to start", __func__, GetCurrentThreadId (), internal, (gsize)internal->tid));
-
-		WaitForSingleObjectEx (internal->start_notify, INFINITE, FALSE);
-		CloseHandle (internal->start_notify);
-		internal->start_notify = NULL;
-	}
-
-	THREAD_DEBUG (g_message ("%s: (%"G_GSIZE_FORMAT") Done launching thread %p (%"G_GSIZE_FORMAT")", __func__, GetCurrentThreadId (), internal, (gsize)internal->tid));
+	if (mono_gc_is_moving ())
+		MONO_GC_UNREGISTER_ROOT (this->thread_pinning_ref);
 }
 
 void ves_icall_System_Threading_Thread_Sleep_internal(gint32 ms)
