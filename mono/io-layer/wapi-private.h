@@ -56,6 +56,9 @@ extern const char *_wapi_handle_typename[];
 				      type == WAPI_HANDLE_NAMEDSEM || \
 				      type == WAPI_HANDLE_NAMEDEVENT)
 
+/* The handle specific data is allocated using malloc and it is pointed to by handle->data */
+#define _WAPI_HANDLE_DATA_MALLOCED(type) (type == WAPI_HANDLE_THREAD)
+
 typedef struct 
 {
 	gchar name[MAX_PATH + 1];
@@ -70,6 +73,7 @@ typedef enum {
 
 struct _WapiHandleOps 
 {
+	/* Called when the handle's ref count goes to 0 */
 	void (*close)(gpointer handle, gpointer data);
 
 	/* SignalObjectAndWait */
@@ -126,7 +130,9 @@ struct _WapiHandleUnshared
 	gboolean signalled;
 	mono_mutex_t signal_mutex;
 	pthread_cond_t signal_cond;
-	
+	/* Used only if _WAPI_HANDLE_DATA_MALLOCED(type) is set */
+	gpointer data;
+
 	union 
 	{
 		struct _WapiHandle_event event;
@@ -135,7 +141,6 @@ struct _WapiHandleUnshared
 		struct _WapiHandle_mutex mutex;
 		struct _WapiHandle_sem sem;
 		struct _WapiHandle_socket sock;
-		struct _WapiHandle_thread thread;
 		struct _WapiHandle_shared_ref shared;
 	} u;
 };

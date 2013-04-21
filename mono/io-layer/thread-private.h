@@ -28,7 +28,7 @@ typedef enum {
 
 #define INTERRUPTION_REQUESTED_HANDLE (gpointer)0xFFFFFFFE
 
-struct _WapiHandle_thread
+typedef struct _WapiHandle_thread
 {
 	guint32 exitstatus;
 	WapiThreadState state : 2;
@@ -49,7 +49,7 @@ struct _WapiHandle_thread
 	MonoSemType suspend_sem;
 	guint32 (*start_routine)(gpointer arg);
 	gpointer start_arg;
-};
+} _WapiHandle_thread;
 
 typedef struct
 {

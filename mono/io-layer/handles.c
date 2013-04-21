@@ -321,6 +321,15 @@ static void _wapi_handle_init_shared (struct _WapiHandleShared *handle,
 	}
 }
 
+static inline gpointer
+get_handle_data (struct _WapiHandleUnshared *handle, WapiHandleType type)
+{
+	if (_WAPI_HANDLE_DATA_MALLOCED (type))
+		return handle->data;
+	else
+		return &handle->u;
+}
+
 static void _wapi_handle_init (struct _WapiHandleUnshared *handle,
 			       WapiHandleType type, gpointer handle_specific)
 {
@@ -340,8 +349,13 @@ static void _wapi_handle_init (struct _WapiHandleUnshared *handle,
 		g_assert (thr_ret == 0);
 
 		if (handle_specific != NULL) {
-			memcpy (&handle->u, handle_specific,
-				sizeof (handle->u));
+			if (_WAPI_HANDLE_DATA_MALLOCED (type)) {
+				handle->data = handle_specific;
+			} else {
+				handle->data = NULL;
+				memcpy (&handle->u, handle_specific,
+						sizeof (handle->u));
+			}
 		}
 	}
 }
@@ -744,7 +758,7 @@ gboolean _wapi_lookup_handle (gpointer handle, WapiHandleType type,
 		
 		*handle_specific = &shared_handle_data->u;
 	} else {
-		*handle_specific = &handle_data->u;
+		*handle_specific = get_handle_data (handle_data, type);
 	}
 	
 	return(TRUE);
@@ -915,7 +929,7 @@ gpointer _wapi_search_handle (WapiHandleType type,
 			
 			*handle_specific = &shared->u;
 		} else {
-			*handle_specific = &handle_data->u;
+			*handle_specific = get_handle_data (handle_data, type);
 		}
 	}
 
@@ -1145,7 +1159,7 @@ static void _wapi_handle_unref_full (gpointer handle, gboolean ignore_private_bu
 			if (is_shared) {
 				close_func (handle, &shared_handle_data.u);
 			} else {
-				close_func (handle, &handle_data.u);
+				close_func (handle, get_handle_data (&handle_data, type));
 			}
 		}
 	}
