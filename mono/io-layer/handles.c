@@ -481,8 +481,6 @@ _wapi_handle_new (WapiHandleType type, gpointer handle_specific)
 
 	g_assert(!_WAPI_FD_HANDLE(type));
 	
-	pthread_cleanup_push ((void(*)(void *))mono_mutex_unlock_in_cleanup,
-			      (void *)&scan_mutex);
 	thr_ret = mono_mutex_lock (&scan_mutex);
 	g_assert (thr_ret == 0);
 		
@@ -502,7 +500,6 @@ _wapi_handle_new (WapiHandleType type, gpointer handle_specific)
 	
 	thr_ret = mono_mutex_unlock (&scan_mutex);
 	g_assert (thr_ret == 0);
-	pthread_cleanup_pop (0);
 
 	if (handle_idx == 0) {
 		/* We ran out of slots */
@@ -565,8 +562,6 @@ gpointer _wapi_handle_new_from_offset (WapiHandleType type, guint32 offset,
 		InterlockedExchange ((gint32 *)&shared->timestamp, now);
 	}
 		
-	pthread_cleanup_push ((void(*)(void *))mono_mutex_unlock_in_cleanup,
-			      (void *)&scan_mutex);
 	thr_ret = mono_mutex_lock (&scan_mutex);
 	g_assert (thr_ret == 0);
 
@@ -587,7 +582,6 @@ gpointer _wapi_handle_new_from_offset (WapiHandleType type, guint32 offset,
 first_pass_done:
 	thr_ret = mono_mutex_unlock (&scan_mutex);
 	g_assert (thr_ret == 0);
-	pthread_cleanup_pop (0);
 
 	if (handle != INVALID_HANDLE_VALUE) {
 		_wapi_handle_ref (handle);
@@ -615,8 +609,6 @@ first_pass_done:
 		goto done;
 	}
 	
-	pthread_cleanup_push ((void(*)(void *))mono_mutex_unlock_in_cleanup,
-			      (void *)&scan_mutex);
 	thr_ret = mono_mutex_lock (&scan_mutex);
 	g_assert (thr_ret == 0);
 	
@@ -632,7 +624,6 @@ first_pass_done:
 		
 	thr_ret = mono_mutex_unlock (&scan_mutex);
 	g_assert (thr_ret == 0);
-	pthread_cleanup_pop (0);
 		
 	/* Make sure we left the space for fd mappings */
 	g_assert (handle_idx >= _wapi_fd_reserve);
@@ -655,8 +646,6 @@ init_handles_slot (int idx)
 {
 	int thr_ret;
 
-	pthread_cleanup_push ((void(*)(void *))mono_mutex_unlock_in_cleanup,
-						  (void *)&scan_mutex);
 	thr_ret = mono_mutex_lock (&scan_mutex);
 	g_assert (thr_ret == 0);
 
@@ -668,7 +657,6 @@ init_handles_slot (int idx)
 
 	thr_ret = mono_mutex_unlock (&scan_mutex);
 	g_assert (thr_ret == 0);
-	pthread_cleanup_pop (0);
 }
 
 gpointer _wapi_handle_new_fd (WapiHandleType type, int fd,
@@ -774,8 +762,6 @@ _wapi_handle_foreach (WapiHandleType type,
 	guint32 i, k;
 	int thr_ret;
 
-	pthread_cleanup_push ((void(*)(void *))mono_mutex_unlock_in_cleanup,
-			      (void *)&scan_mutex);
 	thr_ret = mono_mutex_lock (&scan_mutex);
 	g_assert (thr_ret == 0);
 
@@ -795,7 +781,6 @@ _wapi_handle_foreach (WapiHandleType type,
 
 	thr_ret = mono_mutex_unlock (&scan_mutex);
 	g_assert (thr_ret == 0);
-	pthread_cleanup_pop (0);
 }
 
 /* This might list some shared handles twice if they are already
@@ -819,8 +804,6 @@ gpointer _wapi_search_handle (WapiHandleType type,
 	gboolean found = FALSE;
 	int thr_ret;
 
-	pthread_cleanup_push ((void(*)(void *))mono_mutex_unlock_in_cleanup,
-			      (void *)&scan_mutex);
 	thr_ret = mono_mutex_lock (&scan_mutex);
 	g_assert (thr_ret == 0);
 	
@@ -848,7 +831,6 @@ gpointer _wapi_search_handle (WapiHandleType type,
 
 	thr_ret = mono_mutex_unlock (&scan_mutex);
 	g_assert (thr_ret == 0);
-	pthread_cleanup_pop (0);
 
 	if (!found && search_shared && _WAPI_SHARED_HANDLE (type)) {
 		/* Not found yet, so search the shared memory too */
@@ -1091,7 +1073,6 @@ static void _wapi_handle_unref_full (gpointer handle, gboolean ignore_private_bu
 			g_assert (thr_ret == 0);
 		}
 		
-		pthread_cleanup_push ((void(*)(void *))mono_mutex_unlock_in_cleanup, (void *)&scan_mutex);
 		thr_ret = mono_mutex_lock (&scan_mutex);
 
 		DEBUG ("%s: Destroying handle %p", __func__, handle);
@@ -1147,7 +1128,6 @@ static void _wapi_handle_unref_full (gpointer handle, gboolean ignore_private_bu
 
 		thr_ret = mono_mutex_unlock (&scan_mutex);
 		g_assert (thr_ret == 0);
-		pthread_cleanup_pop (0);
 
 		if (early_exit)
 			return;
@@ -1944,8 +1924,6 @@ void _wapi_handle_dump (void)
 	guint32 i, k;
 	int thr_ret;
 	
-	pthread_cleanup_push ((void(*)(void *))mono_mutex_unlock_in_cleanup,
-			      (void *)&scan_mutex);
 	thr_ret = mono_mutex_lock (&scan_mutex);
 	g_assert (thr_ret == 0);
 	
@@ -1971,7 +1949,6 @@ void _wapi_handle_dump (void)
 
 	thr_ret = mono_mutex_unlock (&scan_mutex);
 	g_assert (thr_ret == 0);
-	pthread_cleanup_pop (0);
 }
 
 static void _wapi_shared_details (gpointer handle_info)
@@ -1994,8 +1971,6 @@ void _wapi_handle_update_refs (void)
 	thr_ret = _wapi_shm_sem_lock (_WAPI_SHARED_SEM_FILESHARE);
 	g_assert(thr_ret == 0);
 
-	pthread_cleanup_push ((void(*)(void *))mono_mutex_unlock_in_cleanup,
-			      (void *)&scan_mutex);
 	thr_ret = mono_mutex_lock (&scan_mutex);
 	
 	for(i = SLOT_INDEX (0); i < _wapi_private_handle_slot_count; i++) {
@@ -2030,7 +2005,6 @@ void _wapi_handle_update_refs (void)
 
 	thr_ret = mono_mutex_unlock (&scan_mutex);
 	g_assert (thr_ret == 0);
-	pthread_cleanup_pop (0);
 	
 	thr_ret = _wapi_shm_sem_unlock (_WAPI_SHARED_SEM_FILESHARE);
 

@@ -140,8 +140,6 @@ guint32 WaitForSingleObjectEx(gpointer handle, guint32 timeout,
 	
 	DEBUG ("%s: locking handle %p", __func__, handle);
 
-	pthread_cleanup_push ((void(*)(void *))_wapi_handle_unlock_handle,
-			      handle);
 	thr_ret = _wapi_handle_lock_handle (handle);
 	g_assert (thr_ret == 0);
 
@@ -229,7 +227,6 @@ done:
 	
 	thr_ret = _wapi_handle_unlock_handle (handle);
 	g_assert (thr_ret == 0);
-	pthread_cleanup_pop (0);
 	
 check_pending:
 	if (apc_pending) {
@@ -342,8 +339,6 @@ guint32 SignalObjectAndWait(gpointer signal_handle, gpointer wait,
 
 	DEBUG ("%s: locking handle %p", __func__, wait);
 
-	pthread_cleanup_push ((void(*)(void *))_wapi_handle_unlock_handle,
-			      wait);
 	thr_ret = _wapi_handle_lock_handle (wait);
 	g_assert (thr_ret == 0);
 
@@ -427,7 +422,6 @@ done:
 
 	thr_ret = _wapi_handle_unlock_handle (wait);
 	g_assert (thr_ret == 0);
-	pthread_cleanup_pop (0);
 
 	if (apc_pending) {
 		_wapi_thread_dispatch_apc_queue (current_thread);
@@ -462,7 +456,6 @@ static gboolean test_and_own (guint32 numobjects, gpointer *handles,
 	cleanup_data.numobjects = numobjects;
 	cleanup_data.handles = handles;
 	
-	pthread_cleanup_push (handle_cleanup, (void *)&cleanup_data);
 	done = _wapi_handle_count_signalled_handles (numobjects, handles,
 						     waitall, count, lowest);
 	if (done == TRUE) {
@@ -477,8 +470,7 @@ static gboolean test_and_own (guint32 numobjects, gpointer *handles,
 	
 	DEBUG ("%s: unlocking handles", __func__);
 
-	/* calls the unlock function */
-	pthread_cleanup_pop (1);
+	handle_cleanup (&cleanup_data);
 
 	return(done);
 }
@@ -644,7 +636,6 @@ guint32 WaitForMultipleObjectsEx(guint32 numobjects, gpointer *handles,
 		
 		DEBUG ("%s: locking signal mutex", __func__);
 
-		pthread_cleanup_push ((void(*)(void *))_wapi_handle_unlock_signal_mutex, NULL);
 		thr_ret = _wapi_handle_lock_signal_mutex ();
 		g_assert (thr_ret == 0);
 
@@ -677,7 +668,6 @@ guint32 WaitForMultipleObjectsEx(guint32 numobjects, gpointer *handles,
 
 		thr_ret = _wapi_handle_unlock_signal_mutex (NULL);
 		g_assert (thr_ret == 0);
-		pthread_cleanup_pop (0);
 		
 		if (alertable && _wapi_thread_apc_pending (current_thread)) {
 			_wapi_thread_dispatch_apc_queue (current_thread);

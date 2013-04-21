@@ -191,8 +191,6 @@ static gpointer event_create (WapiSecurityAttributes *security G_GNUC_UNUSED,
 		return(NULL);
 	}
 
-	pthread_cleanup_push ((void(*)(void *))_wapi_handle_unlock_handle,
-			      handle);
 	thr_ret = _wapi_handle_lock_handle (handle);
 	g_assert (thr_ret == 0);
 	
@@ -204,7 +202,6 @@ static gpointer event_create (WapiSecurityAttributes *security G_GNUC_UNUSED,
 
 	thr_ret = _wapi_handle_unlock_handle (handle);
 	g_assert (thr_ret == 0);
-	pthread_cleanup_pop (0);
 
 	return(handle);
 }
@@ -365,8 +362,6 @@ static gboolean event_pulse (gpointer handle)
 		return(FALSE);
 	}
 	
-	pthread_cleanup_push ((void(*)(void *))_wapi_handle_unlock_handle,
-			      handle);
 	thr_ret = _wapi_handle_lock_handle (handle);
 	g_assert (thr_ret == 0);
 
@@ -381,8 +376,6 @@ static gboolean event_pulse (gpointer handle)
 
 	thr_ret = _wapi_handle_unlock_handle (handle);
 	g_assert (thr_ret == 0);
-	
-	pthread_cleanup_pop (0);
 	
 	if (event_handle->manual == TRUE) {
 		/* For a manual-reset event, we're about to try and
@@ -400,7 +393,6 @@ static gboolean event_pulse (gpointer handle)
 		DEBUG ("%s: Obtained write lock on event handle %p",
 			   __func__, handle);
 
-		pthread_cleanup_push ((void(*)(void *))_wapi_handle_unlock_handle, handle);
 		thr_ret = _wapi_handle_lock_handle (handle);
 		g_assert (thr_ret == 0);
 		
@@ -408,7 +400,6 @@ static gboolean event_pulse (gpointer handle)
 
 		thr_ret = _wapi_handle_unlock_handle (handle);
 		g_assert (thr_ret == 0);
-		pthread_cleanup_pop (0);
 	}
 
 	return(TRUE);
@@ -519,8 +510,6 @@ static gboolean event_reset (gpointer handle)
 
 	DEBUG ("%s: Resetting event handle %p", __func__, handle);
 
-	pthread_cleanup_push ((void(*)(void *))_wapi_handle_unlock_handle,
-			      handle);
 	thr_ret = _wapi_handle_lock_handle (handle);
 	g_assert (thr_ret == 0);
 	
@@ -538,8 +527,6 @@ static gboolean event_reset (gpointer handle)
 	
 	thr_ret = _wapi_handle_unlock_handle (handle);
 	g_assert (thr_ret == 0);
-	
-	pthread_cleanup_pop (0);
 	
 	return(TRUE);
 }
@@ -622,8 +609,6 @@ static gboolean event_set (gpointer handle)
 		return(FALSE);
 	}
 	
-	pthread_cleanup_push ((void(*)(void *))_wapi_handle_unlock_handle,
-			      handle);
 	thr_ret = _wapi_handle_lock_handle (handle);
 	g_assert (thr_ret == 0);
 
@@ -639,8 +624,6 @@ static gboolean event_set (gpointer handle)
 	thr_ret = _wapi_handle_unlock_handle (handle);
 	g_assert (thr_ret == 0);
 	
-	pthread_cleanup_pop (0);
-
 	return(TRUE);
 }
 

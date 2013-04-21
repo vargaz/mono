@@ -2112,8 +2112,6 @@ gpointer GetStdHandle(WapiStdHandle stdhandle)
 
 	handle = GINT_TO_POINTER (fd);
 
-	pthread_cleanup_push ((void(*)(void *))mono_mutex_unlock_in_cleanup,
-			      (void *)&stdhandle_mutex);
 	thr_ret = mono_mutex_lock (&stdhandle_mutex);
 	g_assert (thr_ret == 0);
 
@@ -2135,7 +2133,6 @@ gpointer GetStdHandle(WapiStdHandle stdhandle)
   done:
 	thr_ret = mono_mutex_unlock (&stdhandle_mutex);
 	g_assert (thr_ret == 0);
-	pthread_cleanup_pop (0);
 	
 	return(handle);
 }
@@ -2728,8 +2725,6 @@ gboolean FindNextFile (gpointer handle, WapiFindData *find_data)
 		return(FALSE);
 	}
 
-	pthread_cleanup_push ((void(*)(void *))_wapi_handle_unlock_handle,
-			      handle);
 	thr_ret = _wapi_handle_lock_handle (handle);
 	g_assert (thr_ret == 0);
 	
@@ -2839,7 +2834,6 @@ retry:
 cleanup:
 	thr_ret = _wapi_handle_unlock_handle (handle);
 	g_assert (thr_ret == 0);
-	pthread_cleanup_pop (0);
 	
 	return(ret);
 }
@@ -2872,8 +2866,6 @@ gboolean FindClose (gpointer handle)
 		return(FALSE);
 	}
 
-	pthread_cleanup_push ((void(*)(void *))_wapi_handle_unlock_handle,
-			      handle);
 	thr_ret = _wapi_handle_lock_handle (handle);
 	g_assert (thr_ret == 0);
 	
@@ -2882,7 +2874,6 @@ gboolean FindClose (gpointer handle)
 
 	thr_ret = _wapi_handle_unlock_handle (handle);
 	g_assert (thr_ret == 0);
-	pthread_cleanup_pop (0);
 	
 	_wapi_handle_unref (handle);
 	
