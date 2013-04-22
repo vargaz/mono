@@ -103,9 +103,9 @@ void _wapi_free_share_info (_WapiFileShare *share_info);
 /* This is OK to use for atomic writes of individual struct members, as they
  * are independent
  */
-#define WAPI_SHARED_HANDLE_DATA(handle) _wapi_shared_layout->handles[_WAPI_PRIVATE_HANDLES(GPOINTER_TO_UINT((handle))).u.shared.offset]
+#define WAPI_SHARED_HANDLE_DATA(handle) _wapi_shared_layout->handles[_WAPI_PRIVATE_HANDLES(GPOINTER_TO_UINT((handle))).shared.offset]
 
-#define WAPI_SHARED_HANDLE_TYPED_DATA(handle, type) _wapi_shared_layout->handles[_WAPI_PRIVATE_HANDLES(GPOINTER_TO_UINT((handle))).u.shared.offset].u.type
+#define WAPI_SHARED_HANDLE_TYPED_DATA(handle, type) _wapi_shared_layout->handles[_WAPI_PRIVATE_HANDLES(GPOINTER_TO_UINT((handle))).shared.offset].u.type
 
 static inline WapiHandleType _wapi_handle_type (gpointer handle)
 {
@@ -200,7 +200,7 @@ static inline void _wapi_shared_handle_set_signal_state (gpointer handle,
 	
 	handle_data = &_WAPI_PRIVATE_HANDLES(idx);
 	
-	ref = &handle_data->u.shared;
+	ref = &handle_data->shared;
 	shared_data = &_wapi_shared_layout->handles[ref->offset];
 	shared_data->signalled = state;
 

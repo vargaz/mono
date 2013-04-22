@@ -514,7 +514,7 @@ _wapi_handle_new (WapiHandleType type, gpointer handle_specific)
 			}
 		}
 		
-		_WAPI_PRIVATE_HANDLES(handle_idx).u.shared.offset = ref;
+		_WAPI_PRIVATE_HANDLES(handle_idx).shared.offset = ref;
 		DEBUG ("%s: New shared handle at offset 0x%x", __func__,
 			   ref);
 	}
@@ -556,7 +556,7 @@ gpointer _wapi_handle_new_from_offset (WapiHandleType type, guint32 offset,
 				struct _WapiHandleUnshared *handle_data = &_wapi_private_handles [i][k];
 		
 				if (handle_data->type == type &&
-					handle_data->u.shared.offset == offset) {
+					handle_data->shared.offset == offset) {
 					handle = GUINT_TO_POINTER (i * _WAPI_HANDLE_INITIAL_COUNT + k);
 					goto first_pass_done;
 				}
@@ -615,7 +615,7 @@ first_pass_done:
 	
 	handle = GUINT_TO_POINTER (handle_idx);
 		
-	_WAPI_PRIVATE_HANDLES(handle_idx).u.shared.offset = offset;
+	_WAPI_PRIVATE_HANDLES(handle_idx).shared.offset = offset;
 	InterlockedIncrement ((gint32 *)&shared->handle_refs);
 	
 	DEBUG ("%s: Allocated new handle %p referencing 0x%x (shared refs %d)", __func__, handle, offset, shared->handle_refs);
@@ -720,7 +720,7 @@ gboolean _wapi_lookup_handle (gpointer handle, WapiHandleType type,
 		struct _WapiHandle_shared_ref *ref;
 		struct _WapiHandleShared *shared_handle_data;
 			
-		ref = &handle_data->u.shared;
+		ref = &handle_data->shared;
 		shared_handle_data = &_wapi_shared_layout->handles[ref->offset];
 		
 		if (shared_handle_data->type != type) {
@@ -992,7 +992,7 @@ void _wapi_handle_ref (gpointer handle)
 	 * to make sure.
 	 */
 	if (_WAPI_SHARED_HANDLE(handle_data->type)) {
-		struct _WapiHandleShared *shared_data = &_wapi_shared_layout->handles[handle_data->u.shared.offset];
+		struct _WapiHandleShared *shared_data = &_wapi_shared_layout->handles[handle_data->shared.offset];
 		guint32 now = (guint32)(time (NULL) & 0xFFFFFFFF);
 		InterlockedExchange ((gint32 *)&shared_data->timestamp, now);
 	}
@@ -1066,8 +1066,8 @@ static void _wapi_handle_unref_full (gpointer handle, gboolean ignore_private_bu
 			sizeof (struct _WapiHandleUnshared));
 
 		_WAPI_PRIVATE_HANDLES(idx).data = NULL;
-		memset (&_WAPI_PRIVATE_HANDLES(idx).u, '\0',
-			sizeof(_WAPI_PRIVATE_HANDLES(idx).u));
+		memset (&_WAPI_PRIVATE_HANDLES(idx).shared, 0,
+			sizeof(_WAPI_PRIVATE_HANDLES(idx).shared));
 
 		_WAPI_PRIVATE_HANDLES(idx).type = WAPI_HANDLE_UNUSED;
 		
@@ -1092,7 +1092,7 @@ static void _wapi_handle_unref_full (gpointer handle, gboolean ignore_private_bu
 					g_error ("Error destroying handle %p cond var due to %d\n", handle, thr_ret);
 			}
 		} else {
-			struct _WapiHandleShared *shared = &_wapi_shared_layout->handles[handle_data.u.shared.offset];
+			struct _WapiHandleShared *shared = &_wapi_shared_layout->handles[handle_data.shared.offset];
 
 			memcpy (&shared_handle_data, shared,
 				sizeof (struct _WapiHandleShared));
@@ -1795,7 +1795,7 @@ void _wapi_handle_check_share (struct _WapiFileShare *share_info, int fd)
 
 			if (i != fd &&
 				handle->type == WAPI_HANDLE_FILE) {
-				struct _WapiHandle_file *file_handle = &handle->u.file;
+				struct _WapiHandle_file *file_handle = handle->data;
 
 				if (file_handle->share_info == share_info) {
 					DEBUG ("%s: handle 0x%x has this file open!",
@@ -1818,7 +1818,7 @@ void _wapi_handle_check_share (struct _WapiFileShare *share_info, int fd)
 			struct dirent *fd_entry;
 			char subdir[_POSIX_PATH_MAX];
 
-			process_handle = &shared->u.process;
+			process_handle = shared->data;
 			pid = process_handle->id;
 		
 			/* Look in /proc/<pid>/fd/ but ignore
@@ -1927,7 +1927,7 @@ void _wapi_handle_dump (void)
 						 _wapi_handle_typename[handle_data->type],
 						 handle_data->signalled?"Sg":"Un",
 						 handle_data->ref);
-				handle_details[handle_data->type](&handle_data->u);
+				//handle_details[handle_data->type](&handle_data->u);
 				g_print ("\n");
 			}
 		}
@@ -1969,9 +1969,9 @@ void _wapi_handle_update_refs (void)
 				
 					DEBUG ("%s: (%d) handle 0x%x is SHARED (%s)", __func__, _wapi_getpid (), i * _WAPI_HANDLE_INITIAL_COUNT + k, _wapi_handle_typename[handle->type]);
 
-					shared_data = &_wapi_shared_layout->handles[handle->u.shared.offset];
+					shared_data = &_wapi_shared_layout->handles[handle->shared.offset];
 
-					DEBUG ("%s: (%d) Updating timestamp of handle 0x%x", __func__, _wapi_getpid (), handle->u.shared.offset);
+					DEBUG ("%s: (%d) Updating timestamp of handle 0x%x", __func__, _wapi_getpid (), handle->shared.offset);
 
 					InterlockedExchange ((gint32 *)&shared_data->timestamp, now);
 				} else if (handle->type == WAPI_HANDLE_FILE) {

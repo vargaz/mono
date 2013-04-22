@@ -946,7 +946,7 @@ gboolean CreateProcess (const gunichar2 *appname, const gunichar2 *cmdline,
 		struct _WapiHandle_shared_ref *ref;
 		
 		handle_data = &_WAPI_PRIVATE_HANDLES(GPOINTER_TO_UINT(handle));
-		ref = &handle_data->u.shared;
+		ref = &handle_data->shared;
 		
 		env_strings[env_count] = g_strdup_printf ("_WAPI_PROCESS_HANDLE_OFFSET=%d", ref->offset);
 	}

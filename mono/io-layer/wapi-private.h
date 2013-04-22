@@ -110,17 +110,17 @@ struct _WapiHandleOps
 #include <mono/io-layer/thread-private.h>
 #include <mono/io-layer/process-private.h>
 
-struct _WapiHandle_shared_ref
+typedef struct _WapiHandle_shared_ref
 {
 	/* This will be split 16:16 with the shared file segment in
 	 * the top half, when I implement space increases
 	 */
 	guint32 offset;
-};
+} _WapiHandle_shared_ref;
 
 #define _WAPI_HANDLE_INITIAL_COUNT 256
 
-struct _WapiHandleUnshared
+typedef struct _WapiHandleUnshared
 {
 	WapiHandleType type;
 	guint ref;
@@ -130,13 +130,10 @@ struct _WapiHandleUnshared
 	/* Handle type specific data */
 	gpointer data;
 
-	union 
-	{
-		struct _WapiHandle_shared_ref shared;
-	} u;
-};
+	_WapiHandle_shared_ref shared;
+} _WapiHandleUnshared;
 
-struct _WapiHandleShared
+typedef struct _WapiHandleShared
 {
 	WapiHandleType type;
 	guint32 timestamp;
@@ -150,7 +147,7 @@ struct _WapiHandleShared
 		struct _WapiHandle_namedsem namedsem;
 		struct _WapiHandle_namedevent namedevent;
 	} u;
-};
+} _WapiHandleShared;
 
 #define _WAPI_SHARED_SEM_NAMESPACE 0
 /*#define _WAPI_SHARED_SEM_COLLECTION 1*/
