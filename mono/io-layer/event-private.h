@@ -21,17 +21,17 @@ extern struct _WapiHandleOps _wapi_namedevent_ops;
 
 extern void _wapi_event_details (gpointer handle_info);
 
-struct _WapiHandle_event
+typedef struct _WapiHandle_event
 {
 	gboolean manual;
 	guint32 set_count;
-};
+} _WapiHandle_event;
 
-struct _WapiHandle_namedevent
+typedef struct _WapiHandle_namedevent
 {
 	WapiSharedNamespace sharedns;
 	gboolean manual;
 	guint32 set_count;
-};
+} _WapiHandle_namedevent;
 
 #endif /* _WAPI_EVENT_PRIVATE_H_ */

@@ -57,12 +57,14 @@ convert_from_flags(int flags)
 
 gpointer _wapi_stdhandle_create (int fd, const gchar *name)
 {
-	struct _WapiHandle_file file_handle = {0};
+	struct _WapiHandle_file *file_handle;
 	gpointer handle;
 	int flags;
 	
 	DEBUG("%s: creating standard handle type %s, fd %d", __func__,
 		  name, fd);
+
+	file_handle = g_new0 (_WapiHandle_file, 1);
 
 #if !defined(__native_client__)	
 	/* Check if fd is valid */
@@ -80,31 +82,31 @@ gpointer _wapi_stdhandle_create (int fd, const gchar *name)
 		SetLastError (_wapi_get_win32_file_error (errno));
 		return(INVALID_HANDLE_VALUE);
 	}
-	file_handle.fileaccess=convert_from_flags(flags);
+	file_handle->fileaccess=convert_from_flags(flags);
 #else
 	/* 
 	 * fcntl will return -1 in nacl, as there is no real file system API. 
 	 * Yet, standard streams are available.
 	 */
-	file_handle.fileaccess = (fd == STDIN_FILENO) ? GENERIC_READ : GENERIC_WRITE;
+	file_handle->fileaccess = (fd == STDIN_FILENO) ? GENERIC_READ : GENERIC_WRITE;
 #endif
 
-	file_handle.fd = fd;
-	file_handle.filename = g_strdup(name);
+	file_handle->fd = fd;
+	file_handle->filename = g_strdup(name);
 	/* some default security attributes might be needed */
-	file_handle.security_attributes=0;
+	file_handle->security_attributes=0;
 
 	/* Apparently input handles can't be written to.  (I don't
 	 * know if output or error handles can't be read from.)
 	 */
 	if (fd == 0) {
-		file_handle.fileaccess &= ~GENERIC_WRITE;
+		file_handle->fileaccess &= ~GENERIC_WRITE;
 	}
 	
-	file_handle.sharemode=0;
-	file_handle.attrs=0;
+	file_handle->sharemode=0;
+	file_handle->attrs=0;
 
-	handle = _wapi_handle_new_fd (WAPI_HANDLE_CONSOLE, fd, &file_handle);
+	handle = _wapi_handle_new_fd (WAPI_HANDLE_CONSOLE, fd, file_handle);
 	if (handle == _WAPI_HANDLE_INVALID) {
 		g_warning ("%s: error creating file handle", __func__);
 		SetLastError (ERROR_GEN_FAILURE);

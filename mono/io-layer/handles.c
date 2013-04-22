@@ -321,15 +321,6 @@ static void _wapi_handle_init_shared (struct _WapiHandleShared *handle,
 	}
 }
 
-static inline gpointer
-get_handle_data (struct _WapiHandleUnshared *handle, WapiHandleType type)
-{
-	if (_WAPI_HANDLE_DATA_MALLOCED (type))
-		return handle->data;
-	else
-		return &handle->u;
-}
-
 static void _wapi_handle_init (struct _WapiHandleUnshared *handle,
 			       WapiHandleType type, gpointer handle_specific)
 {
@@ -349,13 +340,7 @@ static void _wapi_handle_init (struct _WapiHandleUnshared *handle,
 		g_assert (thr_ret == 0);
 
 		if (handle_specific != NULL) {
-			if (_WAPI_HANDLE_DATA_MALLOCED (type)) {
-				handle->data = handle_specific;
-			} else {
-				handle->data = NULL;
-				memcpy (&handle->u, handle_specific,
-						sizeof (handle->u));
-			}
+			handle->data = handle_specific;
 		}
 	}
 }
@@ -746,7 +731,7 @@ gboolean _wapi_lookup_handle (gpointer handle, WapiHandleType type,
 		
 		*handle_specific = &shared_handle_data->u;
 	} else {
-		*handle_specific = get_handle_data (handle_data, type);
+		*handle_specific = handle_data->data;
 	}
 	
 	return(TRUE);
@@ -911,7 +896,7 @@ gpointer _wapi_search_handle (WapiHandleType type,
 			
 			*handle_specific = &shared->u;
 		} else {
-			*handle_specific = get_handle_data (handle_data, type);
+			*handle_specific = handle_data->data;
 		}
 	}
 
@@ -1080,6 +1065,7 @@ static void _wapi_handle_unref_full (gpointer handle, gboolean ignore_private_bu
 		memcpy (&handle_data, &_WAPI_PRIVATE_HANDLES(idx),
 			sizeof (struct _WapiHandleUnshared));
 
+		_WAPI_PRIVATE_HANDLES(idx).data = NULL;
 		memset (&_WAPI_PRIVATE_HANDLES(idx).u, '\0',
 			sizeof(_WAPI_PRIVATE_HANDLES(idx).u));
 
@@ -1139,7 +1125,7 @@ static void _wapi_handle_unref_full (gpointer handle, gboolean ignore_private_bu
 			if (is_shared) {
 				close_func (handle, &shared_handle_data.u);
 			} else {
-				close_func (handle, get_handle_data (&handle_data, type));
+				close_func (handle, handle_data.data);
 			}
 		}
 	}
@@ -1989,7 +1975,7 @@ void _wapi_handle_update_refs (void)
 
 					InterlockedExchange ((gint32 *)&shared_data->timestamp, now);
 				} else if (handle->type == WAPI_HANDLE_FILE) {
-					struct _WapiHandle_file *file_handle = &handle->u.file;
+					struct _WapiHandle_file *file_handle = handle->data;
 				
 					DEBUG ("%s: (%d) handle 0x%x is FILE", __func__, _wapi_getpid (), i * _WAPI_HANDLE_INITIAL_COUNT + k);
 				

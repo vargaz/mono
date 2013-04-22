@@ -126,10 +126,12 @@ void _wapi_console_details (gpointer handle_info)
 	_wapi_file_details (handle_info);
 }
 
+static void find_close (gpointer handle, gpointer data);
+
 /* Find handle has no ops.
  */
 struct _WapiHandleOps _wapi_find_ops = {
-	NULL,			/* close */
+	find_close,		/* close */
 	NULL,			/* signal */
 	NULL,			/* own */
 	NULL,			/* is_owned */
@@ -343,6 +345,7 @@ static void file_close (gpointer handle, gpointer data)
 		_wapi_handle_share_release (file_handle->share_info);
 	
 	close (fd);
+	g_free (data);
 }
 
 static WapiFileType file_getfiletype(void)
@@ -1004,6 +1007,7 @@ static void console_close (gpointer handle, gpointer data)
 	g_free (console_handle->filename);
 	
 	close (fd);
+	g_free (data);
 }
 
 static WapiFileType console_getfiletype(void)
@@ -1125,6 +1129,7 @@ static void pipe_close (gpointer handle, gpointer data)
 	/* No filename with pipe handles */
 
 	close (fd);
+	g_free (data);
 }
 
 static WapiFileType pipe_getfiletype(void)
@@ -1426,7 +1431,7 @@ gpointer CreateFile(const gunichar2 *name, guint32 fileaccess,
 		    guint32 createmode, guint32 attrs,
 		    gpointer template G_GNUC_UNUSED)
 {
-	struct _WapiHandle_file file_handle = {0};
+	struct _WapiHandle_file *file_handle;
 	gpointer handle;
 	int flags=convert_flags(fileaccess, createmode);
 	/*mode_t perms=convert_perms(sharemode);*/
@@ -1523,15 +1528,17 @@ gpointer CreateFile(const gunichar2 *name, guint32 fileaccess,
 	statbuf.st_ino = g_str_hash(filename);
 #endif
 
+	file_handle = g_new0 (_WapiHandle_file, 1);
+
 	if (share_check (&statbuf, sharemode, fileaccess,
-			 &file_handle.share_info, fd) == FALSE) {
+			 &file_handle->share_info, fd) == FALSE) {
 		SetLastError (ERROR_SHARING_VIOLATION);
 		g_free (filename);
 		close (fd);
 		
 		return (INVALID_HANDLE_VALUE);
 	}
-	if (file_handle.share_info == NULL) {
+	if (file_handle->share_info == NULL) {
 		/* No space, so no more files can be opened */
 		DEBUG ("%s: No space in the share table", __func__);
 
@@ -1542,17 +1549,17 @@ gpointer CreateFile(const gunichar2 *name, guint32 fileaccess,
 		return(INVALID_HANDLE_VALUE);
 	}
 	
-	file_handle.filename = filename;
+	file_handle->filename = filename;
 
 	if(security!=NULL) {
 		//file_handle->security_attributes=_wapi_handle_scratch_store (
 		//security, sizeof(WapiSecurityAttributes));
 	}
 	
-	file_handle.fd = fd;
-	file_handle.fileaccess=fileaccess;
-	file_handle.sharemode=sharemode;
-	file_handle.attrs=attrs;
+	file_handle->fd = fd;
+	file_handle->fileaccess=fileaccess;
+	file_handle->sharemode=sharemode;
+	file_handle->attrs=attrs;
 
 #ifdef HAVE_POSIX_FADVISE
 	if (attrs & FILE_FLAG_SEQUENTIAL_SCAN)
@@ -1572,7 +1579,7 @@ gpointer CreateFile(const gunichar2 *name, guint32 fileaccess,
 		handle_type = WAPI_HANDLE_FILE;
 	}
 
-	handle = _wapi_handle_new_fd (handle_type, fd, &file_handle);
+	handle = _wapi_handle_new_fd (handle_type, fd, file_handle);
 	if (handle == _WAPI_HANDLE_INVALID) {
 		g_warning ("%s: error creating file handle", __func__);
 		g_free (filename);
@@ -2582,12 +2589,19 @@ gboolean FileTimeToSystemTime(const WapiFileTime *file_time,
 	return(TRUE);
 }
 
+static void
+find_close (gpointer handle, gpointer data)
+{
+	g_free (data);
+}
+
 gpointer FindFirstFile (const gunichar2 *pattern, WapiFindData *find_data)
 {
-	struct _WapiHandle_find find_handle = {0};
+	struct _WapiHandle_find *find_handle;
 	gpointer handle;
 	gchar *utf8_pattern = NULL, *dir_part, *entry_part;
 	int result;
+	gchar **namelist;
 	
 	if (pattern == NULL) {
 		DEBUG ("%s: pattern is NULL", __func__);
@@ -2644,9 +2658,9 @@ gpointer FindFirstFile (const gunichar2 *pattern, WapiFindData *find_data)
 	 * than mess around with regexes.
 	 */
 
-	find_handle.namelist = NULL;
+	namelist = NULL;
 	result = _wapi_io_scandir (dir_part, entry_part,
-				   &find_handle.namelist);
+				   &namelist);
 	
 	if (result == 0) {
 		/* No files, which windows seems to call
@@ -2677,11 +2691,13 @@ gpointer FindFirstFile (const gunichar2 *pattern, WapiFindData *find_data)
 	
 	DEBUG ("%s: Got %d matches", __func__, result);
 
-	find_handle.dir_part = dir_part;
-	find_handle.num = result;
-	find_handle.count = 0;
+	find_handle = g_new0 (_WapiHandle_find, 1);
+	find_handle->namelist = namelist;
+	find_handle->dir_part = dir_part;
+	find_handle->num = result;
+	find_handle->count = 0;
 	
-	handle = _wapi_handle_new (WAPI_HANDLE_FIND, &find_handle);
+	handle = _wapi_handle_new (WAPI_HANDLE_FIND, find_handle);
 	if (handle == _WAPI_HANDLE_INVALID) {
 		g_warning ("%s: error creating find handle", __func__);
 		g_free (dir_part);
@@ -3283,8 +3299,8 @@ extern gboolean SetCurrentDirectory (const gunichar2 *path)
 gboolean CreatePipe (gpointer *readpipe, gpointer *writepipe,
 		     WapiSecurityAttributes *security G_GNUC_UNUSED, guint32 size)
 {
-	struct _WapiHandle_file pipe_read_handle = {0};
-	struct _WapiHandle_file pipe_write_handle = {0};
+	struct _WapiHandle_file *pipe_read_handle;
+	struct _WapiHandle_file *pipe_write_handle;
 	gpointer read_handle;
 	gpointer write_handle;
 	int filedes[2];
@@ -3317,10 +3333,11 @@ gboolean CreatePipe (gpointer *readpipe, gpointer *writepipe,
 	
 	/* filedes[0] is open for reading, filedes[1] for writing */
 
-	pipe_read_handle.fd = filedes [0];
-	pipe_read_handle.fileaccess = GENERIC_READ;
+	pipe_read_handle = g_new0 (_WapiHandle_file, 1);
+	pipe_read_handle->fd = filedes [0];
+	pipe_read_handle->fileaccess = GENERIC_READ;
 	read_handle = _wapi_handle_new_fd (WAPI_HANDLE_PIPE, filedes[0],
-					   &pipe_read_handle);
+					   pipe_read_handle);
 	if (read_handle == _WAPI_HANDLE_INVALID) {
 		g_warning ("%s: error creating pipe read handle", __func__);
 		close (filedes[0]);
@@ -3329,11 +3346,12 @@ gboolean CreatePipe (gpointer *readpipe, gpointer *writepipe,
 		
 		return(FALSE);
 	}
-	
-	pipe_write_handle.fd = filedes [1];
-	pipe_write_handle.fileaccess = GENERIC_WRITE;
+
+	pipe_write_handle = g_new0 (_WapiHandle_file, 1);	
+	pipe_write_handle->fd = filedes [1];
+	pipe_write_handle->fileaccess = GENERIC_WRITE;
 	write_handle = _wapi_handle_new_fd (WAPI_HANDLE_PIPE, filedes[1],
-					    &pipe_write_handle);
+					    pipe_write_handle);
 	if (write_handle == _WAPI_HANDLE_INVALID) {
 		g_warning ("%s: error creating pipe write handle", __func__);
 		_wapi_handle_unref (read_handle);

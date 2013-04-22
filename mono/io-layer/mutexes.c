@@ -26,6 +26,7 @@
 #define DEBUG(...)
 #endif
 
+static void mutex_close (gpointer handle, gpointer data);
 static void mutex_signal(gpointer handle);
 static gboolean mutex_own (gpointer handle);
 static gboolean mutex_is_owned (gpointer handle);
@@ -36,8 +37,8 @@ static gboolean namedmutex_is_owned (gpointer handle);
 static void namedmutex_prewait (gpointer handle);
 
 struct _WapiHandleOps _wapi_mutex_ops = {
-	NULL,			/* close */
-	mutex_signal,		/* signal */
+	mutex_close,	 /* close */
+	mutex_signal,	 /* signal */
 	mutex_own,		/* own */
 	mutex_is_owned,		/* is_owned */
 	NULL,			/* special_wait */
@@ -99,6 +100,12 @@ static void mutex_ops_init (void)
 					    WAPI_HANDLE_CAP_WAIT |
 					    WAPI_HANDLE_CAP_SIGNAL |
 					    WAPI_HANDLE_CAP_OWN);
+}
+
+static void
+mutex_close (gpointer handle, gpointer data)
+{
+	g_free (data);
 }
 
 static void mutex_signal(gpointer handle)
@@ -370,7 +377,7 @@ void _wapi_mutex_abandon (gpointer data, pid_t pid, pthread_t tid)
 static gpointer mutex_create (WapiSecurityAttributes *security G_GNUC_UNUSED,
 			      gboolean owned)
 {
-	struct _WapiHandle_mutex mutex_handle = {0};
+	_WapiHandle_mutex *mutex_handle;
 	gpointer handle;
 	int thr_ret;
 	
@@ -381,8 +388,10 @@ static gpointer mutex_create (WapiSecurityAttributes *security G_GNUC_UNUSED,
 	SetLastError (ERROR_SUCCESS);
 	
 	DEBUG ("%s: Creating unnamed mutex", __func__);
-	
-	handle = _wapi_handle_new (WAPI_HANDLE_MUTEX, &mutex_handle);
+
+	mutex_handle = g_new0 (_WapiHandle_mutex, 1);
+
+	handle = _wapi_handle_new (WAPI_HANDLE_MUTEX, mutex_handle);
 	if (handle == _WAPI_HANDLE_INVALID) {
 		g_warning ("%s: error creating mutex handle", __func__);
 		SetLastError (ERROR_GEN_FAILURE);

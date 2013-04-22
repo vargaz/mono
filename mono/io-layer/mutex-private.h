@@ -20,20 +20,18 @@ extern struct _WapiHandleOps _wapi_namedmutex_ops;
 
 extern void _wapi_mutex_details (gpointer handle_info);
 
-struct _WapiHandle_mutex
-{
+typedef struct _WapiHandle_mutex {
 	pid_t pid;
 	pthread_t tid;
 	guint32 recursion;
-};
+} _WapiHandle_mutex;
 
-struct _WapiHandle_namedmutex 
-{
+typedef struct _WapiHandle_namedmutex {
 	WapiSharedNamespace sharedns;
 	pid_t pid;
 	pthread_t tid;
 	guint32 recursion;
-};
+} _WapiHandle_namedmutex;
 
 extern void _wapi_mutex_abandon (gpointer data, pid_t pid, pthread_t tid);
 

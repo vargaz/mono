@@ -27,6 +27,7 @@
 #define DEBUG(...)
 #endif
 
+static void event_close (gpointer handle, gpointer data);
 static void event_signal(gpointer handle);
 static gboolean event_own (gpointer handle);
 
@@ -34,8 +35,8 @@ static void namedevent_signal (gpointer handle);
 static gboolean namedevent_own (gpointer handle);
 
 struct _WapiHandleOps _wapi_event_ops = {
-	NULL,			/* close */
-	event_signal,		/* signal */
+	event_close,	 /* close */
+	event_signal,	 /* signal */
 	event_own,		/* own */
 	NULL,			/* is_owned */
 	NULL,			/* special_wait */
@@ -96,6 +97,12 @@ static void event_ops_init (void)
 	_wapi_handle_register_capabilities (WAPI_HANDLE_NAMEDEVENT,
 					    WAPI_HANDLE_CAP_WAIT |
 					    WAPI_HANDLE_CAP_SIGNAL);
+}
+
+static void
+event_close (gpointer handle, gpointer data)
+{
+	g_free (data);
 }
 
 static void event_signal(gpointer handle)
@@ -163,7 +170,7 @@ static gboolean namedevent_own (gpointer handle)
 static gpointer event_create (WapiSecurityAttributes *security G_GNUC_UNUSED,
 			      gboolean manual, gboolean initial)
 {
-	struct _WapiHandle_event event_handle = {0};
+	_WapiHandle_event *event_handle;
 	gpointer handle;
 	int thr_ret;
 	
@@ -174,17 +181,18 @@ static gpointer event_create (WapiSecurityAttributes *security G_GNUC_UNUSED,
 	SetLastError (ERROR_SUCCESS);
 
 	DEBUG ("%s: Creating unnamed event", __func__);
-	
-	event_handle.manual = manual;
-	event_handle.set_count = 0;
+
+	event_handle = g_new0 (_WapiHandle_event, 1);
+	event_handle->manual = manual;
+	event_handle->set_count = 0;
 
 	if (initial == TRUE) {
 		if (manual == FALSE) {
-			event_handle.set_count = 1;
+			event_handle->set_count = 1;
 		}
 	}
 	
-	handle = _wapi_handle_new (WAPI_HANDLE_EVENT, &event_handle);
+	handle = _wapi_handle_new (WAPI_HANDLE_EVENT, event_handle);
 	if (handle == _WAPI_HANDLE_INVALID) {
 		g_warning ("%s: error creating event handle", __func__);
 		SetLastError (ERROR_GEN_FAILURE);

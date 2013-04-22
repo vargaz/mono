@@ -35,8 +35,7 @@ extern gpointer _wapi_stdhandle_create (int fd, const gchar *name);
 /* Currently used for both FILE, CONSOLE and PIPE handle types.  This may
  * have to change in future.
  */
-struct _WapiHandle_file
-{
+typedef struct _WapiHandle_file {
 	gchar *filename;
 	struct _WapiFileShare *share_info;	/* Pointer into shared mem */
 	int fd;
@@ -44,14 +43,13 @@ struct _WapiHandle_file
 	guint32 fileaccess;
 	guint32 sharemode;
 	guint32 attrs;
-};
+} _WapiHandle_file;
 
-struct _WapiHandle_find
-{
+typedef struct _WapiHandle_find {
 	gchar **namelist;
 	gchar *dir_part;
 	int num;
 	size_t count;
-};
+} _WapiHandle_find;
 
 #endif /* _WAPI_IO_PRIVATE_H_ */

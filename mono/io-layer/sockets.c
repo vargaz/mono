@@ -110,6 +110,8 @@ static void socket_close (gpointer handle, gpointer data)
 
 	if (!in_cleanup)
 		socket_handle->saved_error = 0;
+
+	g_free (socket_handle);
 }
 
 int WSAStartup(guint32 requested, WapiWSAData *data)
@@ -189,7 +191,7 @@ guint32 _wapi_accept(guint32 fd, struct sockaddr *addr, socklen_t *addrlen)
 	gpointer handle = GUINT_TO_POINTER (fd);
 	gpointer new_handle;
 	struct _WapiHandle_socket *socket_handle;
-	struct _WapiHandle_socket new_socket_handle = {0};
+	struct _WapiHandle_socket *new_socket_handle;
 	gboolean ok;
 	int new_fd;
 	
@@ -242,13 +244,14 @@ guint32 _wapi_accept(guint32 fd, struct sockaddr *addr, socklen_t *addrlen)
 		return(INVALID_SOCKET);
 	}
 
-	new_socket_handle.domain = socket_handle->domain;
-	new_socket_handle.type = socket_handle->type;
-	new_socket_handle.protocol = socket_handle->protocol;
-	new_socket_handle.still_readable = 1;
+	new_socket_handle = g_new0 (_WapiHandle_socket, 1);
+	new_socket_handle->domain = socket_handle->domain;
+	new_socket_handle->type = socket_handle->type;
+	new_socket_handle->protocol = socket_handle->protocol;
+	new_socket_handle->still_readable = 1;
 
 	new_handle = _wapi_handle_new_fd (WAPI_HANDLE_SOCKET, new_fd,
-					  &new_socket_handle);
+					  new_socket_handle);
 	if(new_handle == _WAPI_HANDLE_INVALID) {
 		g_warning ("%s: error creating socket handle", __func__);
 		WSASetLastError (ERROR_GEN_FAILURE);
@@ -889,21 +892,16 @@ int _wapi_shutdown(guint32 fd, int how)
 guint32 _wapi_socket(int domain, int type, int protocol, void *unused,
 		     guint32 unused2, guint32 unused3)
 {
-	struct _WapiHandle_socket socket_handle = {0};
+	_WapiHandle_socket *socket_handle;
 	gpointer handle;
 	int fd;
-	
-	socket_handle.domain = domain;
-	socket_handle.type = type;
-	socket_handle.protocol = protocol;
-	socket_handle.still_readable = 1;
 	
 	fd = socket (domain, type, protocol);
 	if (fd == -1 && domain == AF_INET && type == SOCK_RAW &&
 	    protocol == 0) {
 		/* Retry with protocol == 4 (see bug #54565) */
 		// https://bugzilla.novell.com/show_bug.cgi?id=MONO54565
-		socket_handle.protocol = 4;
+		protocol = 4;
 		fd = socket (AF_INET, SOCK_RAW, 4);
 	}
 	
@@ -959,11 +957,16 @@ guint32 _wapi_socket(int domain, int type, int protocol, void *unused,
 			return(INVALID_SOCKET);			
 		}
 	}
-	
-	
+
 	mono_once (&socket_ops_once, socket_ops_init);
+
+	socket_handle = g_new0 (_WapiHandle_socket, 1);	
+	socket_handle->domain = domain;
+	socket_handle->type = type;
+	socket_handle->protocol = protocol;
+	socket_handle->still_readable = 1;
 	
-	handle = _wapi_handle_new_fd (WAPI_HANDLE_SOCKET, fd, &socket_handle);
+	handle = _wapi_handle_new_fd (WAPI_HANDLE_SOCKET, fd, socket_handle);
 	if (handle == _WAPI_HANDLE_INVALID) {
 		g_warning ("%s: error creating socket handle", __func__);
 		WSASetLastError (WSASYSCALLFAILURE);

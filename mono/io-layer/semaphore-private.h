@@ -19,17 +19,17 @@ extern struct _WapiHandleOps _wapi_namedsem_ops;
 extern void _wapi_sem_details (gpointer handle_info);
 
 /* emulate sem_t, so that we can prod the internal state more easily */
-struct _WapiHandle_sem
+typedef struct _WapiHandle_sem
 {
 	guint32 val;
 	gint32 max;
-};
+} _WapiHandle_sem;
 
-struct _WapiHandle_namedsem
+typedef struct _WapiHandle_namedsem
 {
 	WapiSharedNamespace sharedns;
 	guint32 val;
 	gint32 max;
-};
+} _WapiHandle_namedsem;
 
 #endif /* _WAPI_SEMAPHORE_PRIVATE_H_ */

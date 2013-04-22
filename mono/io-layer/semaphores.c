@@ -30,6 +30,7 @@
 #define DEBUG(...)
 #endif
 
+static void sema_close (gpointer handle, gpointer data);
 static void sema_signal(gpointer handle);
 static gboolean sema_own (gpointer handle);
 
@@ -37,8 +38,8 @@ static void namedsema_signal (gpointer handle);
 static gboolean namedsema_own (gpointer handle);
 
 struct _WapiHandleOps _wapi_sem_ops = {
-	NULL,			/* close */
-	sema_signal,		/* signal */
+	sema_close,		 /* close */
+	sema_signal,	 /* signal */
 	sema_own,		/* own */
 	NULL,			/* is_owned */
 	NULL,			/* special_wait */
@@ -93,6 +94,12 @@ static void sem_ops_init (void)
 	_wapi_handle_register_capabilities (WAPI_HANDLE_NAMEDSEM,
 					    WAPI_HANDLE_CAP_WAIT |
 					    WAPI_HANDLE_CAP_SIGNAL);
+}
+
+static void
+sema_close (gpointer handle, gpointer data)
+{
+	g_free (data);
 }
 
 static void sema_signal(gpointer handle)
@@ -161,7 +168,7 @@ static gboolean namedsema_own (gpointer handle)
 static gpointer sem_create (WapiSecurityAttributes *security G_GNUC_UNUSED,
 			    gint32 initial, gint32 max)
 {
-	struct _WapiHandle_sem sem_handle = {0};
+	_WapiHandle_sem *sem_handle;
 	gpointer handle;
 	int thr_ret;
 	
@@ -171,10 +178,11 @@ static gpointer sem_create (WapiSecurityAttributes *security G_GNUC_UNUSED,
 	 */
 	SetLastError (ERROR_SUCCESS);
 	
-	sem_handle.val = initial;
-	sem_handle.max = max;
+	sem_handle = g_new0 (_WapiHandle_sem, 1);
+	sem_handle->val = initial;
+	sem_handle->max = max;
 
-	handle = _wapi_handle_new (WAPI_HANDLE_SEM, &sem_handle);
+	handle = _wapi_handle_new (WAPI_HANDLE_SEM, sem_handle);
 	if (handle == _WAPI_HANDLE_INVALID) {
 		g_warning ("%s: error creating semaphore handle", __func__);
 		SetLastError (ERROR_GEN_FAILURE);

@@ -15,13 +15,12 @@
 
 extern struct _WapiHandleOps _wapi_socket_ops;
 
-struct _WapiHandle_socket
-{
+typedef struct _WapiHandle_socket {
 	int domain;
 	int type;
 	int protocol;
 	int saved_error;
 	int still_readable;
-};
+} _WapiHandle_socket;
 
 #endif /* _WAPI_SOCKET_PRIVATE_H_ */
