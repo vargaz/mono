@@ -70,6 +70,7 @@
 #define SHARED_EXT ".so"
 #endif
 
+#define ALIGN_TO(val,align) ((((guint64)val) + ((align) - 1)) & ~((align) - 1))
 #define ALIGN_PTR_TO(ptr,align) (gpointer)((((gssize)(ptr)) + (align - 1)) & (~(align - 1)))
 #define ROUND_DOWN(VALUE,SIZE)	((VALUE) & ~((SIZE) - 1))
 
@@ -2257,7 +2258,7 @@ decode_llvm_mono_eh_frame (MonoAotModule *amodule, MonoDomain *domain,
 	 * allocate a new JI.
 	 */
 	jinfo = 
-		mono_domain_alloc0 (domain, MONO_SIZEOF_JIT_INFO + (sizeof (MonoJitExceptionInfo) * (ei_len + nested_len)) + extra_size);
+		mono_domain_alloc0_lock_free (domain, MONO_SIZEOF_JIT_INFO + (sizeof (MonoJitExceptionInfo) * (ei_len + nested_len)) + extra_size);
 
 	jinfo->code_size = code_len;
 	jinfo->used_regs = mono_cache_unwind_info (info.unw_info, info.unw_info_len);
@@ -2418,7 +2419,7 @@ decode_exception_debug_info (MonoAotModule *amodule, MonoDomain *domain,
 		g_free (nesting);
 	} else {
 		jinfo = 
-			mono_domain_alloc0 (domain, MONO_SIZEOF_JIT_INFO + (sizeof (MonoJitExceptionInfo) * num_clauses) + generic_info_size + try_holes_info_size + arch_eh_jit_info_size);
+			mono_domain_alloc0_lock_free (domain, MONO_SIZEOF_JIT_INFO + (sizeof (MonoJitExceptionInfo) * num_clauses) + generic_info_size + try_holes_info_size + arch_eh_jit_info_size);
 		jinfo->num_clauses = num_clauses;
 
 		for (i = 0; i < jinfo->num_clauses; ++i) {
@@ -2458,7 +2459,7 @@ decode_exception_debug_info (MonoAotModule *amodule, MonoDomain *domain,
 
 		gi->nlocs = decode_value (p, &p);
 		if (gi->nlocs) {
-			gi->locations = mono_domain_alloc0 (domain, gi->nlocs * sizeof (MonoDwarfLocListEntry));
+			gi->locations = mono_domain_alloc0_lock_free (domain, gi->nlocs * sizeof (MonoDwarfLocListEntry));
 			for (i = 0; i < gi->nlocs; ++i) {
 				MonoDwarfLocListEntry *entry = &gi->locations [i];
 
