@@ -75,9 +75,9 @@ mono_declsec_create_frame (MonoDomain *domain, MonoJitInfo *jinfo)
 	MonoMethodCasInfo *info;
 	MonoMethod *method;
 
+	method = jinfo_get_method (jinfo);
 	info = mono_jit_info_get_cas_info (jinfo);
 	if (info && !info->cas_inited) {
-		method = jinfo_get_method (jinfo);
 		if (mono_method_has_declsec (method)) {
 			/* Cache the stack modifiers into the MonoJitInfo structure to speed up future stack walks */
 			mono_declsec_cache_stack_modifiers (jinfo);
