@@ -373,9 +373,12 @@ jit_info_table_find (MonoJitInfoTable *table, MonoThreadHazardPointers *hp, gint
  *
  * If TRY_AOT is FALSE, avoid loading information for missing methods from AOT images, which is currently not async safe.
  * In this case, only those AOT methods will be found whose jit info is already loaded.
+ * If ASYNC is TRUE, avoid async unsafe operations. The returned MonoJitInfo might not have
+ * metadata information for AOT methods which were not already in the table. In that case,
+ * mono_jit_info_get_method () will assert.
  */
 MonoJitInfo*
-mono_jit_info_table_find_internal (MonoDomain *domain, char *addr, gboolean try_aot)
+mono_jit_info_table_find_internal (MonoDomain *domain, char *addr, gboolean try_aot, gboolean async)
 {
 	MonoJitInfoTable *table;
 	MonoJitInfo *ji, *module_ji;
@@ -404,7 +407,7 @@ mono_jit_info_table_find_internal (MonoDomain *domain, char *addr, gboolean try_
 		table = get_hazardous_pointer ((gpointer volatile*)&mono_root_domain->aot_modules, hp, JIT_INFO_TABLE_HAZARD_INDEX);
 		module_ji = jit_info_table_find (table, hp, (gint8*)addr);
 		if (module_ji)
-			ji = jit_info_find_in_aot_func (domain, module_ji->d.image, addr);
+			ji = jit_info_find_in_aot_func (domain, module_ji->d.image, addr, async);
 		if (hp)
 			mono_hazard_pointer_clear (hp, JIT_INFO_TABLE_HAZARD_INDEX);
 	}
@@ -415,7 +418,7 @@ mono_jit_info_table_find_internal (MonoDomain *domain, char *addr, gboolean try_
 MonoJitInfo*
 mono_jit_info_table_find (MonoDomain *domain, char *addr)
 {
-	return mono_jit_info_table_find_internal (domain, addr, TRUE);
+	return mono_jit_info_table_find_internal (domain, addr, TRUE, FALSE);
 }
 
 static G_GNUC_UNUSED void
@@ -884,6 +887,7 @@ mono_jit_info_get_code_size (MonoJitInfo* ji)
 MonoMethod*
 mono_jit_info_get_method (MonoJitInfo* ji)
 {
+	g_assert (!ji->async);
 	return ji->d.method;
 }
 

@@ -192,7 +192,6 @@ struct _MonoJitInfo {
 	   internal hash table in MonoDomain. */
 	union {
 		MonoMethod *method;
-		gpointer method_info;
 		MonoImage *image;
 	} d;
 	struct _MonoJitInfo *next_jit_code_hash;
@@ -211,6 +210,8 @@ struct _MonoJitInfo {
 	gboolean    from_llvm:1;
 	gboolean    dbg_hidden_inited:1;
 	gboolean    dbg_hidden:1;
+	/* Whenever this jit info was loaded in async mode */
+	gboolean    async:1;
 
 	/* FIXME: Embed this after the structure later*/
 	gpointer    gc_info; /* Currently only used by SGen */
@@ -521,7 +522,7 @@ mono_jit_info_get_cas_info (MonoJitInfo *ji) MONO_INTERNAL;
  * Installs a new function which is used to return a MonoJitInfo for a method inside
  * an AOT module.
  */
-typedef MonoJitInfo *(*MonoJitInfoFindInAot)         (MonoDomain *domain, MonoImage *image, gpointer addr);
+typedef MonoJitInfo *(*MonoJitInfoFindInAot)         (MonoDomain *domain, MonoImage *image, gpointer addr, gboolean async);
 void          mono_install_jit_info_find_in_aot (MonoJitInfoFindInAot func) MONO_INTERNAL;
 
 void
@@ -652,6 +653,6 @@ void mono_reflection_cleanup_domain (MonoDomain *domain) MONO_INTERNAL;
 
 void mono_assembly_cleanup_domain_bindings (guint32 domain_id) MONO_INTERNAL;
 
-MonoJitInfo* mono_jit_info_table_find_internal (MonoDomain *domain, char *addr, gboolean try_aot) MONO_INTERNAL;
+MonoJitInfo* mono_jit_info_table_find_internal (MonoDomain *domain, char *addr, gboolean try_aot, gboolean async) MONO_INTERNAL;
 
 #endif /* __MONO_METADATA_DOMAIN_INTERNALS_H__ */
