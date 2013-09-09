@@ -192,6 +192,7 @@ struct _MonoJitInfo {
 	   internal hash table in MonoDomain. */
 	union {
 		MonoMethod *method;
+		gpointer aot_info;
 		MonoImage *image;
 	} d;
 	struct _MonoJitInfo *next_jit_code_hash;

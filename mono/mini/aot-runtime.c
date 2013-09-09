@@ -2550,6 +2550,7 @@ decode_exception_debug_info (MonoAotModule *amodule, MonoDomain *domain,
 	if (async) {
 		/* The rest is not needed in async mode */
 		jinfo->async = TRUE;
+		jinfo->d.aot_info = amodule;
 		// FIXME: Cache
 		return jinfo;
 	}
@@ -2623,7 +2624,10 @@ mono_aot_get_unwind_info (MonoJitInfo *ji, guint32 *unwind_info_len)
 	guint8 *p;
 	guint8 *code = ji->code_start;
 
-	amodule = jinfo_get_method (ji)->klass->image->aot_module;
+	if (ji->async)
+		amodule = ji->d.aot_info;
+	else
+		amodule = jinfo_get_method (ji)->klass->image->aot_module;
 	g_assert (amodule);
 	g_assert (ji->from_aot);
 
