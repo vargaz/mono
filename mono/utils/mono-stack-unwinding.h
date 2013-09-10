@@ -33,11 +33,6 @@ typedef enum {
 	 * callback.
 	 */
 	MONO_UNWIND_REG_LOCATIONS = 0x4,
-	/*
-	 * The stack walk will be async safe. Only frame.ji will be valid, and only
-	 * the fields of MonoJitInfo listed in mono_jit_info_table_find_internal ().
-	 */
-	MONO_UNWIND_ASYNC_SAFE = 0x8,
 	MONO_UNWIND_DEFAULT = MONO_UNWIND_LOOKUP_ACTUAL_METHOD,
 	MONO_UNWIND_SIGNAL_SAFE = MONO_UNWIND_NONE,
 	MONO_UNWIND_LOOKUP_ALL = MONO_UNWIND_LOOKUP_IL_OFFSET | MONO_UNWIND_LOOKUP_ACTUAL_METHOD,
@@ -51,22 +46,22 @@ typedef struct {
 	MonoJitInfo *ji;
 	/*
 	 * Same as ji->method.
-	 * Not valid if ASYNC_SAFE is true.
+	 * Not valid if ASYNC_CONTEXT is true.
 	 */
 	MonoMethod *method;
 	/*
 	 * If ji->method is a gshared method, this is the actual method instance.
 	 * This is only filled if lookup for actual method was requested (MONO_UNWIND_LOOKUP_ACTUAL_METHOD)
-	 * Not valid if ASYNC_SAFE is true.
+	 * Not valid if ASYNC_CONTEXT is true.
 	 */
 	MonoMethod *actual_method;
 	/* The domain containing the code executed by this frame */
 	MonoDomain *domain;
 	gboolean managed;
 	/*
-	 * Whenever this frame was loaded in async safe mode (MONO_UNWIND_ASYNC_SAFE).
+	 * Whenever this frame was loaded in async context.
 	 */
-	gboolean async_safe;
+	gboolean async_context;
 	int native_offset;
 	/*
 	 * IL offset of this frame.

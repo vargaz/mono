@@ -2324,12 +2324,12 @@ decode_llvm_mono_eh_frame (MonoAotModule *amodule, MonoDomain *domain,
 
 /*
  * LOCKING: Acquires the domain lock.
- * If ASYNC is true, this is async safe.
+ * In async context, this is async safe.
  */
 static MonoJitInfo*
 decode_exception_debug_info (MonoAotModule *amodule, MonoDomain *domain, 
 							 MonoMethod *method, guint8* ex_info, guint8 *addr,
-							 guint8 *code, guint32 code_len, gboolean async)
+							 guint8 *code, guint32 code_len)
 {
 	int i, buf_len, num_clauses;
 	MonoJitInfo *jinfo;
@@ -2339,8 +2339,10 @@ decode_exception_debug_info (MonoAotModule *amodule, MonoDomain *domain,
 	guint8 *p;
 	int generic_info_size, try_holes_info_size, num_holes, arch_eh_jit_info_size;
 	int this_reg = 0, this_offset = 0;
+	gboolean async;
 
 	/* Load the method info from the AOT file */
+	async = mono_thread_info_is_async_context ();
 
 	p = ex_info;
 	flags = decode_value (p, &p);
@@ -2709,13 +2711,13 @@ msort_code_offsets (gint32 *array, int len)
 /*
  * mono_aot_find_jit_info:
  *
- *   If ASYNC is true, the resulting MonoJitInfo will not have its method field set, and it will not be added
+ *   In async context, the resulting MonoJitInfo will not have its method field set, and it will not be added
  * to the jit info tables.
  * FIXME: Leak.
  * FIXME: Large sizes in the lock free allocator
  */
 MonoJitInfo *
-mono_aot_find_jit_info (MonoDomain *domain, MonoImage *image, gpointer addr, gboolean async)
+mono_aot_find_jit_info (MonoDomain *domain, MonoImage *image, gpointer addr)
 {
 	int pos, left, right, offset, offset1, offset2, code_len;
 	int method_index, table_len;
@@ -2728,6 +2730,7 @@ mono_aot_find_jit_info (MonoDomain *domain, MonoImage *image, gpointer addr, gbo
 	int nmethods = amodule->info.nmethods;
 	gint32 *code_offsets;
 	int offsets_len, i;
+	gboolean async;
 
 	if (!amodule)
 		return NULL;
@@ -2735,6 +2738,8 @@ mono_aot_find_jit_info (MonoDomain *domain, MonoImage *image, gpointer addr, gbo
 	if (domain != mono_get_root_domain ())
 		/* FIXME: */
 		return NULL;
+
+	async = mono_thread_info_is_async_context ();
 
 	offset = (guint8*)addr - amodule->code;
 
@@ -2857,7 +2862,7 @@ mono_aot_find_jit_info (MonoDomain *domain, MonoImage *image, gpointer addr, gbo
 
 	//printf ("F: %s\n", mono_method_full_name (method, TRUE));
 	
-	jinfo = decode_exception_debug_info (amodule, domain, method, ex_info, addr, code, code_len, async);
+	jinfo = decode_exception_debug_info (amodule, domain, method, ex_info, addr, code, code_len);
 
 	g_assert ((guint8*)addr >= (guint8*)jinfo->code_start);
 	g_assert ((guint8*)addr < (guint8*)jinfo->code_start + jinfo->code_size);
@@ -3316,7 +3321,7 @@ load_method (MonoDomain *domain, MonoAotModule *amodule, MonoImage *image, MonoM
 	}
 
 	if (mini_get_debug_options ()->load_aot_jit_info_eagerly)
-		jinfo = mono_aot_find_jit_info (domain, amodule->assembly->image, code, FALSE);
+		jinfo = mono_aot_find_jit_info (domain, amodule->assembly->image, code);
 
 	if (mono_trace_is_traced (G_LOG_LEVEL_DEBUG, MONO_TRACE_AOT)) {
 		char *full_name;
@@ -3327,7 +3332,7 @@ load_method (MonoDomain *domain, MonoAotModule *amodule, MonoImage *image, MonoM
 		full_name = mono_method_full_name (method, TRUE);
 
 		if (!jinfo)
-			jinfo = mono_aot_find_jit_info (domain, amodule->assembly->image, code, FALSE);
+			jinfo = mono_aot_find_jit_info (domain, amodule->assembly->image, code);
 
 		mono_trace (G_LOG_LEVEL_DEBUG, MONO_TRACE_AOT, "AOT FOUND method %s [%p - %p %p]", full_name, code, code + jinfo->code_size, info);
 		g_free (full_name);

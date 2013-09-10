@@ -869,8 +869,7 @@ mono_arch_find_jit_info (MonoDomain *domain, MonoJitTlsData *jit_tls,
 			return TRUE;
 		}
 		
-		// FIXME: async
-		if ((ji = mini_jit_info_table_find_ext (domain, (gpointer)(*lmf)->eip, NULL, TRUE))) {
+		if ((ji = mini_jit_info_table_find (domain, (gpointer)(*lmf)->eip, NULL))) {
 		} else {
 			if (!((guint32)((*lmf)->previous_lmf) & 1))
 				/* Top LMF entry */
