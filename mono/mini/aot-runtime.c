@@ -74,6 +74,11 @@
 #define ALIGN_PTR_TO(ptr,align) (gpointer)((((gssize)(ptr)) + (align - 1)) & (~(align - 1)))
 #define ROUND_DOWN(VALUE,SIZE)	((VALUE) & ~((SIZE) - 1))
 
+typedef struct {
+	int method_index;
+	MonoJitInfo *jinfo;
+} JitInfoMap;
+
 typedef struct MonoAotModule {
 	char *aot_name;
 	/* Pointer to the Global Offset Table */
@@ -133,6 +138,8 @@ typedef struct MonoAotModule {
 
 	gpointer *globals;
 	MonoDl *sofile;
+
+	JitInfoMap *async_jit_info_table;
 } MonoAotModule;
 
 typedef struct {
@@ -180,6 +187,9 @@ static guint32 n_pagefaults = 0;
 /* Used to speed-up find_aot_module () */
 static gsize aot_code_low_addr = (gssize)-1;
 static gsize aot_code_high_addr = 0;
+
+/* Stats */
+static gint32 async_jit_info_size;
 
 static GHashTable *aot_jit_icall_hash;
 
@@ -1910,6 +1920,7 @@ mono_aot_init (void)
 #ifndef __native_client__
 	mono_install_assembly_load_hook (load_aot_module, NULL);
 #endif
+	mono_counters_register ("Async JIT info size", MONO_COUNTER_INT|MONO_COUNTER_JIT, &async_jit_info_size);
 
 	if (g_getenv ("MONO_LASTAOT"))
 		mono_last_aot_method = atoi (g_getenv ("MONO_LASTAOT"));
@@ -2322,6 +2333,20 @@ decode_llvm_mono_eh_frame (MonoAotModule *amodule, MonoDomain *domain,
 	return jinfo;
 }
 
+static gpointer
+alloc0_jit_info_data (MonoDomain *domain, int size, gboolean async_context)
+{
+	gpointer res;
+
+	if (async_context) {
+		res = mono_domain_alloc0_lock_free (domain, size);
+		InterlockedExchangeAdd (&async_jit_info_size, size);
+	} else {
+		res = mono_domain_alloc0 (domain, size);
+	}
+	return res;
+}
+
 /*
  * LOCKING: Acquires the domain lock.
  * In async context, this is async safe.
@@ -2331,7 +2356,7 @@ decode_exception_debug_info (MonoAotModule *amodule, MonoDomain *domain,
 							 MonoMethod *method, guint8* ex_info, guint8 *addr,
 							 guint8 *code, guint32 code_len)
 {
-	int i, buf_len, num_clauses;
+	int i, buf_len, num_clauses, len;
 	MonoJitInfo *jinfo;
 	guint used_int_regs, flags;
 	gboolean has_generic_jit_info, has_dwarf_unwind_info, has_clauses, has_seq_points, has_try_block_holes, has_arch_eh_jit_info;
@@ -2424,8 +2449,8 @@ decode_exception_debug_info (MonoAotModule *amodule, MonoDomain *domain,
 			g_slist_free (nesting [i]);
 		g_free (nesting);
 	} else {
-		jinfo = 
-			mono_domain_alloc0_lock_free (domain, MONO_SIZEOF_JIT_INFO + (sizeof (MonoJitExceptionInfo) * num_clauses) + generic_info_size + try_holes_info_size + arch_eh_jit_info_size);
+		len = MONO_SIZEOF_JIT_INFO + (sizeof (MonoJitExceptionInfo) * num_clauses) + generic_info_size + try_holes_info_size + arch_eh_jit_info_size;
+		jinfo = alloc0_jit_info_data (domain, len, async);
 		jinfo->num_clauses = num_clauses;
 
 		for (i = 0; i < jinfo->num_clauses; ++i) {
@@ -2461,6 +2486,40 @@ decode_exception_debug_info (MonoAotModule *amodule, MonoDomain *domain,
 		jinfo->from_aot = 1;
 	}
 
+	if (has_try_block_holes) {
+		MonoTryBlockHoleTableJitInfo *table;
+
+		jinfo->has_try_block_holes = 1;
+
+		table = mono_jit_info_get_try_block_hole_table_info (jinfo);
+		g_assert (table);
+
+		table->num_holes = (guint16)num_holes;
+		for (i = 0; i < num_holes; ++i) {
+			MonoTryBlockHoleJitInfo *hole = &table->holes [i];
+			hole->clause = decode_value (p, &p);
+			hole->length = decode_value (p, &p);
+			hole->offset = decode_value (p, &p);
+		}
+	}
+
+	if (has_arch_eh_jit_info) {
+		MonoArchEHJitInfo *eh_info;
+
+		jinfo->has_arch_eh_info = 1;
+
+		eh_info = mono_jit_info_get_arch_eh_info (jinfo);
+		eh_info->stack_size = decode_value (p, &p);
+	}
+
+	if (async) {
+		/* The rest is not needed in async mode */
+		jinfo->async = TRUE;
+		jinfo->d.aot_info = amodule;
+		// FIXME: Cache
+		return jinfo;
+	}
+
 	if (has_generic_jit_info) {
 		MonoGenericJitInfo *gi;
 		int len;
@@ -2472,7 +2531,7 @@ decode_exception_debug_info (MonoAotModule *amodule, MonoDomain *domain,
 
 		gi->nlocs = decode_value (p, &p);
 		if (gi->nlocs) {
-			gi->locations = mono_domain_alloc0_lock_free (domain, gi->nlocs * sizeof (MonoDwarfLocListEntry));
+			gi->locations = alloc0_jit_info_data (domain, gi->nlocs * sizeof (MonoDwarfLocListEntry), async);
 			for (i = 0; i < gi->nlocs; ++i) {
 				MonoDwarfLocListEntry *entry = &gi->locations [i];
 
@@ -2510,51 +2569,17 @@ decode_exception_debug_info (MonoAotModule *amodule, MonoDomain *domain,
 
 			n = decode_value (p, &p);
 			if (n) {
-				gsctx->var_is_vt = mono_domain_alloc0_lock_free (domain, sizeof (gboolean) * n);
+				gsctx->var_is_vt = alloc0_jit_info_data (domain, sizeof (gboolean) * n, async);
 				for (i = 0; i < n; ++i)
 					gsctx->var_is_vt [i] = decode_value (p, &p);
 			}
 			n = decode_value (p, &p);
 			if (n) {
-				gsctx->mvar_is_vt = mono_domain_alloc0_lock_free (domain, sizeof (gboolean) * n);
+				gsctx->mvar_is_vt = alloc0_jit_info_data (domain, sizeof (gboolean) * n, async);
 				for (i = 0; i < n; ++i)
 					gsctx->mvar_is_vt [i] = decode_value (p, &p);
 			}
 		}
-	}
-
-	if (has_try_block_holes) {
-		MonoTryBlockHoleTableJitInfo *table;
-
-		jinfo->has_try_block_holes = 1;
-
-		table = mono_jit_info_get_try_block_hole_table_info (jinfo);
-		g_assert (table);
-
-		table->num_holes = (guint16)num_holes;
-		for (i = 0; i < num_holes; ++i) {
-			MonoTryBlockHoleJitInfo *hole = &table->holes [i];
-			hole->clause = decode_value (p, &p);
-			hole->length = decode_value (p, &p);
-			hole->offset = decode_value (p, &p);
-		}
-	}
-
-	if (has_arch_eh_jit_info) {
-		MonoArchEHJitInfo *eh_info;
-
-		jinfo->has_arch_eh_info = 1;
-
-		eh_info = mono_jit_info_get_arch_eh_info (jinfo);
-		eh_info->stack_size = decode_value (p, &p);
-	}
-
-	if (async) {
-		/* The rest is not needed in async mode */
-		jinfo->async = TRUE;
-		jinfo->d.aot_info = amodule;
-		// FIXME: Cache
-		return jinfo;
 	}
 
 	if (method && has_seq_points) {
@@ -2800,6 +2825,20 @@ mono_aot_find_jit_info (MonoDomain *domain, MonoImage *image, gpointer addr)
 		g_assert (offset < code_offsets [((pos + 1) * 2)]);
 	method_index = code_offsets [(pos * 2) + 1];
 
+	/* In async mode, jinfo is not added to the normal jit info table, so have to cache it ourselves */
+	if (async) {
+		JitInfoMap *table = amodule->async_jit_info_table;
+		int len;
+
+		if (table) {
+			len = table [0].method_index;
+			for (i = 1; i < len; ++i) {
+				if (table [i].method_index == method_index)
+					return table [i].jinfo;
+			}
+		}
+	}
+
 	code = &amodule->code [amodule->code_offsets [method_index]];
 	ex_info = &amodule->blob [mono_aot_get_offset (amodule->ex_info_offsets, method_index)];
 
@@ -2868,9 +2907,35 @@ mono_aot_find_jit_info (MonoDomain *domain, MonoImage *image, gpointer addr)
 	g_assert ((guint8*)addr < (guint8*)jinfo->code_start + jinfo->code_size);
 
 	/* Add it to the normal JitInfo tables */
-	/* Can't add it to the table in the async case since method is not set */
-	if (!async)
+	if (async) {
+		JitInfoMap *old_table, *new_table;
+		int len;
+
+		/*
+		 * Use a simple inmutable table with linear search to cache async jit info entries.
+		 * This assumes that the number of entries is small.
+		 */
+		while (TRUE) {
+			/* Copy the table, adding a new entry at the end */
+			old_table = amodule->async_jit_info_table;
+			if (old_table)
+				len = old_table[0].method_index;
+			else
+				len = 1;
+			new_table = alloc0_jit_info_data (domain, (len * 1) * sizeof (JitInfoMap), async);
+			if (old_table)
+				memcpy (new_table, old_table, len * sizeof (JitInfoMap));
+			new_table [0].method_index = len + 1;
+			new_table [len].method_index = method_index;
+			new_table [len].jinfo = jinfo;
+			/* Publish it */
+			mono_memory_barrier ();
+			if (InterlockedCompareExchangePointer ((gpointer)&amodule->async_jit_info_table, new_table, old_table) == old_table)
+				break;
+		}
+	} else {
 		mono_jit_info_table_add (domain, jinfo);
+	}
 	
 	return jinfo;
 }

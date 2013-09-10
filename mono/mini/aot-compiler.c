@@ -5286,6 +5286,23 @@ emit_exception_debug_info (MonoAotCompile *acfg, MonoCompile *cfg)
 		}
 	}
 
+	if (jinfo->has_try_block_holes) {
+		MonoTryBlockHoleTableJitInfo *table = mono_jit_info_get_try_block_hole_table_info (jinfo);
+		for (i = 0; i < table->num_holes; ++i) {
+			MonoTryBlockHoleJitInfo *hole = &table->holes [i];
+			encode_value (hole->clause, p, &p);
+			encode_value (hole->length, p, &p);
+			encode_value (hole->offset, p, &p);
+		}
+	}
+
+	if (jinfo->has_arch_eh_info) {
+		MonoArchEHJitInfo *eh_info;
+
+		eh_info = mono_jit_info_get_arch_eh_info (jinfo);
+		encode_value (eh_info->stack_size, p, &p);
+	}
+
 	if (jinfo->has_generic_jit_info) {
 		MonoGenericJitInfo *gi = mono_jit_info_get_generic_jit_info (jinfo);
 		MonoGenericSharingContext* gsctx = gi->generic_sharing_context;
@@ -5362,23 +5379,6 @@ emit_exception_debug_info (MonoAotCompile *acfg, MonoCompile *cfg)
 		} else {
 			encode_value (0, p, &p);
 		}
-	}
-
-	if (jinfo->has_try_block_holes) {
-		MonoTryBlockHoleTableJitInfo *table = mono_jit_info_get_try_block_hole_table_info (jinfo);
-		for (i = 0; i < table->num_holes; ++i) {
-			MonoTryBlockHoleJitInfo *hole = &table->holes [i];
-			encode_value (hole->clause, p, &p);
-			encode_value (hole->length, p, &p);
-			encode_value (hole->offset, p, &p);
-		}
-	}
-
-	if (jinfo->has_arch_eh_info) {
-		MonoArchEHJitInfo *eh_info;
-
-		eh_info = mono_jit_info_get_arch_eh_info (jinfo);
-		encode_value (eh_info->stack_size, p, &p);
 	}
 
 	if (seq_points) {
