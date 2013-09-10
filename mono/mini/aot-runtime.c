@@ -2738,7 +2738,6 @@ msort_code_offsets (gint32 *array, int len)
  *
  *   In async context, the resulting MonoJitInfo will not have its method field set, and it will not be added
  * to the jit info tables.
- * FIXME: Leak.
  * FIXME: Large sizes in the lock free allocator
  */
 MonoJitInfo *
