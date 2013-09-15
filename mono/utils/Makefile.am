@@ -111,6 +111,8 @@ monoutils_sources = \
 	bsearch.h	\
 	bsearch.c	\
 	mono-signal-handler.h
+	sha1.h		\
+	sha1.c
 
 arch_sources = 
 
