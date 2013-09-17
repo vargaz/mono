@@ -1387,6 +1387,8 @@ typedef struct {
 	/* For native-to-managed wrappers, the saved old domain */
 	MonoInst *orig_domain_var;
 
+	MonoInst *lmf_var;
+
 	unsigned char   *cil_start;
 #ifdef __native_client_codegen__
 	/* this alloc is not aligned, native_code */
