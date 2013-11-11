@@ -123,20 +123,27 @@ public:
 	virtual void deallocateExceptionTable(void*) {
 	}
 
-	virtual uint8_t *allocateCodeSection(uintptr_t Size, unsigned Alignment,
-										 unsigned SectionID) {
+	virtual uint8_t *allocateCodeSection(uintptr_t Size, unsigned Alignment, unsigned SectionID,
+										 StringRef SectionName) {
 		// FIXME:
 		assert(0);
 		return NULL;
 	}
 
-	virtual uint8_t* allocateDataSection(uintptr_t, unsigned int, unsigned int, bool) {
+	virtual uint8_t *allocateDataSection(uintptr_t Size, unsigned Alignment, unsigned SectionID,
+										 StringRef SectionName, bool IsReadOnly) {
 		// FIXME:
 		assert(0);
 		return NULL;
 	}
 
 	virtual bool applyPermissions(std::string*) {
+		// FIXME:
+		assert(0);
+		return false;
+	}
+
+	virtual bool finalizeMemory(std::string *ErrMsg = 0) {
 		// FIXME:
 		assert(0);
 		return false;
@@ -408,7 +415,7 @@ force_pass_linking (void)
       (void) llvm::createBasicAliasAnalysisPass();
       (void) llvm::createLibCallAliasAnalysisPass(0);
       (void) llvm::createScalarEvolutionAliasAnalysisPass();
-      (void) llvm::createBlockPlacementPass();
+      //(void) llvm::createBlockPlacementPass();
       (void) llvm::createBreakCriticalEdgesPass();
       (void) llvm::createCFGSimplificationPass();
 	  /*
@@ -478,7 +485,7 @@ force_pass_linking (void)
       (void) llvm::createReassociatePass();
       (void) llvm::createSCCPPass();
       (void) llvm::createScalarReplAggregatesPass();
-      (void) llvm::createSimplifyLibCallsPass();
+      //(void) llvm::createSimplifyLibCallsPass();
 	  /*
       (void) llvm::createSingleLoopExtractorPass();
       (void) llvm::createStripSymbolsPass();
@@ -548,7 +555,7 @@ mono_llvm_create_ee (LLVMModuleProviderRef MP, AllocCodeMemoryCb *alloc_cb, Func
    */
 
   TargetOptions opts;
-  opts.JITExceptionHandling = 1;
+  //opts.JITExceptionHandling = 1;
 
   EngineBuilder b (unwrap (MP));
 #ifdef TARGET_AMD64
@@ -558,7 +565,7 @@ mono_llvm_create_ee (LLVMModuleProviderRef MP, AllocCodeMemoryCb *alloc_cb, Func
 #endif
   g_assert (EE);
 
-  EE->InstallExceptionTableRegister (exception_cb);
+  //EE->InstallExceptionTableRegister (exception_cb);
   mono_event_listener = new MonoJITEventListener (emitted_cb);
   EE->RegisterJITEventListener (mono_event_listener);
 
@@ -590,7 +597,7 @@ mono_llvm_create_ee (LLVMModuleProviderRef MP, AllocCodeMemoryCb *alloc_cb, Func
 	  }
   } else {
 	  /* Use the same passes used by 'opt' by default, without the ipo passes */
-	  const char *opts = "-simplifycfg -domtree -domfrontier -scalarrepl -instcombine -simplifycfg -domtree -domfrontier -scalarrepl -simplify-libcalls -instcombine -simplifycfg -instcombine -simplifycfg -reassociate -domtree -loops -loop-simplify -domfrontier -loop-simplify -lcssa -loop-rotate -licm -lcssa -loop-unswitch -instcombine -scalar-evolution -loop-simplify -lcssa -iv-users -indvars -loop-deletion -loop-simplify -lcssa -loop-unroll -instcombine -memdep -gvn -memdep -memcpyopt -sccp -instcombine -domtree -memdep -dse -adce -gvn -simplifycfg -preverify -domtree -verify";
+	  const char *opts = "-simplifycfg -domtree -domfrontier -scalarrepl -instcombine -simplifycfg -domtree -domfrontier -scalarrepl -instcombine -simplifycfg -instcombine -simplifycfg -reassociate -domtree -loops -loop-simplify -domfrontier -loop-simplify -lcssa -loop-rotate -licm -lcssa -loop-unswitch -instcombine -scalar-evolution -loop-simplify -lcssa -iv-users -indvars -loop-deletion -loop-simplify -lcssa -loop-unroll -instcombine -memdep -gvn -memdep -memcpyopt -sccp -instcombine -domtree -memdep -dse -adce -gvn -simplifycfg -preverify -domtree -verify";
 	  char **args;
 	  int i;
 
