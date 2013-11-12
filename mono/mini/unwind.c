@@ -248,6 +248,68 @@ decode_sleb128 (guint8 *buf, guint8 **endbuf)
 	return res;
 }
 
+void
+mono_print_unwind_info (guint8 *unwind_info, int unwind_info_len)
+{
+	guint8 *p;
+	int pos, reg, offset, cfa_reg, cfa_offset;
+
+	p = unwind_info;
+	pos = 0;
+	while (p < unwind_info + unwind_info_len) {
+		int op = *p & 0xc0;
+
+		switch (op) {
+		case DW_CFA_advance_loc:
+			pos += *p & 0x3f;
+			p ++;
+			break;
+		case DW_CFA_offset:
+			reg = *p & 0x3f;
+			p ++;
+			offset = decode_uleb128 (p, &p) * DWARF_DATA_ALIGN;
+			if (reg == DWARF_PC_REG)
+				printf ("CFA: [%x] offset: %s at cfa-0x%x\n", pos, "pc", -offset);
+			else
+				printf ("CFA: [%x] offset: %s at cfa-0x%x\n", pos, mono_arch_regname (mono_dwarf_reg_to_hw_reg (reg)), -offset);
+			break;
+		case 0: {
+			int ext_op = *p;
+			p ++;
+			switch (ext_op) {
+			case DW_CFA_def_cfa:
+				cfa_reg = decode_uleb128 (p, &p);
+				cfa_offset = decode_uleb128 (p, &p);
+				printf ("CFA: [%x] def_cfa: %s+0x%x\n", pos, mono_arch_regname (mono_dwarf_reg_to_hw_reg (cfa_reg)), cfa_offset);
+				break;
+			case DW_CFA_def_cfa_offset:
+				cfa_offset = decode_uleb128 (p, &p);
+				printf ("CFA: [%x] def_cfa_offset: 0x%x\n", pos, cfa_offset);
+				break;
+			case DW_CFA_def_cfa_register:
+				cfa_reg = decode_uleb128 (p, &p);
+				printf ("CFA: [%x] def_cfa_reg: %s\n", pos, mono_arch_regname (mono_dwarf_reg_to_hw_reg (cfa_reg)));
+				break;
+			case DW_CFA_offset_extended_sf:
+				reg = decode_uleb128 (p, &p);
+				offset = decode_sleb128 (p, &p) * DWARF_DATA_ALIGN;
+				printf ("CFA: [%x] offset_extended_sf: %s at cfa-0x%x\n", pos, mono_arch_regname (mono_dwarf_reg_to_hw_reg (reg)), -offset);
+				break;
+			case DW_CFA_advance_loc4:
+				pos += read32 (p);
+				p += 4;
+				break;
+			default:
+				g_assert_not_reached ();
+			}
+			break;
+		}
+		default:
+			g_assert_not_reached ();
+		}
+	}
+}
+
 /*
  * mono_unwind_ops_encode:
  *

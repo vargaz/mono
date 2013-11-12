@@ -555,7 +555,7 @@ mono_llvm_create_ee (LLVMModuleProviderRef MP, AllocCodeMemoryCb *alloc_cb, Func
    */
 
   TargetOptions opts;
-  //opts.JITExceptionHandling = 1;
+  opts.JITExceptionHandling = 1;
 
   EngineBuilder b (unwrap (MP));
 #ifdef TARGET_AMD64
@@ -565,7 +565,7 @@ mono_llvm_create_ee (LLVMModuleProviderRef MP, AllocCodeMemoryCb *alloc_cb, Func
 #endif
   g_assert (EE);
 
-  //EE->InstallExceptionTableRegister (exception_cb);
+  EE->InstallExceptionTableRegister (exception_cb);
   mono_event_listener = new MonoJITEventListener (emitted_cb);
   EE->RegisterJITEventListener (mono_event_listener);
 
