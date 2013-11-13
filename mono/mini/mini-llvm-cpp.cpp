@@ -545,9 +545,6 @@ mono_llvm_create_ee (LLVMModuleProviderRef MP, AllocCodeMemoryCb *alloc_cb, Func
   mono_mm->alloc_cb = alloc_cb;
   mono_mm->dlsym_cb = dlsym_cb;
 
-  // PrettyStackTrace installs signal handlers which trip up libgc
-  DisablePrettyStackTrace = true;
-
   /*
    * The Default code model doesn't seem to work on amd64,
    * test_0_fields_with_big_offsets (among others) crashes, because LLVM tries to call
