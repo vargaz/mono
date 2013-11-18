@@ -4888,6 +4888,7 @@ add_intrinsics (LLVMModuleRef module)
 	}
 
 	/* SSE intrinsics */
+#if defined(TARGET_X86) || defined(TARGET_AMD64)
 	{
 		LLVMTypeRef ret_type, arg_types [16];
 
@@ -5032,6 +5033,7 @@ add_intrinsics (LLVMModuleRef module)
 	}
 
 	AddFunc (module, "llvm.x86.sse2.pause", LLVMVoidType (), NULL, 0);
+#endif
 
 	/* Load/Store intrinsics */
 	{
