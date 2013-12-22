@@ -1,5 +1,5 @@
+#include <config.h>
 #include <glib.h>
-#include <pthread.h>
 
 #include <mono/utils/mono-mutex.h>
 #include <mono/metadata/class.h>
