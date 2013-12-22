@@ -13,7 +13,7 @@ if !DISABLE_LIBRARIES
 if !DISABLE_PROFILER
 if JIT_SUPPORTED
 bin_PROGRAMS = mprof-report
-lib_LTLIBRARIES = libmono-profiler-cov.la libmono-profiler-aot.la libmono-profiler-iomap.la libmono-profiler-log.la
+lib_LTLIBRARIES = libmono-profiler-cov.la libmono-profiler-aot.la libmono-profiler-iomap.la libmono-profiler-log.la libmono-profiler-gchandle-profiler.la
 if PLATFORM_DARWIN
 libmono_profiler_log_la_LDFLAGS = -Wl,-undefined -Wl,suppress -Wl,-flat_namespace
 endif
@@ -63,6 +63,9 @@ libmono_profiler_log_la_LIBADD = $(LIBMONO) $(Z_LIBS)
 if PLATFORM_ANDROID
 libmono_profiler_log_la_LIBADD += $(GLIB_LIBS)
 endif
+
+libmono_profiler_gchandle_profiler_la_SOURCES = gchandle-profiler.h gchandle-profiler.c
+libmono_profiler_gchandle_profiler_la_LIBADD = $(LIBMONO)
 
 mprof_report_SOURCES = decode.c
 mprof_report_LDADD = $(Z_LIBS)
