@@ -1698,6 +1698,7 @@ mono_icall_get_wrapper_full (MonoJitICallInfo* callinfo, gboolean do_compile)
 	MonoMethod *wrapper;
 	gconstpointer trampoline;
 	MonoDomain *domain = mono_get_root_domain ();
+	gboolean check_exc = check_for_pending_exc;
 	
 	if (callinfo->wrapper) {
 		return callinfo->wrapper;
@@ -1719,8 +1720,12 @@ mono_icall_get_wrapper_full (MonoJitICallInfo* callinfo, gboolean do_compile)
 		return callinfo->trampoline;
 	}
 
+	if (!strcmp (callinfo->name, "mono_thread_interruption_checkpoint"))
+		/* This icall is used to check for exceptions, so don't check in the wrapper */
+		check_exc = FALSE;
+
 	name = g_strdup_printf ("__icall_wrapper_%s", callinfo->name);
-	wrapper = mono_marshal_get_icall_wrapper (callinfo->sig, name, callinfo->func, check_for_pending_exc);
+	wrapper = mono_marshal_get_icall_wrapper (callinfo->sig, name, callinfo->func, check_exc);
 	g_free (name);
 
 	if (do_compile)

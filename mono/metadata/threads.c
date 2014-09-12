@@ -4099,7 +4099,8 @@ static void CALLBACK dummy_apc (ULONG_PTR param)
  * Performs the operation that the requested thread state requires (abort,
  * suspend or stop)
  */
-static MonoException* mono_thread_execute_interruption (MonoInternalThread *thread)
+static MonoException*
+mono_thread_execute_interruption (MonoInternalThread *thread)
 {
 	LOCK_THREAD (thread);
 
