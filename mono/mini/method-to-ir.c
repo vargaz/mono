@@ -4913,7 +4913,32 @@ mini_field_access_needs_cctor_run (MonoCompile *cfg, MonoMethod *method, MonoCla
 	return TRUE;
 }
 
-static MonoInst*
+int
+mini_emit_convert_index_value (MonoCompile *cfg, MonoInst *index)
+{
+	int index2_reg;
+
+#if SIZEOF_REGISTER == 8
+	/* The array reg is 64 bits but the index reg is only 32 */
+	if (COMPILE_LLVM (cfg)) {
+		/* Not needed */
+		index2_reg = index->dreg;
+	} else {
+		index2_reg = alloc_preg (cfg);
+		MONO_EMIT_NEW_UNALU (cfg, OP_SEXT_I4, index2_reg, index->dreg);
+	}
+#else
+	if (index->type == STACK_I8) {
+		index2_reg = alloc_preg (cfg);
+		MONO_EMIT_NEW_UNALU (cfg, OP_LCONV_TO_I4, index2_reg, index->dreg);
+	} else {
+		index2_reg = index->dreg;
+	}
+#endif
+	return index2_reg;
+}
+
+MonoInst*
 mini_emit_ldelema_1_ins (MonoCompile *cfg, MonoClass *klass, MonoInst *arr, MonoInst *index, gboolean bcheck)
 {
 	MonoInst *ins;
@@ -4932,23 +4957,7 @@ mini_emit_ldelema_1_ins (MonoCompile *cfg, MonoClass *klass, MonoInst *arr, Mono
 	array_reg = arr->dreg;
 	index_reg = index->dreg;
 
-#if SIZEOF_REGISTER == 8
-	/* The array reg is 64 bits but the index reg is only 32 */
-	if (COMPILE_LLVM (cfg)) {
-		/* Not needed */
-		index2_reg = index_reg;
-	} else {
-		index2_reg = alloc_preg (cfg);
-		MONO_EMIT_NEW_UNALU (cfg, OP_SEXT_I4, index2_reg, index_reg);
-	}
-#else
-	if (index->type == STACK_I8) {
-		index2_reg = alloc_preg (cfg);
-		MONO_EMIT_NEW_UNALU (cfg, OP_LCONV_TO_I4, index2_reg, index_reg);
-	} else {
-		index2_reg = index_reg;
-	}
-#endif
+	index2_reg = mini_emit_convert_index_value (cfg, index);
 
 	if (bcheck)
 		MONO_EMIT_BOUNDS_CHECK (cfg, array_reg, MonoArray, max_length, index2_reg);
@@ -8874,7 +8883,8 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			}
 
 			/* Common call */
-			INLINE_FAILURE ("call");
+			if (!(cmethod->iflags & METHOD_IMPL_ATTRIBUTE_AGGRESSIVE_INLINING))
+				INLINE_FAILURE ("call");
 			ins = mono_emit_method_call_full (cfg, cmethod, fsig, tail_call, sp, virtual ? sp [0] : NULL,
 											  imt_arg, vtable_arg);
 
