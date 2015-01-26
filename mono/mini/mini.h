@@ -1335,6 +1335,7 @@ typedef enum {
 
 #define vreg_is_ref(cfg, vreg) ((vreg) < (cfg)->vreg_is_ref_len ? (cfg)->vreg_is_ref [(vreg)] : 0)
 #define vreg_is_mp(cfg, vreg) ((vreg) < (cfg)->vreg_is_mp_len ? (cfg)->vreg_is_mp [(vreg)] : 0)
+#define vreg_is_r4(cfg, vreg) ((vreg) < (cfg)->vreg_is_r4_len ? (cfg)->vreg_is_r4 [(vreg)] : 0)
 
 /*
  * Control Flow Graph and compilation unit information
@@ -1560,6 +1561,12 @@ typedef struct {
 
 	/* Size of above array */
 	guint32 vreg_is_mp_len;
+
+	/* Mark vregs which hold an r4 argument */
+	gboolean *vreg_is_r4;
+
+	/* Size of above array */
+	guint32 vreg_is_r4_len;
 
 	/* 
 	 * The original method to compile, differs from 'method' when doing generic
@@ -2079,6 +2086,7 @@ guint32   mono_alloc_ireg_mp                (MonoCompile *cfg) MONO_LLVM_INTERNA
 guint32   mono_alloc_ireg_copy              (MonoCompile *cfg, guint32 vreg) MONO_LLVM_INTERNAL;
 void      mono_mark_vreg_as_ref             (MonoCompile *cfg, int vreg) MONO_INTERNAL;
 void      mono_mark_vreg_as_mp              (MonoCompile *cfg, int vreg) MONO_INTERNAL;
+void      mono_mark_vreg_as_r4              (MonoCompile *cfg, int vreg) MONO_INTERNAL;
 
 void      mono_link_bblock                  (MonoCompile *cfg, MonoBasicBlock *from, MonoBasicBlock* to) MONO_INTERNAL;
 void      mono_unlink_bblock                (MonoCompile *cfg, MonoBasicBlock *from, MonoBasicBlock* to) MONO_INTERNAL;
@@ -2379,6 +2387,7 @@ void              mono_decompose_soft_float (MonoCompile *cfg) MONO_INTERNAL;
 void              mono_handle_global_vregs (MonoCompile *cfg) MONO_INTERNAL;
 void              mono_spill_global_vars (MonoCompile *cfg, gboolean *need_local_opts) MONO_INTERNAL;
 void              mono_if_conversion (MonoCompile *cfg) MONO_INTERNAL;
+void              mono_lower_r4_ops (MonoCompile *cfg) MONO_INTERNAL;
 
 /* virtual function delegate */
 gpointer          mono_get_delegate_virtual_invoke_impl  (MonoMethodSignature *sig, MonoMethod *method) MONO_INTERNAL;

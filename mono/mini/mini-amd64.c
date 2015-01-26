@@ -3496,6 +3496,10 @@ emit_move_return_value (MonoCompile *cfg, MonoInst *ins, guint8 *code)
 				amd64_sse_movsd_reg_reg (code, ins->dreg, AMD64_XMM0);
 		}
 		break;
+	case OP_FCALL_R4:
+		if (ins->dreg != AMD64_XMM0)
+			amd64_sse_movss_reg_reg (code, ins->dreg, AMD64_XMM0);
+		break;
 	case OP_VCALL:
 	case OP_VCALL_REG:
 	case OP_VCALL_MEMBASE:
@@ -4720,6 +4724,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 		}
 		case OP_CALL:
 		case OP_FCALL:
+		case OP_FCALL_R4:
 		case OP_LCALL:
 		case OP_VCALL:
 		case OP_VCALL2:
@@ -5094,6 +5099,19 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			}
 			break;
 		}
+		case OP_R4CONST_R4: {
+			float f = *(float *)ins->inst_p0;
+
+			// FIXME:
+			if (FALSE && (f == 0.0) && (mono_signbit (f) == 0)) {
+				amd64_sse_xorpd_reg_reg (code, ins->dreg, ins->dreg);
+			}
+			else {
+				mono_add_patch_info (cfg, offset, MONO_PATCH_INFO_R4, ins->inst_p0);
+				amd64_sse_movss_reg_membase (code, ins->dreg, AMD64_RIP, 0);
+			}
+			break;
+		}
 		case OP_STORER8_MEMBASE_REG:
 			amd64_sse_movsd_membase_reg (code, ins->inst_destbasereg, ins->inst_offset, ins->sreg1);
 			break;
@@ -5105,13 +5123,22 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			amd64_sse_cvtsd2ss_reg_reg (code, MONO_ARCH_FP_SCRATCH_REG, ins->sreg1);
 			amd64_sse_movss_membase_reg (code, ins->inst_destbasereg, ins->inst_offset, MONO_ARCH_FP_SCRATCH_REG);
 			break;
+		case OP_STORER4_MEMBASE_REG_R4:
+			amd64_sse_movss_membase_reg (code, ins->inst_destbasereg, ins->inst_offset, ins->sreg1);
+			break;
 		case OP_LOADR4_MEMBASE:
 			amd64_sse_movss_reg_membase (code, ins->dreg, ins->inst_basereg, ins->inst_offset);
 			amd64_sse_cvtss2sd_reg_reg (code, ins->dreg, ins->dreg);
 			break;
+		case OP_LOADR4_MEMBASE_R4:
+			amd64_sse_movss_reg_membase (code, ins->dreg, ins->inst_basereg, ins->inst_offset);
+			break;
 		case OP_ICONV_TO_R4:
 			amd64_sse_cvtsi2ss_reg_reg_size (code, ins->dreg, ins->sreg1, 4);
 			amd64_sse_cvtss2sd_reg_reg (code, ins->dreg, ins->dreg);
+			break;
+		case OP_ICONV_TO_R4_R4:
+			amd64_sse_cvtsi2ss_reg_reg_size (code, ins->dreg, ins->sreg1, 4);
 			break;
 		case OP_ICONV_TO_R8:
 			amd64_sse_cvtsi2sd_reg_reg_size (code, ins->dreg, ins->sreg1, 4);
@@ -5127,6 +5154,13 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			amd64_sse_cvtsd2ss_reg_reg (code, ins->dreg, ins->sreg1);
 			amd64_sse_cvtss2sd_reg_reg (code, ins->dreg, ins->dreg);
 			break;
+		case OP_FCONV_TO_R4_R4:
+			amd64_sse_cvtsd2ss_reg_reg (code, ins->dreg, ins->sreg1);
+			break;
+		case OP_FCONV_TO_R8_R4: {
+			amd64_sse_cvtss2sd_reg_reg (code, ins->dreg, ins->sreg1);
+			break;
+		}
 		case OP_FCONV_TO_I1:
 			code = emit_float_to_int (cfg, code, ins->dreg, ins->sreg1, 1, TRUE);
 			break;
@@ -5148,6 +5182,9 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			break;
 		case OP_FCONV_TO_I8:
 			code = emit_float_to_int (cfg, code, ins->dreg, ins->sreg1, 8, TRUE);
+			break;
+		case OP_FCONV_TO_I4_R4:
+			amd64_sse_cvtss2si_reg_reg (code, ins->dreg, ins->sreg1);
 			break;
 		case OP_LCONV_TO_R_UN: { 
 			guint8 *br [2];
@@ -5192,6 +5229,10 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			if (ins->dreg != ins->sreg1)
 				amd64_sse_movsd_reg_reg (code, ins->dreg, ins->sreg1);
 			break;
+		case OP_FMOVE_R4:
+			if (ins->dreg != ins->sreg1)
+				amd64_sse_movss_reg_reg (code, ins->dreg, ins->sreg1);
+			break;
 		case OP_FADD:
 			amd64_sse_addsd_reg_reg (code, ins->dreg, ins->sreg2);
 			break;
@@ -5203,7 +5244,19 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			break;		
 		case OP_FDIV:
 			amd64_sse_divsd_reg_reg (code, ins->dreg, ins->sreg2);
+			break;
+		case OP_FADD_R4:
+			amd64_sse_addss_reg_reg (code, ins->dreg, ins->sreg2);
+			break;
+		case OP_FSUB_R4:
+			amd64_sse_subss_reg_reg (code, ins->dreg, ins->sreg2);
+			break;
+		case OP_FMUL_R4:
+			amd64_sse_mulss_reg_reg (code, ins->dreg, ins->sreg2);
 			break;		
+		case OP_FDIV_R4:
+			amd64_sse_divss_reg_reg (code, ins->dreg, ins->sreg2);
+			break;
 		case OP_FNEG: {
 			static double r8_0 = -0.0;
 
@@ -5288,18 +5341,25 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			 */
 			amd64_sse_comisd_reg_reg (code, ins->sreg2, ins->sreg1);
 			break;
+		case OP_FCOMPARE_R4:
+			amd64_sse_comiss_reg_reg (code, ins->sreg2, ins->sreg1);
+			break;
 		case OP_FCNEQ:
-		case OP_FCEQ: {
+		case OP_FCEQ:
+		case OP_FCEQ_R4: {
 			/* zeroing the register at the start results in 
 			 * shorter and faster code (we can also remove the widening op)
 			 */
 			guchar *unordered_check;
 			amd64_alu_reg_reg (code, X86_XOR, ins->dreg, ins->dreg);
-			amd64_sse_comisd_reg_reg (code, ins->sreg1, ins->sreg2);
+			if (ins->opcode == OP_FCEQ_R4)
+				amd64_sse_comiss_reg_reg (code, ins->sreg1, ins->sreg2);
+			else
+				amd64_sse_comisd_reg_reg (code, ins->sreg1, ins->sreg2);
 			unordered_check = code;
 			x86_branch8 (code, X86_CC_P, 0, FALSE);
 
-			if (ins->opcode == OP_FCEQ) {
+			if (ins->opcode == OP_FCEQ || ins->opcode == OP_FCEQ_R4) {
 				amd64_set_reg (code, X86_CC_EQ, ins->dreg, FALSE);
 				amd64_patch (unordered_check, code);
 			} else {
@@ -5314,13 +5374,18 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			break;
 		}
 		case OP_FCLT:
+		case OP_FCLT_R4:
 		case OP_FCLT_UN:
+		case OP_FCLT_UN_R4:
 			/* zeroing the register at the start results in 
 			 * shorter and faster code (we can also remove the widening op)
 			 */
 			amd64_alu_reg_reg (code, X86_XOR, ins->dreg, ins->dreg);
-			amd64_sse_comisd_reg_reg (code, ins->sreg2, ins->sreg1);
-			if (ins->opcode == OP_FCLT_UN) {
+			if (ins->opcode == OP_FCLT_R4 || ins->opcode == OP_FCLT_UN_R4)
+				amd64_sse_comiss_reg_reg (code, ins->sreg2, ins->sreg1);
+			else
+				amd64_sse_comisd_reg_reg (code, ins->sreg2, ins->sreg1);
+			if (ins->opcode == OP_FCLT_UN || ins->opcode == OP_FCLT_UN_R4) {
 				guchar *unordered_check = code;
 				guchar *jump_to_end;
 				x86_branch8 (code, X86_CC_P, 0, FALSE);
@@ -5334,10 +5399,14 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 				amd64_set_reg (code, X86_CC_GT, ins->dreg, FALSE);
 			}
 			break;
-		case OP_FCLE: {
+		case OP_FCLE:
+		case OP_FCLE_R4: {
 			guchar *unordered_check;
 			amd64_alu_reg_reg (code, X86_XOR, ins->dreg, ins->dreg);
-			amd64_sse_comisd_reg_reg (code, ins->sreg2, ins->sreg1);
+			if (ins->opcode == OP_FCLE_R4)
+				amd64_sse_comiss_reg_reg (code, ins->sreg2, ins->sreg1);
+			else
+				amd64_sse_comisd_reg_reg (code, ins->sreg2, ins->sreg1);
 			unordered_check = code;
 			x86_branch8 (code, X86_CC_P, 0, FALSE);
 			amd64_set_reg (code, X86_CC_NB, ins->dreg, FALSE);
@@ -5345,14 +5414,19 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			break;
 		}
 		case OP_FCGT:
-		case OP_FCGT_UN: {
+		case OP_FCGT_R4:
+		case OP_FCGT_UN:
+		case OP_FCGT_UN_R4: {
 			/* zeroing the register at the start results in 
 			 * shorter and faster code (we can also remove the widening op)
 			 */
 			guchar *unordered_check;
 			amd64_alu_reg_reg (code, X86_XOR, ins->dreg, ins->dreg);
-			amd64_sse_comisd_reg_reg (code, ins->sreg2, ins->sreg1);
-			if (ins->opcode == OP_FCGT) {
+			if (ins->opcode == OP_FCGT_R4 || ins->opcode == OP_FCGT_UN_R4)
+				amd64_sse_comiss_reg_reg (code, ins->sreg2, ins->sreg1);
+			else
+				amd64_sse_comisd_reg_reg (code, ins->sreg2, ins->sreg1);
+			if (ins->opcode == OP_FCGT || ins->opcode == OP_FCGT_R4) {
 				unordered_check = code;
 				x86_branch8 (code, X86_CC_P, 0, FALSE);
 				amd64_set_reg (code, X86_CC_LT, ins->dreg, FALSE);
@@ -5362,10 +5436,14 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			}
 			break;
 		}
-		case OP_FCGE: {
+		case OP_FCGE:
+		case OP_FCGE_R4: {
 			guchar *unordered_check;
 			amd64_alu_reg_reg (code, X86_XOR, ins->dreg, ins->dreg);
-			amd64_sse_comisd_reg_reg (code, ins->sreg2, ins->sreg1);
+			if (ins->opcode == OP_FCGE_R4)
+				amd64_sse_comiss_reg_reg (code, ins->sreg2, ins->sreg1);
+			else
+				amd64_sse_comisd_reg_reg (code, ins->sreg2, ins->sreg1);
 			unordered_check = code;
 			x86_branch8 (code, X86_CC_P, 0, FALSE);
 			amd64_set_reg (code, X86_CC_NA, ins->dreg, FALSE);

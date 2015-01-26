@@ -122,6 +122,7 @@ icompare: src1:i src2:i len:3
 compare_imm: src1:i len:13
 icompare_imm: src1:i len:8
 fcompare: src1:f src2:f clob:a len:13
+fcompare_r4: src1:f src2:f clob:a len:13
 oparglist: src1:b len:11
 checkthis: src1:b len:5 nacl:8
 call: dest:a clob:c len:32 nacl:64
@@ -129,6 +130,7 @@ voidcall: clob:c len:32 nacl:64
 voidcall_reg: src1:i clob:c len:32 nacl:64
 voidcall_membase: src1:b clob:c len:32 nacl:64
 fcall: dest:f len:64 clob:c
+fcall_r4: dest:f len:64 clob:c
 fcall_reg: dest:f src1:i len:64 clob:c
 fcall_membase: dest:f src1:b len:64 clob:c
 lcall: dest:a len:64 clob:c
@@ -142,6 +144,7 @@ call_membase: dest:a src1:b len:32 clob:c nacl:64
 iconst: dest:i len:10
 i8const: dest:i len:10
 r4const: dest:f len:14
+r4const_r4: dest:f len:14
 r8const: dest:f len:9
 store_membase_imm: dest:b len:15
 store_membase_reg: dest:b src1:i len:9 nacl:11
@@ -154,6 +157,7 @@ storei4_membase_imm: dest:b len:13 nacl:15
 storei4_membase_reg: dest:b src1:i len:9 nacl:11
 storei8_membase_imm: dest:b len:18
 storer4_membase_reg: dest:b src1:f len:15
+storer4_membase_reg_r4: dest:b src1:f len:15
 storer8_membase_reg: dest:b src1:f len:10
 load_membase: dest:i src1:b len:8 nacl:12
 loadi1_membase: dest:c src1:b len:9 nacl:12
@@ -164,6 +168,7 @@ loadi4_membase: dest:i src1:b len:9 nacl:12
 loadu4_membase: dest:i src1:b len:9 nacl:12
 loadi8_membase: dest:i src1:b len:18 nacl:14
 loadr4_membase: dest:f src1:b len:16
+loadr4_membase_r4: dest:f src1:b len:16
 loadr8_membase: dest:f src1:b len:16
 loadu4_mem: dest:i len:10
 amd64_loadi8_memindex: dest:i src1:i src2:i len:10
@@ -221,6 +226,7 @@ float_bge: len:32
 float_bge_un: len:13
 float_ble: len:32
 float_ble_un: len:13
+
 float_add: dest:f src1:f src2:f clob:1 len:5
 float_sub: dest:f src1:f src2:f clob:1 len:5
 float_mul: dest:f src1:f src2:f clob:1 len:5
@@ -230,6 +236,12 @@ float_rem: dest:f src1:f src2:f clob:1 len:19
 float_rem_un: dest:f src1:f src2:f clob:1 len:19
 float_neg: dest:f src1:f clob:1 len:23
 float_not: dest:f src1:f clob:1 len:3
+
+float_add_r4: dest:f src1:f src2:f clob:1 len:5
+float_sub_r4: dest:f src1:f src2:f clob:1 len:5
+float_mul_r4: dest:f src1:f src2:f clob:1 len:5
+float_div_r4: dest:f src1:f src2:f clob:1 len:5
+
 float_conv_to_i1: dest:i src1:f len:49
 float_conv_to_i2: dest:i src1:f len:49
 float_conv_to_i4: dest:i src1:f len:49
@@ -241,6 +253,10 @@ float_conv_to_u1: dest:i src1:f len:49
 float_conv_to_i: dest:i src1:f len:49
 float_conv_to_ovf_i: dest:a src1:f len:40
 float_conv_to_ovd_u: dest:a src1:f len:40
+
+float_conv_to_r8_r4: dest:f src1:f len:16
+float_conv_to_i4_r4: dest:i src1:f len:49
+
 float_mul_ovf: 
 float_ceq: dest:i src1:f src2:f len:35
 float_cgt: dest:i src1:f src2:f len:35
@@ -255,8 +271,16 @@ float_cgt_membase: dest:i src1:f src2:b len:35
 float_cgt_un_membase: dest:i src1:f src2:b len:48
 float_clt_membase: dest:i src1:f src2:b len:35
 float_clt_un_membase: dest:i src1:f src2:b len:42
+
+float_ceq_r4: dest:i src1:f src2:f len:35
+float_cgt_r4: dest:i src1:f src2:f len:35
+float_cgt_un_r4: dest:i src1:f src2:f len:48
+float_clt_r4: dest:i src1:f src2:f len:35
+float_clt_un_r4: dest:i src1:f src2:f len:42
+
 float_conv_to_u: dest:i src1:f len:46
 fmove: dest:f src1:f len:8
+fmove_r4: dest:f src1:f len:8
 call_handler: len:14 clob:c nacl:52
 aot_const: dest:i len:10
 nacl_gc_safe_point: clob:c
@@ -387,6 +411,7 @@ int_max_un: dest:i src1:i src2:i len:16 clob:1
 int_neg: dest:i src1:i clob:1 len:4
 int_not: dest:i src1:i clob:1 len:4
 int_conv_to_r4: dest:f src1:i len:15
+int_conv_to_r4_r4: dest:f src1:i len:15
 int_conv_to_r8: dest:f src1:i len:9
 int_ceq: dest:c len:8
 int_cgt: dest:c len:8
@@ -525,6 +550,7 @@ amd64_xor_membase_reg: src1:b src2:i len:13
 amd64_mul_membase_reg: src1:b src2:i len:15
 
 float_conv_to_r4: dest:f src1:f len:17
+float_conv_to_r4_r4: dest:f src1:f len:17
 
 vcall2: len:64 clob:c
 vcall2_reg: src1:i len:64 clob:c

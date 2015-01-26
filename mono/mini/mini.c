@@ -1283,6 +1283,10 @@ mono_compile_create_var_for_vreg (MonoCompile *cfg, MonoType *type, int opcode, 
 			}
 		}
 	}
+
+	// FIXME: Do this only if the r4 opt is enabled
+	if (!type->byref && type->type == MONO_TYPE_R4 && opcode == OP_ARG)
+		mono_mark_vreg_as_r4 (cfg, vreg);
 	
 	cfg->varinfo [num] = inst;
 
@@ -1416,6 +1420,22 @@ mono_mark_vreg_as_mp (MonoCompile *cfg, int vreg)
 	}
 	cfg->vreg_is_mp [vreg] = TRUE;
 }	
+
+void
+mono_mark_vreg_as_r4 (MonoCompile *cfg, int vreg)
+{
+	if (vreg >= cfg->vreg_is_r4_len) {
+		gboolean *tmp = cfg->vreg_is_r4;
+		int size = cfg->vreg_is_r4_len;
+
+		while (vreg >= cfg->vreg_is_r4_len)
+			cfg->vreg_is_r4_len = cfg->vreg_is_r4_len ? cfg->vreg_is_r4_len * 2 : 32;
+		cfg->vreg_is_r4 = mono_mempool_alloc0 (cfg->mempool, sizeof (gboolean) * cfg->vreg_is_r4_len);
+		if (size)
+			memcpy (cfg->vreg_is_r4, tmp, size * sizeof (gboolean));
+	}
+	cfg->vreg_is_r4 [vreg] = TRUE;
+}
 
 static MonoType*
 type_from_stack_type (MonoInst *ins) {
@@ -5418,6 +5438,8 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, JitFl
 		mono_decompose_vtype_opts (cfg);
 	if (cfg->flags & MONO_CFG_HAS_ARRAY_ACCESS)
 		mono_decompose_array_access_opts (cfg);
+
+	mono_lower_r4_ops (cfg);
 
 	if (cfg->got_var) {
 #ifndef MONO_ARCH_GOT_REG

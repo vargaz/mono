@@ -1,7 +1,5 @@
 /*
- * local-propagation.c: Local constant, copy and tree propagation.
- *
- * To make some sense of the tree mover, read mono/docs/tree-mover.txt
+ * local-propagation.c: Local constant and copy propagation.
  *
  * Author:
  *   Paolo Molaro (lupus@ximian.com)
@@ -612,6 +610,170 @@ mono_local_deadce (MonoCompile *cfg)
 	}
 
 	//mono_print_code (cfg, "AFTER LOCAL-DEADCE");
+}
+
+
+static inline MonoBitSet*
+mono_bitset_mp_new (MonoMemPool *mp,  guint32 max_size)
+{
+	int size = mono_bitset_alloc_size (max_size, 0);
+	gpointer mem;
+
+	mem = mono_mempool_alloc0 (mp, size);
+	return mono_bitset_mem_new (mem, max_size, MONO_BITSET_DONT_FREE);
+}
+
+static int
+opcode_to_r4_opcode (int opcode)
+{
+	switch (opcode) {
+	case OP_R4CONST:
+		return OP_R4CONST_R4;
+	case OP_FMOVE:
+		return OP_FMOVE_R4;
+	case OP_LOADR4_MEMBASE:
+		return OP_LOADR4_MEMBASE_R4;
+	case OP_STORER4_MEMBASE_REG:
+		return OP_STORER4_MEMBASE_REG_R4;
+	case OP_AMD64_SET_XMMREG_R4:
+		return OP_FMOVE_R4;
+	case OP_FADD:
+		return OP_FADD_R4;
+	case OP_FSUB:
+		return OP_FSUB_R4;
+	case OP_FMUL:
+		return OP_FMUL_R4;
+	case OP_FDIV:
+		return OP_FDIV_R4;
+	case OP_FCONV_TO_I4:
+		return OP_FCONV_TO_I4_R4;
+	case OP_ICONV_TO_R4:
+		return OP_ICONV_TO_R4_R4;
+	case OP_FCONV_TO_R4:
+		return OP_FCONV_TO_R4_R4;
+	case OP_FCOMPARE:
+		return OP_FCOMPARE_R4;
+	case OP_FCEQ:
+		return OP_FCEQ_R4;
+	case OP_FCGT:
+		return OP_FCGT_R4;
+	case OP_FCGT_UN:
+		return OP_FCGT_UN_R4;
+	default:
+		return opcode;
+	}
+}
+
+/*
+ * mono_lower_r4_ops:
+ *
+ *  Optimization pass to transform double opcodes into opcodes operating on floats.
+ *
+ * DESIGN:
+ * - local optimization pass changing r8 opcodes to r4 opcodes
+ * - only works on local vregs
+ * - insert conversions for situations it can't handle like mixed r4/r8 values, etc.
+ */
+
+void
+mono_lower_r4_ops (MonoCompile *cfg)
+{
+	MonoBasicBlock *bb;
+	MonoBitSet *r4regs;
+	MonoInst *ins;
+
+	/*
+	if (!mono_debug_count ())
+		return;
+	*/
+
+	r4regs = mono_bitset_mp_new (cfg->mempool, cfg->next_vreg + 1);
+	// FIXME: Can't use vreg_is_r4 () here because those vregs are transformed into
+	// r8 in the prolog
+
+	for (bb = cfg->bb_entry; bb; bb = bb->next_bb) {
+		if (cfg->verbose_level > 2) mono_print_bb (bb, "BEFORE R4 LOWERING");
+
+		for (ins = bb->code; ins; ins = ins->next) {
+			const char *spec = INS_INFO (ins->opcode);
+			MonoInst *conv;
+			gboolean dreg_fp, sreg1_fp, sreg2_fp;
+			gboolean sreg1_r4, sreg2_r4;
+			gboolean transform;
+
+			dreg_fp = FALSE;
+			sreg1_fp = FALSE;
+			sreg2_fp = FALSE;
+			sreg1_r4 = FALSE;
+			sreg2_r4 = FALSE;
+
+			if (spec [MONO_INST_DEST] == 'f' && !get_vreg_to_inst (cfg, ins->dreg)) {
+				dreg_fp = TRUE;
+			}
+			if (spec [MONO_INST_SRC1] == 'f' && !get_vreg_to_inst (cfg, ins->sreg1)) {
+				sreg1_fp = TRUE;
+				if (mono_bitset_test_fast (r4regs, ins->sreg1))
+					sreg1_r4 = TRUE;
+			}
+			if (spec [MONO_INST_SRC2] == 'f' && !get_vreg_to_inst (cfg, ins->sreg2)) {
+				sreg2_fp = TRUE;
+				if (mono_bitset_test_fast (r4regs, ins->sreg2))
+					sreg2_r4 = TRUE;
+			}
+
+			if (!(dreg_fp || sreg1_fp || sreg2_fp))
+				continue;
+
+			transform = TRUE;
+			if (spec [MONO_INST_DEST] == 'f' && !dreg_fp)
+				transform = FALSE;
+			if (spec [MONO_INST_SRC1] == 'f' && !sreg1_r4)
+				transform = FALSE;
+			if (spec [MONO_INST_SRC2] == 'f' && !sreg2_r4)
+				transform = FALSE;
+
+			if (transform) {
+				int new_opcode;
+
+				new_opcode = opcode_to_r4_opcode (ins->opcode);
+				if (new_opcode == ins->opcode)
+					transform = FALSE;
+
+				if (transform) {
+					ins->opcode = new_opcode;
+					if (dreg_fp)
+					mono_bitset_set_fast (r4regs, ins->dreg);
+					continue;
+				}
+			}
+
+			/*
+			printf ("%s\n", mono_method_full_name (cfg->method, TRUE));
+			mono_print_ins (ins);
+			*/
+
+			/*
+			 * If an opcode is not transformed, convert its operands
+			 * back to r8.
+			 */
+			if (sreg1_r4) {
+				MONO_INST_NEW (cfg, conv, OP_FCONV_TO_R8_R4);
+				conv->dreg = ins->sreg1;
+				conv->sreg1 = ins->sreg1;
+				mono_bblock_insert_before_ins (bb, ins, conv);
+				mono_bitset_clear_fast (r4regs, ins->sreg1);
+			}
+			if (sreg2_r4 && !(sreg1_r4 && ins->sreg1 == ins->sreg2)) {
+				MONO_INST_NEW (cfg, conv, OP_FCONV_TO_R8_R4);
+				conv->dreg = ins->sreg2;
+				conv->sreg1 = ins->sreg2;
+				mono_bblock_insert_before_ins (bb, ins, conv);
+				mono_bitset_clear_fast (r4regs, ins->sreg2);
+			}
+		}
+
+		if (cfg->verbose_level > 2) mono_print_bb (bb, "AFTER R4 LOWERING");
+	}
 }
 
 #endif /* DISABLE_JIT */
