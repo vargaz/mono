@@ -5439,7 +5439,8 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, JitFl
 	if (cfg->flags & MONO_CFG_HAS_ARRAY_ACCESS)
 		mono_decompose_array_access_opts (cfg);
 
-	mono_lower_r4_ops (cfg);
+	if (cfg->opt & (MONO_OPT_FLOAT32))
+		mono_lower_r4_ops (cfg);
 
 	if (cfg->got_var) {
 #ifndef MONO_ARCH_GOT_REG
