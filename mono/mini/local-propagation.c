@@ -635,8 +635,10 @@ opcode_to_r4_opcode (int opcode)
 		return OP_LOADR4_MEMBASE_R4;
 	case OP_STORER4_MEMBASE_REG:
 		return OP_STORER4_MEMBASE_REG_R4;
+#ifdef TARGET_AMD64
 	case OP_AMD64_SET_XMMREG_R4:
 		return OP_FMOVE_R4;
+#endif
 	case OP_FADD:
 		return OP_FADD_R4;
 	case OP_FSUB:

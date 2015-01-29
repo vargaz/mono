@@ -76,6 +76,7 @@ localloc: dest:i src1:i len:60
 compare: src1:i src2:i len:4
 compare_imm: src1:i len:12
 fcompare: src1:f src2:f len:12
+fcompare_r4: src1:f src2:f len:12
 oparglist: src1:i len:12
 setlret: src1:i src2:i len:12
 checkthis: src1:b len:4
@@ -97,6 +98,7 @@ vcall_membase: src1:b len:16 clob:c
 tailcall: len:160 clob:c
 iconst: dest:i len:16
 r4const: dest:f len:24
+r4const_r4: dest:f len:20
 r8const: dest:f len:20
 label: len:0
 store_membase_imm: dest:b len:20
@@ -110,6 +112,7 @@ storei4_membase_reg: dest:b src1:i len:20
 storei8_membase_imm: dest:b 
 storei8_membase_reg: dest:b src1:i 
 storer4_membase_reg: dest:b src1:f len:60
+storer4_membase_reg_r4: dest:b src1:f len:16
 storer8_membase_reg: dest:b src1:f len:24
 store_memindex: dest:b src1:i src2:i len:4
 storei1_memindex: dest:b src1:i src2:i len:4
@@ -123,6 +126,7 @@ loadu2_membase: dest:i src1:b len:4
 loadi4_membase: dest:i src1:b len:4
 loadu4_membase: dest:i src1:b len:4
 loadi8_membase: dest:i src1:b
+loadr4_membase_r4: dest:f src1:b len:16
 loadr4_membase: dest:f src1:b len:56
 loadr8_membase: dest:f src1:b len:24
 load_memindex: dest:i src1:b src2:i len:4
@@ -135,6 +139,7 @@ loadu4_memindex: dest:i src1:b src2:i len:4
 loadu4_mem: dest:i len:8
 move: dest:i src1:i len:4
 fmove: dest:f src1:f len:4
+fmove_r4: dest:f src1:f len:4
 add_imm: dest:i src1:i len:12
 sub_imm: dest:i src1:i len:12
 mul_imm: dest:i src1:i len:12
@@ -172,6 +177,10 @@ float_add: dest:f src1:f src2:f len:4
 float_sub: dest:f src1:f src2:f len:4
 float_mul: dest:f src1:f src2:f len:4
 float_div: dest:f src1:f src2:f len:4
+float_add_r4: dest:f src1:f src2:f len:4
+float_sub_r4: dest:f src1:f src2:f len:4
+float_mul_r4: dest:f src1:f src2:f len:4
+float_div_r4: dest:f src1:f src2:f len:4
 float_div_un: dest:f src1:f src2:f len:4
 float_rem: dest:f src1:f src2:f len:16
 float_rem_un: dest:f src1:f src2:f len:16
@@ -180,7 +189,9 @@ float_not: dest:f src1:f len:4
 float_conv_to_i1: dest:i src1:f len:88
 float_conv_to_i2: dest:i src1:f len:88
 float_conv_to_i4: dest:i src1:f len:88
+float_conv_to_i4_r4: dest:i src1:f len:88
 float_conv_to_i8: dest:l src1:f len:88
+float_conv_to_r8_r4: dest:f src1:f len:88
 float_conv_to_r4: dest:f src1:f len:8
 float_conv_to_u4: dest:i src1:f len:88
 float_conv_to_u8: dest:l src1:f len:88
@@ -233,6 +244,7 @@ int_conv_to_i1: dest:i src1:i len:8
 int_conv_to_i2: dest:i src1:i len:8
 int_conv_to_i4: dest:i src1:i len:4
 int_conv_to_r4: dest:f src1:i len:84
+int_conv_to_r4_r4: dest:f src1:i len:84
 int_conv_to_r8: dest:f src1:i len:84
 int_conv_to_u4: dest:i src1:i
 int_conv_to_r_un: dest:f src1:i len:56
