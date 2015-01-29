@@ -1233,6 +1233,24 @@ mono_remove_critical_edges (MonoCompile *cfg)
 	}
 }
 
+static void
+nullify_compare (MonoInst *ins)
+{
+	switch (ins->opcode) {
+	case OP_ICOMPARE:
+	case OP_FCOMPARE:
+	case OP_LCOMPARE:
+	case OP_COMPARE:
+	case OP_ICOMPARE_IMM:
+	case OP_LCOMPARE_IMM:
+	case OP_COMPARE_IMM:
+		NULLIFY_INS (ins);
+		break;
+	default:
+		break;
+	}
+}
+
 /*
  * Optimizes the branches on the Control Flow Graph
  *
@@ -1292,6 +1310,8 @@ mono_optimize_branches (MonoCompile *cfg)
 				if (bb->last_ins && (bb->last_ins->opcode != OP_BR) && MONO_IS_COND_BRANCH_OP (bb->last_ins)) {
 					bb->last_ins->opcode = OP_BR;
 					bb->last_ins->inst_target_bb = bb->last_ins->inst_true_bb;
+					if (COMPILE_LLVM (cfg) && bb->last_ins->prev)
+						nullify_compare (bb->last_ins->prev);
 					changed = TRUE;
 					if (cfg->verbose_level > 2)
 						g_print ("cond branch removal triggered in %d %d\n", bb->block_num, bb->out_count);
@@ -1301,7 +1321,7 @@ mono_optimize_branches (MonoCompile *cfg)
 					/* the block are in sequence anyway ... */
 
 					/* branches to the following block can be removed */
-					if (bb->last_ins && bb->last_ins->opcode == OP_BR && !bbn->out_of_line) {
+					if (bb->last_ins && bb->last_ins->opcode == OP_BR && !bbn->out_of_line && !COMPILE_LLVM (cfg)) {
 						NULLIFY_INS (bb->last_ins);
 						changed = TRUE;
 						if (cfg->verbose_level > 2)
@@ -1384,6 +1404,10 @@ mono_optimize_branches (MonoCompile *cfg)
 						bb->last_ins->inst_target_bb = taken_branch_target;
 						if (!bb->extended)
 							mono_unlink_bblock (cfg, bb, untaken_branch_target);
+
+						if (COMPILE_LLVM (cfg) && bb->last_ins->prev)
+							nullify_compare (bb->last_ins->prev);
+
 						changed = TRUE;
 						continue;
 					}
@@ -1460,7 +1484,8 @@ mono_optimize_branches (MonoCompile *cfg)
 						bb->last_ins->inst_false_bb = bb->last_ins->inst_true_bb;
 						bb->last_ins->inst_true_bb = bbn;
 
-						move_basic_block_to_end (cfg, bb->last_ins->inst_true_bb);
+						if (!COMPILE_LLVM (cfg))
+							move_basic_block_to_end (cfg, bb->last_ins->inst_true_bb);
 						if (cfg->verbose_level > 2)
 							g_print ("cbranch to throw block triggered %d.\n", 
 									 bb->block_num);
