@@ -5222,7 +5222,13 @@ mini_method_compile (MonoMethod *method, guint32 opts, MonoDomain *domain, JitFl
 		cfg->opt &= ~MONO_OPT_LINEARS;
 
 		/* FIXME: */
-		cfg->opt &= ~MONO_OPT_BRANCH;
+		/*
+		 * Branch optimizations might create IR which the LLVM backend cannot handle,
+		 * so disable these for now. But enable it for the float32 optimization since
+		 * it makes it more effective by making vregs local.
+		 */
+		 if (!(cfg->opt & MONO_OPT_FLOAT32))
+			 cfg->opt &= ~MONO_OPT_BRANCH;
 	}
 
 	/* todo: remove code when we have verified that the liveness for try/catch blocks
