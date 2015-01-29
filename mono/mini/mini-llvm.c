@@ -547,12 +547,14 @@ op_to_llvm_type (int opcode)
 	case OP_ICONV_TO_I8:
 		return LLVMInt64Type ();
 	case OP_ICONV_TO_R4:
+	case OP_ICONV_TO_R4_R4:
 		return LLVMFloatType ();
 	case OP_ICONV_TO_R8:
 		return LLVMDoubleType ();
 	case OP_ICONV_TO_U8:
 		return LLVMInt64Type ();
 	case OP_FCONV_TO_I4:
+	case OP_FCONV_TO_I4_R4:
 		return LLVMInt32Type ();
 	case OP_FCONV_TO_I8:
 		return LLVMInt64Type ();
@@ -652,7 +654,9 @@ load_store_to_llvm_type (int opcode, int *size, gboolean *sext, gboolean *zext)
 		*size = 8;
 		return LLVMInt64Type ();
 	case OP_LOADR4_MEMBASE:
+	case OP_LOADR4_MEMBASE_R4:
 	case OP_STORER4_MEMBASE_REG:
+	case OP_STORER4_MEMBASE_REG_R4:
 	case OP_ATOMIC_LOAD_R4:
 	case OP_ATOMIC_STORE_R4:
 		*size = 4;
@@ -2580,6 +2584,9 @@ process_bb (EmitContext *ctx, MonoBasicBlock *bb)
 		case OP_R4CONST:
 			values [ins->dreg] = LLVMConstFPExt (LLVMConstReal (LLVMFloatType (), *(float*)ins->inst_p0), LLVMDoubleType ());
 			break;
+		case OP_R4CONST_R4:
+			values [ins->dreg] = LLVMConstReal (LLVMFloatType (), *(float*)ins->inst_p0);
+			break;
 		case OP_DUMMY_ICONST:
 			values [ins->dreg] = LLVMConstInt (LLVMInt32Type (), 0, FALSE);
 			break;
@@ -2678,6 +2685,7 @@ process_bb (EmitContext *ctx, MonoBasicBlock *bb)
 		case OP_FCOMPARE:
 		case OP_LCOMPARE:
 		case OP_COMPARE:
+		case OP_FCOMPARE_R4:
 		case OP_ICOMPARE_IMM:
 		case OP_LCOMPARE_IMM:
 		case OP_COMPARE_IMM: {
@@ -2720,6 +2728,8 @@ process_bb (EmitContext *ctx, MonoBasicBlock *bb)
 			/* We use COMPARE+SETcc/Bcc, llvm uses SETcc+br cond */
 			if (ins->opcode == OP_FCOMPARE)
 				cmp = LLVMBuildFCmp (builder, fpcond_to_llvm_cond [rel], convert (ctx, lhs, LLVMDoubleType ()), convert (ctx, rhs, LLVMDoubleType ()), "");
+			else if (ins->opcode == OP_FCOMPARE_R4)
+				cmp = LLVMBuildFCmp (builder, fpcond_to_llvm_cond [rel], lhs, rhs, "");
 			else if (ins->opcode == OP_COMPARE_IMM) {
 				if (LLVMGetTypeKind (LLVMTypeOf (lhs)) == LLVMPointerTypeKind && ins->inst_imm == 0)
 					cmp = LLVMBuildICmp (builder, cond_to_llvm_cond [rel], lhs, LLVMConstNull (LLVMTypeOf (lhs)), "");
@@ -2845,6 +2855,7 @@ process_bb (EmitContext *ctx, MonoBasicBlock *bb)
 		case OP_MOVE:
 		case OP_LMOVE:
 		case OP_XMOVE:
+		case OP_FMOVE_R4:
 		case OP_SETFRET:
 			g_assert (lhs);
 			values [ins->dreg] = lhs;
@@ -2968,6 +2979,18 @@ process_bb (EmitContext *ctx, MonoBasicBlock *bb)
 				g_assert_not_reached ();
 			}
 			break;
+		case OP_FADD_R4:
+				values [ins->dreg] = LLVMBuildFAdd (builder, lhs, rhs, dname);
+				break;
+		case OP_FSUB_R4:
+				values [ins->dreg] = LLVMBuildFSub (builder, lhs, rhs, dname);
+				break;
+		case OP_FMUL_R4:
+				values [ins->dreg] = LLVMBuildFMul (builder, lhs, rhs, dname);
+				break;
+		case OP_FDIV_R4:
+				values [ins->dreg] = LLVMBuildFDiv (builder, lhs, rhs, dname);
+				break;
 		case OP_IADD_IMM:
 		case OP_ISUB_IMM:
 		case OP_IMUL_IMM:
@@ -3140,6 +3163,7 @@ process_bb (EmitContext *ctx, MonoBasicBlock *bb)
 			values [ins->dreg] = LLVMBuildZExt (builder, lhs, LLVMInt64Type (), dname);
 			break;
 		case OP_FCONV_TO_I4:
+		case OP_FCONV_TO_I4_R4:
 			values [ins->dreg] = LLVMBuildFPToSI (builder, lhs, LLVMInt32Type (), dname);
 			break;
 		case OP_FCONV_TO_I1:
@@ -3178,9 +3202,15 @@ process_bb (EmitContext *ctx, MonoBasicBlock *bb)
 			v = LLVMBuildSIToFP (builder, lhs, LLVMFloatType (), "");
 			values [ins->dreg] = LLVMBuildFPExt (builder, v, LLVMDoubleType (), dname);
 			break;
+		case OP_ICONV_TO_R4_R4:
+			values [ins->dreg] = LLVMBuildSIToFP (builder, lhs, LLVMFloatType (), "");
+			break;
 		case OP_FCONV_TO_R4:
 			v = LLVMBuildFPTrunc (builder, lhs, LLVMFloatType (), "");
 			values [ins->dreg] = LLVMBuildFPExt (builder, v, LLVMDoubleType (), dname);
+			break;
+		case OP_FCONV_TO_R8_R4:
+			values [ins->dreg] = LLVMBuildFPExt (builder, lhs, LLVMDoubleType (), dname);
 			break;
 		case OP_SEXT_I4:
 			values [ins->dreg] = LLVMBuildSExt (builder, convert (ctx, lhs, LLVMInt32Type ()), LLVMInt64Type (), dname);
@@ -3243,6 +3273,7 @@ process_bb (EmitContext *ctx, MonoBasicBlock *bb)
 		case OP_LOADI8_MEMBASE:
 		case OP_LOADR4_MEMBASE:
 		case OP_LOADR8_MEMBASE:
+		case OP_LOADR4_MEMBASE_R4:
 		case OP_LOAD_MEMBASE:
 		case OP_LOADI8_MEM:
 		case OP_LOADU1_MEM:
@@ -3307,7 +3338,8 @@ process_bb (EmitContext *ctx, MonoBasicBlock *bb)
 		case OP_STOREI8_MEMBASE_REG:
 		case OP_STORER4_MEMBASE_REG:
 		case OP_STORER8_MEMBASE_REG:
-		case OP_STORE_MEMBASE_REG: {
+		case OP_STORE_MEMBASE_REG:
+		case OP_STORER4_MEMBASE_REG_R4: {
 			int size = 8;
 			LLVMValueRef index, addr;
 			LLVMTypeRef t;
@@ -4948,6 +4980,7 @@ mono_llvm_emit_method (MonoCompile *cfg)
 
 		//LLVMVerifyFunction(method, 0);
 	} else {
+		//LLVMVerifyFunction(method, 0);
 		mono_llvm_optimize_method (ctx->lmodule->mono_ee, method);
 
 		if (cfg->verbose_level > 1)
