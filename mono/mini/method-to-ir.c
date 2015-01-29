@@ -13244,6 +13244,7 @@ mono_handle_global_vregs (MonoCompile *cfg)
 	gint32 *vreg_to_bb;
 	MonoBasicBlock *bb;
 	int i, pos;
+	gboolean allow_r4 = cfg->opt & (MONO_OPT_FLOAT32);
 
 	vreg_to_bb = mono_mempool_alloc0 (cfg->mempool, sizeof (gint32*) * cfg->next_vreg + 1);
 
@@ -13366,7 +13367,6 @@ mono_handle_global_vregs (MonoCompile *cfg)
 	for (i = 0; i < cfg->num_varinfo; i++) {
 		MonoInst *var = cfg->varinfo [i];
 		MonoMethodVar *vmv = MONO_VARINFO (cfg, i);
-		gboolean allow_r4 = TRUE;
 
 		switch (var->type) {
 		case STACK_I4:
