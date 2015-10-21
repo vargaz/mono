@@ -7,6 +7,153 @@
  * (C) 2010 Novell, Inc.
  */
 
+#include "config.h"
+#include <glib.h>
+#include "mini.h"
+
+/*
+ * DESIGN:
+ * We emit debug info into a table pointed to by a global. The gdb side python code uses this table to produce stack traces etc.
+ * * The debug info is accessed by gdb while the debuggee is suspended in an arbitrary state, so it needs to be written in an
+ *   async safe manner (memory barriers, etc.).
+ * * The debug info should be cacheable on the gdb side to avoid performance problems when searching the async safe
+ *   data structures.
+ */
+
+#define MAJOR_VERSION 1
+#define MINOR_VERSION 0
+
+typedef struct {
+	int op;
+	int when;
+	int reg;
+	int val;
+} GdbUnwindOp;
+
+typedef struct {
+	char *name;
+	guint8 *code;
+	guint32 code_size;
+	int nunwind_ops;
+	GdbUnwindOp *unwind_ops;
+} GdbTrampInfo;
+
+typedef struct {
+	gint32 version;
+	/* The number of valid entries in the array below */
+	int ntrampolines;
+	/* The length of the array below */
+	int trampolines_len;
+	GdbTrampInfo *trampolines;
+} GdbDebugInfo;
+
+#if !defined(DISABLE_AOT) && !defined(DISABLE_JIT)
+
+static gboolean inited;
+
+/* This is the global variable gdb uses to access the debug info */
+GdbDebugInfo *mono_gdb_debug_info;
+
+void
+mono_xdebug_init (const char *options)
+{
+	GdbDebugInfo *info = g_new0 (GdbDebugInfo, 1);
+
+	info->version = (MAJOR_VERSION << 16) | MINOR_VERSION;
+	info->trampolines_len = 16;
+	info->trampolines = g_new0 (GdbTrampInfo, info->trampolines_len);
+	mono_memory_barrier ();
+	/* Export it */
+	mono_gdb_debug_info = info;
+
+	inited = TRUE;
+}
+
+void
+mono_save_xdebug_info (MonoCompile *cfg)
+{
+	if (!inited)
+		return;
+}
+
+void
+mono_save_trampoline_xdebug_info (MonoTrampInfo *info)
+{
+	GdbDebugInfo *ginfo = mono_gdb_debug_info;
+	GdbTrampInfo *tinfo;
+	GSList *l;
+	int i;
+
+	// FIXME: Locking
+
+	if (!inited)
+		return;
+
+	if (info->name == NULL)
+		return;
+
+	if (ginfo->ntrampolines == ginfo->trampolines_len) {
+		GdbTrampInfo *new_arr = g_new0 (GdbTrampInfo, ginfo->trampolines_len * 2);
+		memcpy (new_arr, ginfo->trampolines, ginfo->ntrampolines * sizeof (GdbTrampInfo));
+		mono_memory_barrier ();
+		/* Export it */
+		ginfo->trampolines = new_arr;
+		mono_memory_barrier ();
+		ginfo->trampolines_len *= 2;
+	}
+
+	tinfo = &ginfo->trampolines [ginfo->ntrampolines];
+	tinfo->name = g_strdup (info->name);
+	tinfo->code = info->code;
+	tinfo->code_size = info->code_size;
+
+	/* We use the unencoded version of the unwind info to make it easier to decode */
+	tinfo->nunwind_ops = g_slist_length (info->unwind_ops);
+	tinfo->unwind_ops = g_new0 (GdbUnwindOp, tinfo->nunwind_ops);
+	i = 0;
+	for (l = info->unwind_ops; l; l = l->next) {
+		MonoUnwindOp *op = l->data;
+
+		tinfo->unwind_ops [i].op = op->op;
+		tinfo->unwind_ops [i].when = op->when;
+		tinfo->unwind_ops [i].reg = mono_hw_reg_to_dwarf_reg (op->reg);
+		tinfo->unwind_ops [i].val = op->val;
+		i ++;
+	}
+	mono_memory_barrier ();
+	/* Export it */
+	ginfo->ntrampolines ++;
+}
+
+#else
+
+void
+mono_xdebug_init (const char *options)
+{
+}
+
+void
+mono_save_xdebug_info (MonoCompile *cfg)
+{
+}
+
+void
+mono_save_trampoline_xdebug_info (MonoTrampInfo *info)
+{
+}
+
+#endif /* DISABLE_AOT || DISABLE_JIT */
+
+#if 0
+/*
+ * xdebug.c: Support for emitting gdb debug info for JITted code.
+ *
+ * Author:
+ *   Zoltan Varga (vargaz@gmail.com)
+ *
+ * (C) 2010 Novell, Inc.
+ */
+
 /*
  * This works as follows:
  * - the runtime writes out an xdb.s file containing DWARF debug info.
@@ -379,5 +526,8 @@ void
 mono_save_trampoline_xdebug_info (MonoTrampInfo *info)
 {
 }
+
+#endif
+
 
 #endif
