@@ -1235,12 +1235,6 @@ mono_patch_info_dup_mp (MonoMemPool *mp, MonoJumpInfo *patch_info)
 		res->data.table->table = (MonoBasicBlock **)mono_mempool_alloc (mp, sizeof (MonoBasicBlock*) * patch_info->data.table->table_size);
 		memcpy (res->data.table->table, patch_info->data.table->table, sizeof (MonoBasicBlock*) * patch_info->data.table->table_size);
 		break;
-	case MONO_PATCH_INFO_RGCTX_FETCH:
-	case MONO_PATCH_INFO_RGCTX_SLOT_INDEX:
-		res->data.rgctx_entry = (MonoJumpInfoRgctxEntry *)mono_mempool_alloc (mp, sizeof (MonoJumpInfoRgctxEntry));
-		memcpy (res->data.rgctx_entry, patch_info->data.rgctx_entry, sizeof (MonoJumpInfoRgctxEntry));
-		res->data.rgctx_entry->data = mono_patch_info_dup_mp (mp, res->data.rgctx_entry->data);
-		break;
 	case MONO_PATCH_INFO_DELEGATE_TRAMPOLINE:
 		res->data.del_tramp = (MonoDelegateClassMethodPair *)mono_mempool_alloc0 (mp, sizeof (MonoDelegateClassMethodPair));
 		memcpy (res->data.del_tramp, patch_info->data.del_tramp, sizeof (MonoDelegateClassMethodPair));
@@ -1325,12 +1319,6 @@ mono_patch_info_hash (gconstpointer data)
 		return (ji->type << 8) | (gssize)ji->data.target;
 	case MONO_PATCH_INFO_GSHAREDVT_CALL:
 		return (ji->type << 8) | (gssize)ji->data.gsharedvt->method;
-	case MONO_PATCH_INFO_RGCTX_FETCH:
-	case MONO_PATCH_INFO_RGCTX_SLOT_INDEX: {
-		MonoJumpInfoRgctxEntry *e = ji->data.rgctx_entry;
-
-		return (ji->type << 8) | (gssize)e->method | (e->in_mrgctx) | e->info_type | mono_patch_info_hash (e->data);
-	}
 	case MONO_PATCH_INFO_INTERRUPTION_REQUEST_FLAG:
 	case MONO_PATCH_INFO_MSCORLIB_GOT_ADDR:
 	case MONO_PATCH_INFO_GC_CARD_TABLE_ADDR:
@@ -1402,13 +1390,6 @@ mono_patch_info_equal (gconstpointer ka, gconstpointer kb)
 		break;
 	case MONO_PATCH_INFO_INTERNAL_METHOD:
 		return g_str_equal (ji1->data.name, ji2->data.name);
-	case MONO_PATCH_INFO_RGCTX_FETCH:
-	case MONO_PATCH_INFO_RGCTX_SLOT_INDEX: {
-		MonoJumpInfoRgctxEntry *e1 = ji1->data.rgctx_entry;
-		MonoJumpInfoRgctxEntry *e2 = ji2->data.rgctx_entry;
-
-		return e1->method == e2->method && e1->in_mrgctx == e2->in_mrgctx && e1->info_type == e2->info_type && mono_patch_info_equal (e1->data, e2->data);
-	}
 	case MONO_PATCH_INFO_GSHAREDVT_CALL: {
 		MonoJumpInfoGSharedVtCall *c1 = ji1->data.gsharedvt;
 		MonoJumpInfoGSharedVtCall *c2 = ji2->data.gsharedvt;
@@ -1729,16 +1710,7 @@ mono_resolve_patch_target (MonoMethod *method, MonoDomain *domain, guint8 *code,
 		MonoVTable *vtable = mono_class_vtable (domain, patch_info->data.method->klass);
 		g_assert (vtable);
 
-		if (mini_is_new_gshared (patch_info->data.method))
-			target = mini_method_get_rgctx (patch_info->data.method);
-		else
-			target = mono_method_lookup_rgctx (vtable, mini_method_get_context (patch_info->data.method)->method_inst);
-		break;
-	}
-	case MONO_PATCH_INFO_RGCTX_SLOT_INDEX: {
-		int slot = mini_get_rgctx_entry_slot (patch_info->data.rgctx_entry);
-
-		target = GINT_TO_POINTER (MONO_RGCTX_SLOT_INDEX (slot));
+		target = mini_method_get_rgctx (patch_info->data.method);
 		break;
 	}
 	case MONO_PATCH_INFO_BB_OVF:
@@ -1746,12 +1718,6 @@ mono_resolve_patch_target (MonoMethod *method, MonoDomain *domain, guint8 *code,
 	case MONO_PATCH_INFO_GOT_OFFSET:
 	case MONO_PATCH_INFO_NONE:
 		break;
-	case MONO_PATCH_INFO_RGCTX_FETCH: {
-		int slot = mini_get_rgctx_entry_slot (patch_info->data.rgctx_entry);
-
-		target = mono_create_rgctx_lazy_fetch_trampoline (slot);
-		break;
-	}
 #ifdef MONO_ARCH_SOFT_DEBUG_SUPPORTED
 	case MONO_PATCH_INFO_SEQ_POINT_INFO:
 		if (!run_cctors)
@@ -4092,8 +4058,6 @@ register_icalls (void)
 	register_icall (mono_object_castclass_with_cache, "mono_object_castclass_with_cache", "object object ptr ptr", FALSE);
 	register_icall (mono_object_isinst_with_cache, "mono_object_isinst_with_cache", "object object ptr ptr", FALSE);
 	register_icall (mono_generic_class_init, "mono_generic_class_init", "void ptr", FALSE);
-	register_icall (mono_fill_class_rgctx, "mono_class_fill_rgctx", "ptr ptr int", FALSE);
-	register_icall (mono_fill_method_rgctx, "mono_method_fill_rgctx", "ptr ptr int", FALSE);
 
 	register_icall (mono_debugger_agent_user_break, "mono_debugger_agent_user_break", "void", FALSE);
 

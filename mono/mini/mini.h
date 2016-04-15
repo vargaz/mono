@@ -116,7 +116,7 @@
 #endif
 
 /* Version number of the AOT file format */
-#define MONO_AOT_FILE_VERSION 133
+#define MONO_AOT_FILE_VERSION 134
 
 //TODO: This is x86/amd64 specific.
 #define mono_simd_shuffle_mask(a,b,c,d) ((a) | ((b) << 2) | ((c) << 4) | ((d) << 6))
@@ -281,7 +281,6 @@ typedef struct MonoAotFileInfo
 	guint32 simd_opts;
 	/* Index of the blob entry holding the GC used by this module */
 	gint32 gc_name_index;
-	guint32 num_rgctx_fetch_trampolines;
 	/* These are used for sanity checking object layout problems when cross-compiling */
 	guint32 double_align, long_align, generic_tramp_num;
 	/* The page size used by trampoline pages */
@@ -1251,14 +1250,7 @@ typedef enum {
 typedef struct _MonoRuntimeGenericContextInfoTemplate {
 	MonoRgctxInfoType info_type;
 	gpointer data;
-	struct _MonoRuntimeGenericContextInfoTemplate *next;
 } MonoRuntimeGenericContextInfoTemplate;
-
-typedef struct {
-	MonoClass *next_subclass;
-	MonoRuntimeGenericContextInfoTemplate *infos;
-	GSList *method_templates;
-} MonoRuntimeGenericContextTemplate;
 
 typedef struct {
 	MonoVTable *class_vtable; /* must be the first element */
@@ -1271,13 +1263,6 @@ typedef struct {
 	MonoMethodRuntimeGenericContext *mrgctx;
 	MonoMethod *method;
 } MonoMethodRgctxArg;
-
-#define MONO_SIZEOF_METHOD_RUNTIME_GENERIC_CONTEXT (sizeof (MonoMethodRuntimeGenericContext) - MONO_ZERO_LEN_ARRAY * SIZEOF_VOID_P)
-
-#define MONO_RGCTX_SLOT_MAKE_RGCTX(i)	(i)
-#define MONO_RGCTX_SLOT_MAKE_MRGCTX(i)	((i) | 0x80000000)
-#define MONO_RGCTX_SLOT_INDEX(s)	((s) & 0x7fffffff)
-#define MONO_RGCTX_SLOT_IS_MRGCTX(s)	(((s) & 0x80000000) ? TRUE : FALSE)
 
 #define MONO_GSHAREDVT_DEL_INVOKE_VT_OFFSET -2
 
@@ -1437,7 +1422,6 @@ struct MonoJumpInfoGSharedVtCall {
 typedef enum {
 	MONO_TRAMPOLINE_JIT,
 	MONO_TRAMPOLINE_JUMP,
-	MONO_TRAMPOLINE_RGCTX_LAZY_FETCH,
 	MONO_TRAMPOLINE_AOT,
 	MONO_TRAMPOLINE_AOT_PLT,
 	MONO_TRAMPOLINE_DELEGATE,
@@ -1450,8 +1434,7 @@ typedef enum {
 
 /* These trampolines return normally to their caller */
 #define MONO_TRAMPOLINE_TYPE_MUST_RETURN(t)		\
-	((t) == MONO_TRAMPOLINE_RESTORE_STACK_PROT ||	\
-	 (t) == MONO_TRAMPOLINE_RGCTX_LAZY_FETCH)
+	((t) == MONO_TRAMPOLINE_RESTORE_STACK_PROT)
 
 /* These trampolines receive an argument directly in a register */
 #define MONO_TRAMPOLINE_TYPE_HAS_ARG(t)		\
@@ -2517,7 +2500,6 @@ gpointer mono_aot_create_specific_trampoline   (MonoImage *image, gpointer arg1,
 gpointer mono_aot_get_trampoline            (const char *name);
 gpointer mono_aot_get_trampoline_full       (const char *name, MonoTrampInfo **out_tinfo);
 gpointer mono_aot_get_unbox_trampoline      (MonoMethod *method);
-gpointer mono_aot_get_lazy_fetch_trampoline (guint32 slot);
 gpointer mono_aot_get_static_rgctx_trampoline (gpointer ctx, gpointer addr);
 gpointer mono_aot_get_imt_thunk             (MonoVTable *vtable, MonoDomain *domain, MonoIMTCheckItem **imt_entries, int count, gpointer fail_tramp);
 gpointer mono_aot_get_gsharedvt_arg_trampoline(gpointer arg, gpointer addr);
@@ -2608,7 +2590,6 @@ gconstpointer     mono_get_trampoline_func (MonoTrampolineType tramp_type);
 gpointer          mini_get_vtable_trampoline (MonoVTable *vt, int slot_index);
 const char*       mono_get_generic_trampoline_simple_name (MonoTrampolineType tramp_type);
 char*             mono_get_generic_trampoline_name (MonoTrampolineType tramp_type);
-char*             mono_get_rgctx_fetch_trampoline_name (int slot);
 gpointer          mini_get_nullified_class_init_trampoline (void);
 gpointer          mini_get_single_step_trampoline (void);
 gpointer          mini_get_breakpoint_trampoline (void);
@@ -2985,15 +2966,6 @@ mono_set_partial_sharing_supported (gboolean supported);
 gboolean
 mono_class_generic_sharing_enabled (MonoClass *klass);
 
-gpointer
-mono_class_fill_runtime_generic_context (MonoVTable *class_vtable, guint32 slot, MonoError *error);
-
-gpointer
-mono_method_fill_runtime_generic_context (MonoMethodRuntimeGenericContext *mrgctx, guint32 slot, MonoError *error);
-
-MonoMethodRuntimeGenericContext*
-mono_method_lookup_rgctx (MonoVTable *class_vtable, MonoGenericInst *method_inst);
-
 const char*
 mono_rgctx_info_type_to_str (MonoRgctxInfoType type);
 
@@ -3002,16 +2974,6 @@ mini_rgctx_info_type_to_patch_info_type (MonoRgctxInfoType info_type);
 
 gboolean
 mono_method_needs_static_rgctx_invoke (MonoMethod *method, gboolean allow_type_vars);
-
-int
-mono_class_rgctx_get_array_size (int n, gboolean mrgctx);
-
-guint32
-mono_method_lookup_or_register_info (MonoMethod *method, gboolean in_mrgctx, gpointer data,
-	MonoRgctxInfoType info_type, MonoGenericContext *generic_context);
-
-MonoGenericContext
-mono_method_construct_object_context (MonoMethod *method);
 
 MonoMethod*
 mono_method_get_declaring_generic_method (MonoMethod *method);
@@ -3053,15 +3015,8 @@ MonoGenericContext* mini_method_get_context (MonoMethod *method);
 
 int mono_method_check_context_used (MonoMethod *method);
 
-gboolean mono_generic_context_equal_deep (MonoGenericContext *context1, MonoGenericContext *context2);
-
-gpointer mono_helper_get_rgctx_other_ptr (MonoClass *caller_class, MonoVTable *vtable,
-					  guint32 token, guint32 token_source, guint32 rgctx_type,
-					  gint32 rgctx_index);
-
 void mono_generic_sharing_init (void);
 void mono_generic_sharing_cleanup (void);
-gboolean mini_is_new_gshared (MonoMethod *method);
 gpointer mini_instantiate_gshared_info (MonoDomain *domain, MonoRuntimeGenericContextInfoTemplate *oti,
 										MonoGenericContext *context, MonoClass *klass);
 

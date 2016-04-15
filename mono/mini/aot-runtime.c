@@ -3599,31 +3599,6 @@ decode_patch (MonoAotModule *aot_module, MonoMemPool *mp, MonoJumpInfo *ji, guin
 	case MONO_PATCH_INFO_CASTCLASS_CACHE:
 		ji->data.index = decode_value (p, &p);
 		break;
-	case MONO_PATCH_INFO_RGCTX_FETCH:
-	case MONO_PATCH_INFO_RGCTX_SLOT_INDEX: {
-		gboolean res;
-		MonoJumpInfoRgctxEntry *entry;
-		guint32 offset, val;
-		guint8 *p2;
-
-		offset = decode_value (p, &p);
-		val = decode_value (p, &p);
-
-		entry = (MonoJumpInfoRgctxEntry *)mono_mempool_alloc0 (mp, sizeof (MonoJumpInfoRgctxEntry));
-		p2 = aot_module->blob + offset;
-		entry->method = decode_resolve_method_ref (aot_module, p2, &p2, &error);
-		entry->in_mrgctx = ((val & 1) > 0) ? TRUE : FALSE;
-		entry->info_type = (MonoRgctxInfoType)((val >> 1) & 0xff);
-		entry->data = (MonoJumpInfo *)mono_mempool_alloc0 (mp, sizeof (MonoJumpInfo));
-		entry->data->type = (MonoJumpInfoType)((val >> 9) & 0xff);
-		mono_error_cleanup (&error); /* FIXME don't swallow the error */
-		
-		res = decode_patch (aot_module, mp, entry->data, p, &p);
-		if (!res)
-			goto cleanup;
-		ji->data.rgctx_entry = entry;
-		break;
-	}
 	case MONO_PATCH_INFO_SEQ_POINT_INFO:
 	case MONO_PATCH_INFO_AOT_MODULE:
 	case MONO_PATCH_INFO_MSCORLIB_GOT_ADDR:
@@ -4794,7 +4769,7 @@ mono_aot_plt_resolve (gpointer aot_module, guint32 plt_info_offset, guint8 *code
 	 * patches, so have to translate between the two.
 	 * FIXME: Clean this up, but how ?
 	 */
-	if (ji.type == MONO_PATCH_INFO_ABS || ji.type == MONO_PATCH_INFO_INTERNAL_METHOD || ji.type == MONO_PATCH_INFO_ICALL_ADDR || ji.type == MONO_PATCH_INFO_JIT_ICALL_ADDR || ji.type == MONO_PATCH_INFO_RGCTX_FETCH) {
+	if (ji.type == MONO_PATCH_INFO_ABS || ji.type == MONO_PATCH_INFO_INTERNAL_METHOD || ji.type == MONO_PATCH_INFO_ICALL_ADDR || ji.type == MONO_PATCH_INFO_JIT_ICALL_ADDR) {
 		/* These should already have a function descriptor */
 #ifdef PPC_USES_FUNCTION_DESCRIPTOR
 		/* Our function descriptors have a 0 environment, gcc created ones don't */
@@ -5053,15 +5028,6 @@ load_function_full (MonoAotModule *amodule, const char *name, MonoTrampInfo **ou
 				} else if (strstr (ji->data.name, "trampoline_func_") == ji->data.name) {
 					MonoTrampolineType tramp_type2 = (MonoTrampolineType)atoi (ji->data.name + strlen ("trampoline_func_"));
 					target = (gpointer)mono_get_trampoline_func (tramp_type2);
-				} else if (strstr (ji->data.name, "specific_trampoline_lazy_fetch_") == ji->data.name) {
-					/* atoll is needed because the the offset is unsigned */
-					guint32 slot;
-					int res;
-
-					res = sscanf (ji->data.name, "specific_trampoline_lazy_fetch_%u", &slot);
-					g_assert (res == 1);
-					target = mono_create_specific_trampoline (GUINT_TO_POINTER (slot), MONO_TRAMPOLINE_RGCTX_LAZY_FETCH, mono_get_root_domain (), NULL);
-					target = mono_create_ftnptr_malloc ((guint8 *)target);
 				} else if (!strcmp (ji->data.name, "mono_thread_get_and_clear_pending_exception")) {
 					target = mono_thread_get_and_clear_pending_exception;
 				} else if (!strcmp (ji->data.name, "debugger_agent_single_step_from_context")) {
@@ -5585,39 +5551,6 @@ mono_aot_get_unbox_trampoline (MonoMethod *method)
 	tinfo->code_size = *(guint32*)symbol_addr;
 	mono_tramp_info_register (tinfo, NULL);
 
-	/* The caller expects an ftnptr */
-	return mono_create_ftnptr (mono_domain_get (), code);
-}
-
-gpointer
-mono_aot_get_lazy_fetch_trampoline (guint32 slot)
-{
-	char *symbol;
-	gpointer code;
-	MonoAotModule *amodule = (MonoAotModule *)mono_defaults.corlib->aot_module;
-	guint32 index = MONO_RGCTX_SLOT_INDEX (slot);
-	static int count = 0;
-
-	count ++;
-	if (index >= amodule->info.num_rgctx_fetch_trampolines) {
-		static gpointer addr;
-		gpointer *info;
-
-		/*
-		 * Use the general version of the rgctx fetch trampoline. It receives a pair of <slot, trampoline> in the rgctx arg reg.
-		 */
-		if (!addr)
-			addr = load_function (amodule, "rgctx_fetch_trampoline_general");
-		info = (void **)mono_domain_alloc0 (mono_get_root_domain (), sizeof (gpointer) * 2);
-		info [0] = GUINT_TO_POINTER (slot);
-		info [1] = mono_create_specific_trampoline (GUINT_TO_POINTER (slot), MONO_TRAMPOLINE_RGCTX_LAZY_FETCH, mono_get_root_domain (), NULL);
-		code = mono_aot_get_static_rgctx_trampoline (info, addr);
-		return mono_create_ftnptr (mono_domain_get (), code);
-	}
-
-	symbol = mono_get_rgctx_fetch_trampoline_name (slot);
-	code = load_function ((MonoAotModule *)mono_defaults.corlib->aot_module, symbol);
-	g_free (symbol);
 	/* The caller expects an ftnptr */
 	return mono_create_ftnptr (mono_domain_get (), code);
 }

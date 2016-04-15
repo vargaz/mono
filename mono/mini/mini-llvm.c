@@ -8328,7 +8328,7 @@ emit_aot_file_info (MonoLLVMModule *module)
 	info = &module->aot_info;
 
 	/* Create an LLVM type to represent MonoAotFileInfo */
-	nfields = 2 + MONO_AOT_FILE_INFO_NUM_SYMBOLS + 15 + 5;
+	nfields = 2 + MONO_AOT_FILE_INFO_NUM_SYMBOLS + 14 + 5;
 	eltypes = g_new (LLVMTypeRef, nfields);
 	tindex = 0;
 	eltypes [tindex ++] = LLVMInt32Type ();
@@ -8337,7 +8337,7 @@ emit_aot_file_info (MonoLLVMModule *module)
 	for (i = 0; i < MONO_AOT_FILE_INFO_NUM_SYMBOLS; ++i)
 		eltypes [tindex ++] = LLVMPointerType (LLVMInt8Type (), 0);
 	/* Scalars */
-	for (i = 0; i < 15; ++i)
+	for (i = 0; i < 14; ++i)
 		eltypes [tindex ++] = LLVMInt32Type ();
 	/* Arrays */
 	eltypes [tindex ++] = LLVMArrayType (LLVMInt32Type (), MONO_AOT_TABLE_NUM);
@@ -8452,7 +8452,6 @@ emit_aot_file_info (MonoLLVMModule *module)
 	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->opts, FALSE);
 	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->simd_opts, FALSE);
 	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->gc_name_index, FALSE);
-	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->num_rgctx_fetch_trampolines, FALSE);
 	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->double_align, FALSE);
 	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->long_align, FALSE);
 	fields [tindex ++] = LLVMConstInt (LLVMInt32Type (), info->generic_tramp_num, FALSE);

@@ -24,8 +24,6 @@
  */
 guint8* mono_trampoline_code [MONO_TRAMPOLINE_NUM];
 
-static GHashTable *rgctx_lazy_fetch_trampoline_hash;
-static GHashTable *rgctx_lazy_fetch_trampoline_hash_addr;
 static guint32 trampoline_calls, jit_trampolines, unbox_trampolines, static_rgctx_trampolines;
 
 #define mono_trampolines_lock() mono_os_mutex_lock (&trampolines_mutex)
@@ -617,16 +615,11 @@ common_call_trampoline_inner (mgreg_t *regs, guint8 *code, MonoMethod *m, MonoVT
 		/*
 		 * The caller is gshared code, compute the actual method to call from M and this/rgctx.
 		 */
-		if (m->is_inflated && mini_is_new_gshared (m)) {
+		if (m->is_inflated) {
 			MonoMethodRgctxArg *rgctx_arg = (MonoMethodRgctxArg*)mono_arch_find_static_call_vtable (regs, code);
 
 			actual_method = rgctx_arg->method;
 			klass = actual_method->klass;
-		} else if (m->is_inflated && (mono_method_get_context (m)->method_inst || mini_is_new_gshared (m))) {
-			MonoMethodRuntimeGenericContext *mrgctx = (MonoMethodRuntimeGenericContext*)mono_arch_find_static_call_vtable (regs, code);
-
-			klass = mrgctx->class_vtable->klass;
-			method_inst = mrgctx->method_inst;
 		} else if ((m->flags & METHOD_ATTRIBUTE_STATIC) || m->klass->valuetype) {
 			MonoVTable *vtable = mono_arch_find_static_call_vtable (regs, code);
 
@@ -698,7 +691,7 @@ common_call_trampoline_inner (mgreg_t *regs, guint8 *code, MonoMethod *m, MonoVT
 	/* Calls made through delegates on platforms without delegate trampolines */
 	if (!code && mono_method_needs_static_rgctx_invoke (m, FALSE))
 		need_rgctx_tramp = TRUE;
-	if (virtual_ && mini_is_new_gshared (m) && mono_method_needs_static_rgctx_invoke (m, FALSE))
+	if (virtual_ && mono_method_needs_static_rgctx_invoke (m, FALSE))
 		need_rgctx_tramp = TRUE;
 
 	addr = compiled_method = mono_jit_compile_method (m, error);
@@ -1034,39 +1027,6 @@ mono_aot_plt_trampoline (mgreg_t *regs, guint8 *code, guint8 *aot_module,
 }
 #endif
 
-static gpointer
-mono_rgctx_lazy_fetch_trampoline (mgreg_t *regs, guint8 *code, gpointer data, guint8 *tramp)
-{
-	static gboolean inited = FALSE;
-	static int num_lookups = 0;
-	guint32 slot = GPOINTER_TO_UINT (data);
-	mgreg_t *r = (mgreg_t*)regs;
-	gpointer arg = (gpointer)(gssize)r [MONO_ARCH_VTABLE_REG];
-	guint32 index = MONO_RGCTX_SLOT_INDEX (slot);
-	gboolean mrgctx = MONO_RGCTX_SLOT_IS_MRGCTX (slot);
-	MonoError error;
-	gpointer res;
-
-	trampoline_calls ++;
-
-	if (!inited) {
-		mono_counters_register ("RGCTX unmanaged lookups", MONO_COUNTER_GENERICS | MONO_COUNTER_INT, &num_lookups);
-		inited = TRUE;
-	}
-
-	num_lookups++;
-
-	if (mrgctx)
-		res = mono_method_fill_runtime_generic_context ((MonoMethodRuntimeGenericContext *)arg, index, &error);
-	else
-		res = mono_class_fill_runtime_generic_context ((MonoVTable *)arg, index, &error);
-	if (!mono_error_ok (&error)) {
-		mono_error_set_pending_exception (&error);
-		return NULL;
-	}
-	return res;
-}
-
 /**
  * mono_delegate_trampoline:
  *
@@ -1328,8 +1288,6 @@ mono_get_trampoline_func (MonoTrampolineType tramp_type)
 	case MONO_TRAMPOLINE_JIT:
 	case MONO_TRAMPOLINE_JUMP:
 		return mono_magic_trampoline;
-	case MONO_TRAMPOLINE_RGCTX_LAZY_FETCH:
-		return mono_rgctx_lazy_fetch_trampoline;
 #ifdef MONO_ARCH_AOT_SUPPORTED
 	case MONO_TRAMPOLINE_AOT:
 		return mono_aot_trampoline;
@@ -1378,7 +1336,6 @@ mono_trampolines_init (void)
 
 	mono_trampoline_code [MONO_TRAMPOLINE_JIT] = create_trampoline_code (MONO_TRAMPOLINE_JIT);
 	mono_trampoline_code [MONO_TRAMPOLINE_JUMP] = create_trampoline_code (MONO_TRAMPOLINE_JUMP);
-	mono_trampoline_code [MONO_TRAMPOLINE_RGCTX_LAZY_FETCH] = create_trampoline_code (MONO_TRAMPOLINE_RGCTX_LAZY_FETCH);
 #ifdef MONO_ARCH_AOT_SUPPORTED
 	mono_trampoline_code [MONO_TRAMPOLINE_AOT] = create_trampoline_code (MONO_TRAMPOLINE_AOT);
 	mono_trampoline_code [MONO_TRAMPOLINE_AOT_PLT] = create_trampoline_code (MONO_TRAMPOLINE_AOT_PLT);
@@ -1403,11 +1360,6 @@ mono_trampolines_init (void)
 void
 mono_trampolines_cleanup (void)
 {
-	if (rgctx_lazy_fetch_trampoline_hash)
-		g_hash_table_destroy (rgctx_lazy_fetch_trampoline_hash);
-	if (rgctx_lazy_fetch_trampoline_hash_addr)
-		g_hash_table_destroy (rgctx_lazy_fetch_trampoline_hash_addr);
-
 	mono_os_mutex_destroy (&trampolines_mutex);
 }
 
@@ -1627,76 +1579,9 @@ mono_create_delegate_virtual_trampoline (MonoDomain *domain, MonoClass *klass, M
 	return mono_get_delegate_virtual_invoke_impl (mono_method_signature (invoke), method);
 }
 
-gpointer
-mono_create_rgctx_lazy_fetch_trampoline (guint32 offset)
-{
-	static gboolean inited = FALSE;
-	static int num_trampolines = 0;
-	MonoTrampInfo *info;
-
-	gpointer tramp, ptr;
-
-	mono_trampolines_lock ();
-	if (rgctx_lazy_fetch_trampoline_hash)
-		tramp = g_hash_table_lookup (rgctx_lazy_fetch_trampoline_hash, GUINT_TO_POINTER (offset));
-	else
-		tramp = NULL;
-	mono_trampolines_unlock ();
-	if (tramp)
-		return tramp;
-
-	if (mono_aot_only) {
-		ptr = mono_aot_get_lazy_fetch_trampoline (offset);
-	} else {
-		tramp = mono_arch_create_rgctx_lazy_fetch_trampoline (offset, &info, FALSE);
-		mono_tramp_info_register (info, NULL);
-		ptr = mono_create_ftnptr (mono_get_root_domain (), tramp);
-	}
-
-	mono_trampolines_lock ();
-	if (!rgctx_lazy_fetch_trampoline_hash) {
-		rgctx_lazy_fetch_trampoline_hash = g_hash_table_new (NULL, NULL);
-		rgctx_lazy_fetch_trampoline_hash_addr = g_hash_table_new (NULL, NULL);
-	}
-	g_hash_table_insert (rgctx_lazy_fetch_trampoline_hash, GUINT_TO_POINTER (offset), ptr);
-	g_assert (offset != -1);
-	g_hash_table_insert (rgctx_lazy_fetch_trampoline_hash_addr, ptr, GUINT_TO_POINTER (offset + 1));
-	mono_trampolines_unlock ();
-
-	if (!inited) {
-		mono_counters_register ("RGCTX num lazy fetch trampolines",
-				MONO_COUNTER_GENERICS | MONO_COUNTER_INT, &num_trampolines);
-		inited = TRUE;
-	}
-	num_trampolines++;
-
-	return ptr;
-}
-
-guint32
-mono_find_rgctx_lazy_fetch_trampoline_by_addr (gconstpointer addr)
-{
-	int offset;
-
-	mono_trampolines_lock ();
-	if (rgctx_lazy_fetch_trampoline_hash_addr) {
-		/* We store the real offset + 1 so we can detect when the lookup fails */
-		offset = GPOINTER_TO_INT (g_hash_table_lookup (rgctx_lazy_fetch_trampoline_hash_addr, addr));
-		if (offset)
-			offset -= 1;
-		else
-			offset = -1;
-	} else {
-		offset = -1;
-	}
-	mono_trampolines_unlock ();
-	return offset;
-}
-
 static const char*tramp_names [MONO_TRAMPOLINE_NUM] = {
 	"jit",
 	"jump",
-	"rgctx_lazy_fetch",
 	"aot",
 	"aot_plt",
 	"delegate",
@@ -1725,23 +1610,6 @@ char*
 mono_get_generic_trampoline_name (MonoTrampolineType tramp_type)
 {
 	return g_strdup_printf ("generic_trampoline_%s", tramp_names [tramp_type]);
-}
-
-/*
- * mono_get_rgctx_fetch_trampoline_name:
- *
- *   Returns a pointer to malloc-ed memory.
- */
-char*
-mono_get_rgctx_fetch_trampoline_name (int slot)
-{
-	gboolean mrgctx;
-	int index;
-
-	mrgctx = MONO_RGCTX_SLOT_IS_MRGCTX (slot);
-	index = MONO_RGCTX_SLOT_INDEX (slot);
-
-	return g_strdup_printf ("rgctx_fetch_trampoline_%s_%d", mrgctx ? "mrgctx" : "rgctx", index);
 }
 
 /*

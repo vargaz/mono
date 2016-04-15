@@ -602,23 +602,15 @@ get_generic_context_from_stack_frame (MonoJitInfo *ji, gpointer generic_info)
 
 	method = jinfo_get_method (ji);
 	g_assert (method->is_inflated);
-	if ((mono_method_get_context (method)->method_inst || method->klass->valuetype || (method->flags & METHOD_ATTRIBUTE_STATIC)) && mini_is_new_gshared (method)) {
+	if (mono_method_get_context (method)->method_inst || method->klass->valuetype || (method->flags & METHOD_ATTRIBUTE_STATIC)) {
 		MonoMethodRgctxArg *arg = (MonoMethodRgctxArg*)generic_info;
 		context = *mono_method_get_context (arg->method);
 		return context;
 	}
 
-	if (mono_method_get_context (method)->method_inst) {
-		MonoMethodRuntimeGenericContext *mrgctx = (MonoMethodRuntimeGenericContext *)generic_info;
+	MonoVTable *vtable = (MonoVTable *)generic_info;
 
-		klass = mrgctx->class_vtable->klass;
-		context.method_inst = mrgctx->method_inst;
-		g_assert (context.method_inst);
-	} else {
-		MonoVTable *vtable = (MonoVTable *)generic_info;
-
-		klass = vtable->klass;
-	}
+	klass = vtable->klass;
 
 	//g_assert (!method->klass->generic_container);
 	if (method->klass->generic_class)

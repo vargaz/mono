@@ -127,7 +127,6 @@ typedef struct MonoAotOptions {
 	int nrgctx_trampolines;
 	int nimt_trampolines;
 	int ngsharedvt_arg_trampolines;
-	int nrgctx_fetch_trampolines;
 	gboolean print_skipped_methods;
 	gboolean stats;
 	char *tool_prefix;
@@ -3447,7 +3446,6 @@ is_plt_patch (MonoJumpInfo *patch_info)
 	case MONO_PATCH_INFO_INTERNAL_METHOD:
 	case MONO_PATCH_INFO_JIT_ICALL_ADDR:
 	case MONO_PATCH_INFO_ICALL_ADDR_CALL:
-	case MONO_PATCH_INFO_RGCTX_FETCH:
 		return TRUE;
 	default:
 		return FALSE;
@@ -5787,39 +5785,6 @@ encode_patch (MonoAotCompile *acfg, MonoJumpInfo *patch_info, guint8 *buf, guint
 		break;
 	case MONO_PATCH_INFO_INTERRUPTION_REQUEST_FLAG:
 		break;
-	case MONO_PATCH_INFO_RGCTX_FETCH:
-	case MONO_PATCH_INFO_RGCTX_SLOT_INDEX: {
-		MonoJumpInfoRgctxEntry *entry = patch_info->data.rgctx_entry;
-		guint32 offset;
-		guint8 *buf2, *p2;
-
-		/* 
-		 * entry->method has a lenghtly encoding and multiple rgctx_fetch entries
-		 * reference the same method, so encode the method only once.
-		 */
-		offset = GPOINTER_TO_UINT (g_hash_table_lookup (acfg->method_blob_hash, entry->method));
-		if (!offset) {
-			buf2 = (guint8 *)g_malloc (1024);
-			p2 = buf2;
-
-			encode_method_ref (acfg, entry->method, p2, &p2);
-			g_assert (p2 - buf2 < 1024);
-
-			offset = add_to_blob (acfg, buf2, p2 - buf2);
-			g_free (buf2);
-
-			g_hash_table_insert (acfg->method_blob_hash, entry->method, GUINT_TO_POINTER (offset + 1));
-		} else {
-			offset --;
-		}
-
-		encode_value (offset, p, &p);
-		g_assert ((int)entry->info_type < 256);
-		g_assert (entry->data->type < 256);
-		encode_value ((entry->in_mrgctx ? 1 : 0) | (entry->info_type << 1) | (entry->data->type << 9), p, &p);
-		encode_patch (acfg, entry->data, p, &p);
-		break;
-	}
 	case MONO_PATCH_INFO_SEQ_POINT_INFO:
 	case MONO_PATCH_INFO_AOT_MODULE:
 		break;
@@ -6412,9 +6377,6 @@ get_plt_entry_debug_sym (MonoAotCompile *acfg, MonoJumpInfo *ji, GHashTable *cac
 	case MONO_PATCH_INFO_INTERNAL_METHOD:
 		debug_sym = g_strdup_printf ("%s_jit_icall_%s", prefix, ji->data.name);
 		break;
-	case MONO_PATCH_INFO_RGCTX_FETCH:
-		debug_sym = g_strdup_printf ("%s_rgctx_fetch_%d", prefix, acfg->label_generator ++);
-		break;
 	case MONO_PATCH_INFO_ICALL_ADDR:
 	case MONO_PATCH_INFO_ICALL_ADDR_CALL: {
 		char *s = get_debug_sym (ji->data.method, "", cache);
@@ -6763,23 +6725,6 @@ emit_trampolines (MonoAotCompile *acfg)
 				l = l->next;
 			}
 		}
-#endif
-
-		for (i = 0; i < acfg->aot_opts.nrgctx_fetch_trampolines; ++i) {
-			int offset;
-
-			offset = MONO_RGCTX_SLOT_MAKE_RGCTX (i);
-			mono_arch_create_rgctx_lazy_fetch_trampoline (offset, &info, TRUE);
-			emit_trampoline (acfg, acfg->got_offset, info);
-
-			offset = MONO_RGCTX_SLOT_MAKE_MRGCTX (i);
-			mono_arch_create_rgctx_lazy_fetch_trampoline (offset, &info, TRUE);
-			emit_trampoline (acfg, acfg->got_offset, info);
-		}
-
-#ifdef MONO_ARCH_HAVE_GENERAL_RGCTX_LAZY_FETCH_TRAMPOLINE
-		mono_arch_create_general_rgctx_lazy_fetch_trampoline (&info, TRUE);
-		emit_trampoline (acfg, acfg->got_offset, info);
 #endif
 
 		{
@@ -7376,16 +7321,6 @@ can_encode_patch (MonoAotCompile *acfg, MonoJumpInfo *patch_info)
 		}
 		break;
 	}
-	case MONO_PATCH_INFO_RGCTX_FETCH:
-	case MONO_PATCH_INFO_RGCTX_SLOT_INDEX: {
-		MonoJumpInfoRgctxEntry *entry = patch_info->data.rgctx_entry;
-
-		if (!can_encode_method (acfg, entry->method))
-			return FALSE;
-		if (!can_encode_patch (acfg, entry->data))
-			return FALSE;
-		break;
-	}
 	default:
 		break;
 	}
@@ -7687,19 +7622,8 @@ compile_method (MonoAotCompile *acfg, MonoMethod *method)
 	if (!acfg->aot_opts.no_instances && depth < 32) {
 		for (patch_info = cfg->patch_info; patch_info; patch_info = patch_info->next) {
 			switch (patch_info->type) {
-			case MONO_PATCH_INFO_RGCTX_FETCH:
-			case MONO_PATCH_INFO_RGCTX_SLOT_INDEX:
 			case MONO_PATCH_INFO_METHOD: {
-				MonoMethod *m = NULL;
-
-				if (patch_info->type == MONO_PATCH_INFO_RGCTX_FETCH || patch_info->type == MONO_PATCH_INFO_RGCTX_SLOT_INDEX) {
-					MonoJumpInfoRgctxEntry *e = patch_info->data.rgctx_entry;
-
-					if (e->info_type == MONO_RGCTX_INFO_GENERIC_METHOD_CODE)
-						m = e->data->data.method;
-				} else {
-					m = patch_info->data.method;
-				}
+				MonoMethod *m = patch_info->data.method;
 
 				if (!m)
 					break;
@@ -9481,7 +9405,6 @@ init_aot_file_info (MonoAotCompile *acfg, MonoAotFileInfo *info)
 		info->trampoline_got_offset_base [i] = acfg->trampoline_got_offset_base [i];
 	for (i = 0; i < MONO_AOT_TRAMP_NUM; ++i)
 		info->trampoline_size [i] = acfg->trampoline_size [i];
-	info->num_rgctx_fetch_trampolines = acfg->aot_opts.nrgctx_fetch_trampolines;
 
 	info->double_align = MONO_ABI_ALIGNOF (double);
 	info->long_align = MONO_ABI_ALIGNOF (gint64);
@@ -9603,7 +9526,6 @@ emit_aot_file_info (MonoAotCompile *acfg, MonoAotFileInfo *info)
 	emit_int32 (acfg, info->opts);
 	emit_int32 (acfg, info->simd_opts);
 	emit_int32 (acfg, info->gc_name_index);
-	emit_int32 (acfg, info->num_rgctx_fetch_trampolines);
 	emit_int32 (acfg, info->double_align);
 	emit_int32 (acfg, info->long_align);
 	emit_int32 (acfg, info->generic_tramp_num);
@@ -10443,7 +10365,6 @@ mono_compile_assembly (MonoAssembly *ass, guint32 opts, const char *aot_options)
 	acfg->aot_opts.ntrampolines = 4096;
 	acfg->aot_opts.nrgctx_trampolines = 4096;
 	acfg->aot_opts.nimt_trampolines = 512;
-	acfg->aot_opts.nrgctx_fetch_trampolines = 128;
 	acfg->aot_opts.ngsharedvt_arg_trampolines = 512;
 	acfg->aot_opts.llvm_path = g_strdup ("");
 	acfg->aot_opts.temp_path = g_strdup ("");

@@ -429,14 +429,6 @@ void
 mono_print_ji (const MonoJumpInfo *ji)
 {
 	switch (ji->type) {
-	case MONO_PATCH_INFO_RGCTX_FETCH: {
-		MonoJumpInfoRgctxEntry *entry = ji->data.rgctx_entry;
-
-		printf ("[RGCTX_FETCH ");
-		mono_print_ji (entry->data);
-		printf (" - %s]", mono_rgctx_info_type_to_str (entry->info_type));
-		break;
-	}
 	case MONO_PATCH_INFO_METHODCONST: {
 		char *s = mono_method_full_name (ji->data.method, TRUE);
 		printf ("[METHODCONST - %s]", s);
