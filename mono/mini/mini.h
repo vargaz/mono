@@ -2100,6 +2100,7 @@ typedef struct {
 	gboolean suspend_on_unhandled;
 	gboolean dyn_runtime_invoke;
 	gboolean gdb;
+	gboolean lldb;
 	gboolean arm_use_fallback_tls;
 	/*
 	 * Whenever data such as next sequence points and flags is required.
