@@ -37,7 +37,7 @@ typedef struct {
 } UnwindOp;
 
 /*
- * Represents a managed method.
+ * Represents a managed method/trampoline.
  */
 typedef struct {
 	/* The start of the codegen region which contains CODE */
@@ -116,43 +116,36 @@ static void
 send_entry (EntryType type, gpointer buf, int size)
 {
 	DebugEntry *entry;
+	guint8 *data;
+
+	data = g_malloc (size);
+	memcpy (data, buf, size);
 
 	entry = g_malloc0 (sizeof (DebugEntry));
 	entry->type = type;
-	entry->addr = buf;
+	entry->addr = data;
 	entry->size = size;
+
+	mono_memory_barrier ();
 
 	__mono_jit_debug_descriptor.entry = entry;
 	__mono_jit_debug_register_code ();
 }
 
-void
-mono_lldb_save_method_info (MonoCompile *cfg)
+static void
+register_codegen_region (gpointer region_start, int region_size)
 {
 	CodeRegionEntry *region_entry;
-	MethodEntry *method_entry;
-	UserData udata;
-	int i, buf_len;
+	int buf_len;
 	guint8 *buf, *p;
 	gboolean region_found;
-	UnwindOp *ops;
-	GSList *l;
-
-	if (cfg->method->dynamic)
-		return;
-
-	/* Find the codegen region which contains the code */
-	memset (&udata, 0, sizeof (udata));
-	udata.code = cfg->native_code;
-	mono_domain_code_foreach (cfg->domain, find_code_region, &udata);
-	g_assert (udata.found);
 
 	// FIXME: Locking
 	if (!codegen_regions)
 		codegen_regions = g_hash_table_new (NULL, NULL);
-	region_found = g_hash_table_lookup (codegen_regions, udata.region_start) != NULL;
+	region_found = g_hash_table_lookup (codegen_regions, region_start) != NULL;
 	if (!region_found)
-		g_hash_table_insert (codegen_regions, udata.region_start, udata.region_start);
+		g_hash_table_insert (codegen_regions, region_start, region_start);
 
 	if (!region_found) {
 		/* Register the region with the debugger */
@@ -163,13 +156,73 @@ mono_lldb_save_method_info (MonoCompile *cfg)
 		p += sizeof (CodeRegionEntry);
 		memset (region_entry, 0, sizeof (CodeRegionEntry));
 		strcpy (region_entry->magic, OBJFILE_MAGIC);
-		region_entry->start = (gsize)udata.region_start;
-		region_entry->size = (gsize)udata.region_size;
+		region_entry->start = (gsize)region_start;
+		region_entry->size = (gsize)region_size;
 
 		send_entry (ENTRY_CODE_REGION, buf, p - buf);
-	}
 
-	// FIXME:
+		g_free (buf);
+	}
+}
+
+static int
+encode_unwind_info (GSList *unwind_ops, guint8 *p, guint8 **endp)
+{
+	int i;
+	int nunwind_ops;
+	UnwindOp *ops;
+	GSList *l;
+
+	/* Add unwind info */
+	/* We use the unencoded version of the unwind info to make it easier to decode */
+	i = 0;
+	for (l = unwind_ops; l; l = l->next) {
+		MonoUnwindOp *op = l->data;
+
+		/* lldb can't handle these */
+		if (op->op == DW_CFA_mono_advance_loc)
+			break;
+		i ++;
+	}
+	nunwind_ops = i;
+	ops = (UnwindOp*)p;
+	i = 0;
+	for (l = unwind_ops; l; l = l->next) {
+		MonoUnwindOp *op = l->data;
+
+		if (op->op == DW_CFA_mono_advance_loc)
+			break;
+		ops [i].op = op->op;
+		ops [i].when = op->when;
+		ops [i].reg = mono_hw_reg_to_dwarf_reg (op->reg);
+		ops [i].val = op->val;
+		i ++;
+ 	}
+	p += sizeof (UnwindOp) * nunwind_ops;
+	*endp = p;
+
+	return nunwind_ops;
+}
+
+void
+mono_lldb_save_method_info (MonoCompile *cfg)
+{
+	MethodEntry *method_entry;
+	UserData udata;
+	int buf_len;
+	guint8 *buf, *p;
+
+	if (cfg->method->dynamic)
+		return;
+
+	/* Find the codegen region which contains the code */
+	memset (&udata, 0, sizeof (udata));
+	udata.code = cfg->native_code;
+	mono_domain_code_foreach (cfg->domain, find_code_region, &udata);
+	g_assert (udata.found);
+
+	register_codegen_region (udata.region_start, udata.region_size);
+
 	buf_len = 1024;
 	buf = p = g_malloc0 (buf_len);
 
@@ -179,34 +232,55 @@ mono_lldb_save_method_info (MonoCompile *cfg)
 	method_entry->code = (gsize)cfg->native_code;
 	method_entry->code_size = cfg->code_size;
 
-	/* Add unwind info */
-	//cie = mono_unwind_get_cie_program ();
-	/* We use the unencoded version of the unwind info to make it easier to decode */
-	method_entry->nunwind_ops = g_slist_length (cfg->unwind_ops);
 	method_entry->unwind_ops_offset = p - buf;
-	ops = (UnwindOp*)p;
-	i = 0;
-	for (l = cfg->unwind_ops; l; l = l->next) {
-		MonoUnwindOp *op = l->data;
-
-		ops [i].op = op->op;
-		ops [i].when = op->when;
-		ops [i].reg = mono_hw_reg_to_dwarf_reg (op->reg);
-		ops [i].val = op->val;
-		i ++;
- 	}
-	p += sizeof (UnwindOp) * method_entry->nunwind_ops;
+	method_entry->nunwind_ops = encode_unwind_info (cfg->unwind_ops, p, &p);
 
 	method_entry->name_offset = p - buf;
 	strcpy ((char*)p, cfg->method->name);
 	p += strlen (cfg->method->name) + 1;
 
+	g_assert (p - buf < buf_len);
+
 	send_entry (ENTRY_METHOD, buf, p - buf);
+	g_free (buf);
 }
 
 void
 mono_lldb_save_trampoline_info (MonoTrampInfo *info)
 {
+	MethodEntry *method_entry;
+	UserData udata;
+	int buf_len;
+	guint8 *buf, *p;
+
+	/* Find the codegen region which contains the code */
+	memset (&udata, 0, sizeof (udata));
+	udata.code = info->code;
+	mono_global_codeman_foreach (find_code_region, &udata);
+	g_assert (udata.found);
+
+	register_codegen_region (udata.region_start, udata.region_size);
+
+	buf_len = 1024;
+	buf = p = g_malloc0 (buf_len);
+
+	method_entry = (MethodEntry*)p;
+	p += sizeof (MethodEntry);
+	method_entry->region_addr = (gsize)udata.region_start;
+	method_entry->code = (gsize)info->code;
+	method_entry->code_size = info->code_size;
+
+	method_entry->unwind_ops_offset = p - buf;
+	method_entry->nunwind_ops = encode_unwind_info (info->unwind_ops, p, &p);
+
+	method_entry->name_offset = p - buf;
+	strcpy ((char*)p, info->name);
+	p += strlen (info->name) + 1;
+
+	g_assert (p - buf < buf_len);
+
+	send_entry (ENTRY_METHOD, buf, p - buf);
+	g_free (buf);
 }
 
 //

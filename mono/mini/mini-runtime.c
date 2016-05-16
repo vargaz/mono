@@ -356,6 +356,15 @@ void *mono_global_codeman_reserve (int size)
 	}
 }
 
+/* The callback shouldn't take any locks */
+void
+mono_global_codeman_foreach (MonoCodeManagerFunc func, void *user_data)
+{
+	mono_jit_lock ();
+	mono_code_manager_foreach (global_codeman, func, user_data);
+	mono_jit_unlock ();
+}
+
 #if defined(__native_client_codegen__) && defined(__native_client__)
 void
 mono_nacl_gc()
