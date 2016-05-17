@@ -3574,7 +3574,7 @@ mini_init (const char *filename, const char *runtime_version)
 
 	mono_unwind_init ();
 
-	if (mini_get_debug_options ()->lldb) {
+	if (mini_get_debug_options ()->lldb || g_getenv ("MONO_LLDB")) {
 		mono_lldb_init ("");
 		mono_dont_free_domains = TRUE;
 		mono_using_xdebug = TRUE;

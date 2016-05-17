@@ -72,6 +72,8 @@ static const char* OBJFILE_MAGIC = { "MONO_JIT_OBJECT_FILE" };
 
 JitDescriptor __mono_jit_debug_descriptor = { (MAJOR_VERSION << 16) | MINOR_VERSION };
 
+static gboolean enabled;
+
 void MONO_NEVER_INLINE __mono_jit_debug_register_code(void);
 
 /* The native debugger puts a breakpoint in this function. */
@@ -82,11 +84,6 @@ __mono_jit_debug_register_code(void)
 #if defined(__GNUC__)
  	asm ("");
 #endif
-}
-
-void
-mono_lldb_init (const char *options)
-{
 }
 
 typedef struct {
@@ -205,12 +202,21 @@ encode_unwind_info (GSList *unwind_ops, guint8 *p, guint8 **endp)
 }
 
 void
+mono_lldb_init (const char *options)
+{
+	enabled = TRUE;
+}
+
+void
 mono_lldb_save_method_info (MonoCompile *cfg)
 {
 	MethodEntry *method_entry;
 	UserData udata;
 	int buf_len;
 	guint8 *buf, *p;
+
+	if (!enabled)
+		return;
 
 	if (cfg->method->dynamic)
 		return;
@@ -252,6 +258,9 @@ mono_lldb_save_trampoline_info (MonoTrampInfo *info)
 	UserData udata;
 	int buf_len;
 	guint8 *buf, *p;
+
+	if (!enabled)
+		return;
 
 	/* Find the codegen region which contains the code */
 	memset (&udata, 0, sizeof (udata));
