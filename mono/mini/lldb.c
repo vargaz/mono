@@ -207,6 +207,20 @@ mono_lldb_init (const char *options)
 	enabled = TRUE;
 }
 
+static int
+emit_unwind_info (GSList *unwind_ops, guint8 *p, guint8 **endp)
+{
+	int ret_reg, nops;
+
+	ret_reg = mono_unwind_get_dwarf_pc_reg ();
+	g_assert (ret_reg < 256);
+	*p = ret_reg;
+	p ++;
+	nops = encode_unwind_info (unwind_ops, p, &p);
+	*endp = p;
+	return nops;
+}
+
 void
 mono_lldb_save_method_info (MonoCompile *cfg)
 {
@@ -239,7 +253,7 @@ mono_lldb_save_method_info (MonoCompile *cfg)
 	method_entry->code_size = cfg->code_size;
 
 	method_entry->unwind_ops_offset = p - buf;
-	method_entry->nunwind_ops = encode_unwind_info (cfg->unwind_ops, p, &p);
+	method_entry->nunwind_ops = emit_unwind_info (cfg->unwind_ops, p, &p);
 
 	method_entry->name_offset = p - buf;
 	strcpy ((char*)p, cfg->method->name);
@@ -280,7 +294,7 @@ mono_lldb_save_trampoline_info (MonoTrampInfo *info)
 	method_entry->code_size = info->code_size;
 
 	method_entry->unwind_ops_offset = p - buf;
-	method_entry->nunwind_ops = encode_unwind_info (info->unwind_ops, p, &p);
+	method_entry->nunwind_ops = emit_unwind_info (info->unwind_ops, p, &p);
 
 	method_entry->name_offset = p - buf;
 	strcpy ((char*)p, info->name);
