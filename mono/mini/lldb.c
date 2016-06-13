@@ -13,7 +13,8 @@
 
 typedef enum {
 	ENTRY_CODE_REGION = 1,
-	ENTRY_METHOD = 2
+	ENTRY_METHOD = 2,
+	ENTRY_TRAMPOLINE = 3
 } EntryType;
 
 /*
@@ -38,7 +39,7 @@ typedef struct {
 } UnwindOp;
 
 /*
- * Represents a managed method/trampoline.
+ * Represents a managed method
  */
 typedef struct {
 	guint64 code;
@@ -50,6 +51,20 @@ typedef struct {
 	int name_offset;
 	int unwind_ops_offset;
 } MethodEntry;
+
+/*
+ * Represents a trampoline
+ */
+typedef struct {
+	guint64 code;
+	int id;
+	/* The id of the codegen region which contains CODE */
+	int region_id;
+	int code_size;
+	int nunwind_ops;
+	int name_offset;
+	int unwind_ops_offset;
+} TrampolineEntry;
 
 /* One data packet sent from the runtime to the debugger */
 typedef struct {
@@ -113,7 +128,7 @@ find_code_region (void *data, int csize, int size, void *user_data)
 static GHashTable *codegen_regions;
 
 static void
-send_entry (EntryType type, gpointer buf, int size)
+add_entry (EntryType type, gpointer buf, int size)
 {
 	DebugEntry *entry;
 	guint8 *data;
@@ -166,7 +181,7 @@ register_codegen_region (gpointer region_start, int region_size)
 	region_entry->start = (gsize)region_start;
 	region_entry->size = (gsize)region_size;
 
-	send_entry (ENTRY_CODE_REGION, buf, p - buf);
+	add_entry (ENTRY_CODE_REGION, buf, p - buf);
 
 	g_free (buf);
 	return id;
@@ -234,7 +249,7 @@ mono_lldb_init (const char *options)
 void
 mono_lldb_save_method_info (MonoCompile *cfg)
 {
-	MethodEntry *method_entry;
+	MethodEntry *entry;
 	UserData udata;
 	int region_id, buf_len;
 	guint8 *buf, *p;
@@ -256,30 +271,30 @@ mono_lldb_save_method_info (MonoCompile *cfg)
 	buf_len = 1024;
 	buf = p = g_malloc0 (buf_len);
 
-	method_entry = (MethodEntry*)p;
+	entry = (MethodEntry*)p;
 	p += sizeof (MethodEntry);
-	method_entry->id = ++id_generator;
-	method_entry->region_id = region_id;
-	method_entry->code = (gsize)cfg->native_code;
-	method_entry->code_size = cfg->code_size;
+	entry->id = ++id_generator;
+	entry->region_id = region_id;
+	entry->code = (gsize)cfg->native_code;
+	entry->code_size = cfg->code_size;
 
-	method_entry->unwind_ops_offset = p - buf;
-	method_entry->nunwind_ops = emit_unwind_info (cfg->unwind_ops, p, &p);
+	entry->unwind_ops_offset = p - buf;
+	entry->nunwind_ops = emit_unwind_info (cfg->unwind_ops, p, &p);
 
-	method_entry->name_offset = p - buf;
+	entry->name_offset = p - buf;
 	strcpy ((char*)p, cfg->method->name);
 	p += strlen (cfg->method->name) + 1;
 
 	g_assert (p - buf < buf_len);
 
-	send_entry (ENTRY_METHOD, buf, p - buf);
+	add_entry (ENTRY_METHOD, buf, p - buf);
 	g_free (buf);
 }
 
 void
 mono_lldb_save_trampoline_info (MonoTrampInfo *info)
 {
-	MethodEntry *method_entry;
+	TrampolineEntry *entry;
 	UserData udata;
 	int region_id, buf_len;
 	guint8 *buf, *p;
@@ -300,17 +315,17 @@ mono_lldb_save_trampoline_info (MonoTrampInfo *info)
 	buf_len = 1024;
 	buf = p = g_malloc0 (buf_len);
 
-	method_entry = (MethodEntry*)p;
-	p += sizeof (MethodEntry);
-	method_entry->id = ++id_generator;
-	method_entry->region_id = region_id;
-	method_entry->code = (gsize)info->code;
-	method_entry->code_size = info->code_size;
+	entry = (TrampolineEntry*)p;
+	p += sizeof (TrampolineEntry);
+	entry->id = ++id_generator;
+	entry->region_id = region_id;
+	entry->code = (gsize)info->code;
+	entry->code_size = info->code_size;
 
-	method_entry->unwind_ops_offset = p - buf;
-	method_entry->nunwind_ops = emit_unwind_info (info->unwind_ops, p, &p);
+	entry->unwind_ops_offset = p - buf;
+	entry->nunwind_ops = emit_unwind_info (info->unwind_ops, p, &p);
 
-	method_entry->name_offset = p - buf;
+	entry->name_offset = p - buf;
 	if (info->name) {
 		strcpy ((char*)p, info->name);
 		p += strlen (info->name) + 1;
@@ -321,7 +336,7 @@ mono_lldb_save_trampoline_info (MonoTrampInfo *info)
 
 	g_assert (p - buf < buf_len);
 
-	send_entry (ENTRY_METHOD, buf, p - buf);
+	add_entry (ENTRY_TRAMPOLINE, buf, p - buf);
 	g_free (buf);
 }
 
