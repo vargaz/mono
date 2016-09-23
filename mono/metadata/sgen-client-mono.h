@@ -167,7 +167,7 @@ sgen_client_array_element_size (GCVTable gc_vtable)
 static MONO_ALWAYS_INLINE G_GNUC_UNUSED char*
 sgen_client_array_data_start (GCObject *obj)
 {
-	return (char*)(obj) +  G_STRUCT_OFFSET (MonoArray, vector);
+	return (char*)(obj) +  G_STRUCT_OFFSET (MonoArray, data);
 }
 
 static MONO_ALWAYS_INLINE size_t G_GNUC_UNUSED

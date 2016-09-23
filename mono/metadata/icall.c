@@ -154,7 +154,7 @@ ves_icall_System_Array_GetValueImpl (MonoArray *arr, guint32 pos)
 	ac = (MonoClass *)arr->obj.vtable->klass;
 
 	esize = mono_array_element_size (ac);
-	ea = (gpointer*)((char*)arr->vector + (pos * esize));
+	ea = (gpointer*)((char*)arr->data + (pos * esize));
 
 	if (ac->element_class->valuetype) {
 		result = mono_value_box_checked (arr->obj.vtable->domain, ac->element_class, ea, &error);
@@ -184,7 +184,7 @@ ves_icall_System_Array_GetValue (MonoArray *arr, MonoArray *idxs)
 		return NULL;
 	}
 
-	ind = (gint32 *)io->vector;
+	ind = (gint32 *)io->data;
 
 	if (arr->bounds == NULL) {
 		if (*ind < 0 || *ind >= arr->max_length) {
@@ -235,7 +235,7 @@ ves_icall_System_Array_SetValueImpl (MonoArray *arr, MonoObject *value, guint32 
 	ec = ac->element_class;
 
 	esize = mono_array_element_size (ac);
-	ea = (gpointer*)((char*)arr->vector + (pos * esize));
+	ea = (gpointer*)((char*)arr->data + (pos * esize));
 	va = (gpointer*)((char*)value + sizeof (MonoObject));
 
 	if (mono_class_is_nullable (ec)) {
@@ -519,7 +519,7 @@ ves_icall_System_Array_SetValue (MonoArray *arr, MonoObject *value,
 		return;
 	}
 
-	ind = (gint32 *)idxs->vector;
+	ind = (gint32 *)idxs->data;
 
 	if (arr->bounds == NULL) {
 		if (*ind < 0 || *ind >= arr->max_length) {
@@ -802,7 +802,7 @@ ves_icall_System_Array_GetGenericValueImpl (MonoArray *arr, guint32 pos, gpointe
 	ac = (MonoClass *)arr->obj.vtable->klass;
 
 	esize = mono_array_element_size (ac);
-	ea = (gpointer*)((char*)arr->vector + (pos * esize));
+	ea = (gpointer*)((char*)arr->data + (pos * esize));
 
 	mono_gc_memmove_atomic (value, ea, esize);
 }
@@ -818,7 +818,7 @@ ves_icall_System_Array_SetGenericValueImpl (MonoArray *arr, guint32 pos, gpointe
 	ec = ac->element_class;
 
 	esize = mono_array_element_size (ac);
-	ea = (gpointer*)((char*)arr->vector + (pos * esize));
+	ea = (gpointer*)((char*)arr->data + (pos * esize));
 
 	if (MONO_TYPE_IS_REFERENCE (&ec->byval_arg)) {
 		g_assert (esize == sizeof (gpointer));
@@ -6382,8 +6382,8 @@ ves_icall_System_Buffer_BlockCopyInternal (MonoArray *src, gint32 src_offset, Mo
 	if ((src_offset > mono_array_get_byte_length (src) - count) || (dest_offset > mono_array_get_byte_length (dest) - count))
 		return FALSE;
 
-	src_buf = (guint8 *)src->vector + src_offset;
-	dest_buf = (guint8 *)dest->vector + dest_offset;
+	src_buf = (guint8 *)src->data + src_offset;
+	dest_buf = (guint8 *)dest->data + dest_offset;
 
 	if (src != dest)
 		memcpy (dest_buf, src_buf, count);

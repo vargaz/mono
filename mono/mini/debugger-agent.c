@@ -9332,7 +9332,7 @@ array_commands (int command, guint8 *p, guint8 *end, Buffer *buf)
 
 		esize = mono_array_element_size (arr->obj.vtable->klass);
 		for (i = index; i < index + len; ++i) {
-			elem = (gpointer*)((char*)arr->vector + (i * esize));
+			abort (); // elem = (gpointer*)((char*)arr->vector + (i * esize));
 			buffer_add_value (buf, &arr->obj.vtable->klass->element_class->byval_arg, elem, arr->obj.vtable->domain);
 		}
 		break;
@@ -9346,7 +9346,7 @@ array_commands (int command, guint8 *p, guint8 *end, Buffer *buf)
 
 		esize = mono_array_element_size (arr->obj.vtable->klass);
 		for (i = index; i < index + len; ++i) {
-			elem = (gpointer*)((char*)arr->vector + (i * esize));
+			abort (); //elem = (gpointer*)((char*)arr->vector + (i * esize));
 
 			decode_value (&arr->obj.vtable->klass->element_class->byval_arg, arr->obj.vtable->domain, (guint8 *)elem, p, &p, end);
 		}

@@ -5580,12 +5580,12 @@ mono_array_full_copy (MonoArray *src, MonoArray *dest)
 		if (klass->element_class->has_references)
 			mono_value_copy_array (dest, 0, mono_array_addr_with_size_fast (src, 0, 0), mono_array_length (src));
 		else
-			mono_gc_memmove_atomic (&dest->vector, &src->vector, size);
+			mono_gc_memmove_atomic (dest->data, src->data, size);
 	} else {
 		mono_array_memcpy_refs (dest, 0, src, 0, mono_array_length (src));
 	}
 #else
-	mono_gc_memmove_atomic (&dest->vector, &src->vector, size);
+	mono_gc_memmove_atomic (dest->data, src->data, size);
 #endif
 }
 
@@ -5621,12 +5621,12 @@ mono_array_clone_in_domain (MonoDomain *domain, MonoArray *array, MonoError *err
 			if (klass->element_class->has_references)
 				mono_value_copy_array (o, 0, mono_array_addr_with_size_fast (array, 0, 0), mono_array_length (array));
 			else
-				mono_gc_memmove_atomic (&o->vector, &array->vector, size);
+				mono_gc_memmove_atomic (o->data, array->data, size);
 		} else {
 			mono_array_memcpy_refs (o, 0, array, 0, mono_array_length (array));
 		}
 #else
-		mono_gc_memmove_atomic (&o->vector, &array->vector, size);
+		mono_gc_memmove_atomic (o->data, array->data, size);
 #endif
 		return o;
 	}
@@ -5645,12 +5645,12 @@ mono_array_clone_in_domain (MonoDomain *domain, MonoArray *array, MonoError *err
 		if (klass->element_class->has_references)
 			mono_value_copy_array (o, 0, mono_array_addr_with_size_fast (array, 0, 0), mono_array_length (array));
 		else
-			mono_gc_memmove_atomic (&o->vector, &array->vector, size);
+			mono_gc_memmove_atomic (o->data, array->data, size);
 	} else {
 		mono_array_memcpy_refs (o, 0, array, 0, mono_array_length (array));
 	}
 #else
-	mono_gc_memmove_atomic (&o->vector, &array->vector, size);
+	mono_gc_memmove_atomic (o->data, array->data, size);
 #endif
 
 	return o;
@@ -8345,7 +8345,7 @@ mono_array_addr_with_size (MonoArray *array, int size, uintptr_t idx)
 {
 	MONO_REQ_GC_UNSAFE_MODE;
 
-	return ((char*)(array)->vector) + size * idx;
+	return ((char*)(array)->data) + size * idx;
 }
 
 

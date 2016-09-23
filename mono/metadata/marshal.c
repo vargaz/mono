@@ -728,7 +728,7 @@ mono_array_to_lparray (MonoArray *array)
 		nativeArraySize = array->max_length;
 		nativeArray = (void **)malloc(sizeof(gpointer) * nativeArraySize);
 		for(i = 0; i < nativeArraySize; ++i) 	
-			nativeArray[i] = ves_icall_System_Runtime_InteropServices_Marshal_GetIUnknownForObjectInternal(((MonoObject **)array->vector)[i]);
+			nativeArray[i] = ves_icall_System_Runtime_InteropServices_Marshal_GetIUnknownForObjectInternal(((MonoObject **)array->data)[i]);
 		return nativeArray;
 	case MONO_TYPE_U1:
 	case MONO_TYPE_BOOLEAN:
@@ -758,7 +758,7 @@ mono_array_to_lparray (MonoArray *array)
 		g_assert_not_reached ();
 	}
 #endif
-	return array->vector;
+	return array->data;
 }
 
 void
@@ -889,7 +889,7 @@ mono_string_builder_new (int starting_string_length)
 static void
 mono_string_utf16_to_builder_copy (MonoStringBuilder *sb, gunichar2 *text, size_t string_len)
 {
-	gunichar2 *charDst = (gunichar2 *)sb->chunkChars->vector;
+	gunichar2 *charDst = (gunichar2 *)sb->chunkChars->data;
 	gunichar2 *charSrc = (gunichar2 *)text;
 	memcpy (charDst, charSrc, sizeof (gunichar2) * string_len);
 
@@ -1059,7 +1059,7 @@ mono_string_builder_to_utf16 (MonoStringBuilder *sb)
 	do {
 		if (chunk->chunkLength > 0) {
 			// Check that we will not overrun our boundaries.
-			gunichar2 *source = (gunichar2 *)chunk->chunkChars->vector;
+			gunichar2 *source = (gunichar2 *)chunk->chunkChars->data;
 
 			if (chunk->chunkLength <= len) {
 				memcpy (str + chunk->chunkOffset, source, chunk->chunkLength * sizeof(gunichar2));
@@ -1380,7 +1380,7 @@ emit_ptr_to_object_conv (MonoMethodBuilder *mb, MonoType *type, MonoMarshalConv 
 			/* copy the elements */
 			mono_mb_emit_ldloc (mb, 1);
 			mono_mb_emit_byte (mb, CEE_LDIND_I);
-			mono_mb_emit_icon (mb, MONO_STRUCT_OFFSET (MonoArray, vector));
+			abort ();  //mono_mb_emit_icon (mb, MONO_STRUCT_OFFSET (MonoArray, vector));
 			mono_mb_emit_byte (mb, CEE_ADD);
 			mono_mb_emit_ldloc (mb, 0);
 			mono_mb_emit_icon (mb, mspec->data.array_data.num_elem * esize);
@@ -1779,7 +1779,7 @@ emit_object_to_ptr_conv (MonoMethodBuilder *mb, MonoType *type, MonoMarshalConv 
 			mono_mb_emit_ldloc (mb, 1);
 			mono_mb_emit_ldloc (mb, 0);	
 			mono_mb_emit_byte (mb, CEE_LDIND_REF);	
-			mono_mb_emit_ldflda (mb, MONO_STRUCT_OFFSET (MonoArray, vector));
+			abort (); //mono_mb_emit_ldflda (mb, MONO_STRUCT_OFFSET (MonoArray, vector));
 			mono_mb_emit_icon (mb, mspec->data.array_data.num_elem * esize);
 			mono_mb_emit_byte (mb, CEE_PREFIX1);
 			mono_mb_emit_byte (mb, CEE_CPBLK);			
@@ -6679,7 +6679,7 @@ emit_marshal_array (EmitMarshalContext *m, int argnum, MonoType *t,
 		if (eklass->blittable) {
 			mono_mb_emit_ldloc (mb, conv_arg);
 			mono_mb_emit_byte (mb, CEE_CONV_I);
-			mono_mb_emit_icon (mb, MONO_STRUCT_OFFSET (MonoArray, vector));
+			abort (); //mono_mb_emit_icon (mb, MONO_STRUCT_OFFSET (MonoArray, vector));
 			mono_mb_emit_byte (mb, CEE_ADD);
 			mono_mb_emit_ldarg (mb, argnum);
 			mono_mb_emit_ldloc (mb, conv_arg);
@@ -6795,7 +6795,7 @@ emit_marshal_array (EmitMarshalContext *m, int argnum, MonoType *t,
 			/* src */
 			mono_mb_emit_ldloc (mb, conv_arg);
 			mono_mb_emit_byte (mb, CEE_CONV_I);
-			mono_mb_emit_icon (mb, MONO_STRUCT_OFFSET (MonoArray, vector));
+			abort (); //mono_mb_emit_icon (mb, MONO_STRUCT_OFFSET (MonoArray, vector));
 			mono_mb_emit_byte (mb, CEE_ADD);
 			/* length */
 			mono_mb_emit_ldloc (mb, conv_arg);
@@ -10374,9 +10374,10 @@ mono_marshal_get_array_address (int rank, int elem_size)
 		mono_mb_emit_stloc (mb, ind);
 	}
 
-	/* return array->vector + ind * element_size */
+	/* return array->data + ind * element_size */
 	mono_mb_emit_ldarg (mb, 0);
-	mono_mb_emit_ldflda (mb, MONO_STRUCT_OFFSET (MonoArray, vector));
+	mono_mb_emit_ldflda (mb, MONO_STRUCT_OFFSET (MonoArray, data));
+	mono_mb_emit_byte (mb, CEE_LDIND_I);
 	mono_mb_emit_ldloc (mb, ind);
 	if (elem_size) {
 		mono_mb_emit_icon (mb, elem_size);

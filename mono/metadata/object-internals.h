@@ -117,10 +117,11 @@ struct _MonoArray {
 	/* total number of elements of the array */
 	mono_array_size_t max_length; 
 	/* we use double to ensure proper alignment on platforms that need it */
-	double vector [MONO_ZERO_LEN_ARRAY];
+	void *data;
+	//double xvector [MONO_ZERO_LEN_ARRAY];
 };
 
-#define MONO_SIZEOF_MONO_ARRAY (sizeof (MonoArray) - MONO_ZERO_LEN_ARRAY * sizeof (double))
+#define MONO_SIZEOF_MONO_ARRAY (sizeof (MonoArray))
 
 struct _MonoString {
 	MonoObject object;
@@ -135,7 +136,7 @@ struct _MonoString {
 #define mono_string_length_fast(s) ((s)->length)
 
 #define mono_array_length_fast(array) ((array)->max_length)
-#define mono_array_addr_with_size_fast(array,size,index) ( ((char*)(array)->vector) + (size) * (index) )
+#define mono_array_addr_with_size_fast(array,size,index) ( ((char*)(array)->data) + (size) * (index) )
 
 #define mono_array_addr_fast(array,type,index) ((type*)(void*) mono_array_addr_with_size_fast (array, sizeof (type), index))
 #define mono_array_get_fast(array,type,index) ( *(type*)mono_array_addr_fast ((array), type, (index)) ) 

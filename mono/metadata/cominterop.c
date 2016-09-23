@@ -3535,7 +3535,7 @@ ves_icall_System_Runtime_InteropServices_Marshal_StringToBSTR (MonoString* ptr)
 gpointer
 ves_icall_System_Runtime_InteropServices_Marshal_BufferToBSTR (MonoArray* ptr, int len)
 {
-	return mono_ptr_to_bstr (ptr->vector, len);
+	return mono_ptr_to_bstr (ptr->data, len);
 }
 
 void

@@ -1678,10 +1678,10 @@ LOOP_HEAD:
 
 			card_end = MIN (card_end, obj_end);
 
-			if (start <= (char*)arr->vector)
+			if (start <= (char*)arr->data)
 				index = 0;
 			else
-				index = ARRAY_OBJ_INDEX (start, obj, elem_size);
+				abort (); //index = ARRAY_OBJ_INDEX (start, obj, elem_size);
 
 			elem = first_elem = (char*)mono_array_addr_with_size_fast ((MonoArray*)obj, elem_size, index);
 			if (klass->element_class->valuetype) {
@@ -1749,7 +1749,7 @@ mono_gc_alloc_vector (MonoVTable *vtable, size_t size, uintptr_t max_length)
 	}
 
 	arr->max_length = (mono_array_size_t)max_length;
-
+	arr->data = ((int8_t *)(&arr->data)) + sizeof (arr->data);
 	UNLOCK_GC;
 
  done:
@@ -1794,10 +1794,11 @@ mono_gc_alloc_array (MonoVTable *vtable, size_t size, uintptr_t max_length, uint
 	}
 
 	arr->max_length = (mono_array_size_t)max_length;
+	arr->data = ((int8_t *)(&arr->data)) + sizeof (arr->data);
 
 	bounds = (MonoArrayBounds*)((char*)arr + size - bounds_size);
 	arr->bounds = bounds;
-
+	
 	UNLOCK_GC;
 
  done:
