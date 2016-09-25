@@ -5445,7 +5445,7 @@ mini_emit_ldelema_1_ins (MonoCompile *cfg, MonoClass *klass, MonoInst *arr, Mono
 {
 	MonoInst *ins;
 	guint32 size;
-	int mult_reg, add_reg, array_reg, index_reg, index2_reg;
+	int mult_reg, add_reg, array_reg, index_reg, index2_reg, data_reg;
 	int context_used;
 
 	if (mini_is_gsharedvt_variable_klass (klass)) {
@@ -5480,11 +5480,12 @@ mini_emit_ldelema_1_ins (MonoCompile *cfg, MonoClass *klass, MonoInst *arr, Mono
 	if (bcheck)
 		MONO_EMIT_BOUNDS_CHECK (cfg, array_reg, MonoArray, max_length, index2_reg);
 
-#if defined(TARGET_X86) || defined(TARGET_AMD64)
+#if TODO && (defined(TARGET_X86) || defined(TARGET_AMD64))
 	if (size == 1 || size == 2 || size == 4 || size == 8) {
 		static const int fast_log2 [] = { 1, 0, 1, -1, 2, -1, -1, -1, 3 };
 
 		abort (); //EMIT_NEW_X86_LEA (cfg, ins, array_reg, index2_reg, fast_log2 [size], MONO_STRUCT_OFFSET (MonoArray, vector));
+		
 		ins->klass = mono_class_get_element_class (klass);
 		ins->type = STACK_MP;
 
@@ -5506,8 +5507,9 @@ mini_emit_ldelema_1_ins (MonoCompile *cfg, MonoClass *klass, MonoInst *arr, Mono
 	} else {
 		MONO_EMIT_NEW_BIALU_IMM (cfg, OP_MUL_IMM, mult_reg, index2_reg, size);
 	}
-	MONO_EMIT_NEW_BIALU (cfg, OP_PADD, add_reg, array_reg, mult_reg);
-	abort (); //NEW_BIALU_IMM (cfg, ins, OP_PADD_IMM, add_reg, add_reg, MONO_STRUCT_OFFSET (MonoArray, vector));
+	data_reg = alloc_preg (cfg);
+	MONO_EMIT_NEW_LOAD_MEMBASE (cfg, data_reg, array_reg, MONO_STRUCT_OFFSET (MonoArray, data));
+	NEW_BIALU (cfg, ins, OP_PADD, add_reg, data_reg, mult_reg);
 	ins->klass = mono_class_get_element_class (klass);
 	ins->type = STACK_MP;
 	MONO_ADD_INS (cfg->cbb, ins);
