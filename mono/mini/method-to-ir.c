@@ -11916,9 +11916,11 @@ mono_method_to_ir (MonoCompile *cfg, MonoMethod *method, MonoBasicBlock *start_b
 			if ((cfg->opt & MONO_OPT_INTRINS) && ip + 6 < end && ip_in_bb (cfg, cfg->cbb, ip + 6) && (len_ins->opcode == OP_ICONST) && (data_ptr = initialize_array_data (method, cfg->compile_aot, ip, klass, len_ins->inst_c0, &data_size, &field_token))) {
 				MonoMethod *memcpy_method = get_memcpy_method ();
 				MonoInst *iargs [3];
-				int add_reg = alloc_ireg_mp (cfg);
+				//int add_reg = alloc_ireg_mp (cfg);
+				int data_reg = alloc_preg (cfg);
 
-				abort (); //EMIT_NEW_BIALU_IMM (cfg, iargs [0], OP_PADD_IMM, add_reg, ins->dreg, MONO_STRUCT_OFFSET (MonoArray, vector));
+				EMIT_NEW_LOAD_MEMBASE (cfg, iargs [0], OP_LOAD_MEMBASE, data_reg, ins->dreg, MONO_STRUCT_OFFSET(MonoArray, data));
+				//EMIT_NEW_BIALU_IMM (cfg, iargs [0], OP_PADD_IMM, add_reg, ins->dreg, MONO_STRUCT_OFFSET (MonoArray, vector));
 				if (cfg->compile_aot) {
 					EMIT_NEW_AOTCONST_TOKEN (cfg, iargs [1], MONO_PATCH_INFO_RVA, method->klass->image, GPOINTER_TO_UINT(field_token), STACK_PTR, NULL);
 				} else {
