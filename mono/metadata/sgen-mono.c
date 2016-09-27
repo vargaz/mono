@@ -1741,6 +1741,7 @@ mono_gc_alloc_vector (MonoVTable *vtable, size_t size, uintptr_t max_length)
 	if (arr) {
 		/*This doesn't require fencing since EXIT_CRITICAL_REGION already does it for us*/
 		arr->max_length = (mono_array_size_t)max_length;
+		arr->data = ((int8_t *)(&arr->data)) + sizeof (arr->data);
 		EXIT_CRITICAL_REGION;
 		goto done;
 	}
@@ -1783,6 +1784,7 @@ mono_gc_alloc_array (MonoVTable *vtable, size_t size, uintptr_t max_length, uint
 	if (arr) {
 		/*This doesn't require fencing since EXIT_CRITICAL_REGION already does it for us*/
 		arr->max_length = (mono_array_size_t)max_length;
+		arr->data = ((int8_t *)(&arr->data)) + sizeof (arr->data);
 
 		bounds = (MonoArrayBounds*)((char*)arr + size - bounds_size);
 		arr->bounds = bounds;
