@@ -8345,7 +8345,7 @@ mono_array_addr_with_size (MonoArray *array, int size, uintptr_t idx)
 {
 	MONO_REQ_GC_UNSAFE_MODE;
 
-	return ((char*)(array)->data) + size * idx;
+	return ((char*)&(array->data) + size * idx);
 }
 
 

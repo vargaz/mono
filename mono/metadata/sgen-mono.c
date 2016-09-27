@@ -1364,6 +1364,13 @@ create_allocator (int atype, ManagedAllocatorVariant variant)
 #else
 		mono_mb_emit_byte (mb, CEE_STIND_I4);
 #endif
+		/* arr->data = &(arr->data)+sizeof(void *) */
+		mono_mb_emit_ldloc (mb, p_var);
+		mono_mb_emit_ldflda (mb, MONO_STRUCT_OFFSET (MonoArray, data));
+
+		mono_mb_emit_ldloc (mb, p_var);
+		mono_mb_emit_ldflda (mb, MONO_STRUCT_OFFSET (MonoArray, data)+sizeof (void *));
+		mono_mb_emit_byte (mb, CEE_STIND_I);
 	} else 	if (atype == ATYPE_STRING) {
 		/* need to set length and clear the last char */
 		/* s->length = len; */
