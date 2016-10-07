@@ -52,28 +52,28 @@ namespace Mono.Btls
 			get { return (BoringPkcs12Handle)base.Handle; }
 		}
 
-		[MethodImpl (MethodImplOptions.InternalCall)]
+		[DllImport ("libmono-btls-shared")]
 		extern static void mono_btls_pkcs12_free (IntPtr handle);
 
-		[MethodImpl (MethodImplOptions.InternalCall)]
+		[DllImport ("libmono-btls-shared")]
 		extern static IntPtr mono_btls_pkcs12_new ();
 
-		[MethodImpl (MethodImplOptions.InternalCall)]
+		[DllImport ("libmono-btls-shared")]
 		extern static int mono_btls_pkcs12_get_count (IntPtr handle);
 
-		[MethodImpl (MethodImplOptions.InternalCall)]
+		[DllImport ("libmono-btls-shared")]
 		extern static IntPtr mono_btls_pkcs12_get_cert (IntPtr Handle, int index);
 
-		[MethodImpl (MethodImplOptions.InternalCall)]
+		[DllImport ("libmono-btls-shared")]
 		extern static int mono_btls_pkcs12_add_cert (IntPtr chain, IntPtr x509);
 
-		[MethodImpl (MethodImplOptions.InternalCall)]
+		[DllImport ("libmono-btls-shared")]
 		extern unsafe static int mono_btls_pkcs12_import (IntPtr chain, void* data, int len, IntPtr password);
 
-		[MethodImpl (MethodImplOptions.InternalCall)]
+		[DllImport ("libmono-btls-shared")]
 		extern static int mono_btls_pkcs12_has_private_key (IntPtr pkcs12);
 
-		[MethodImpl (MethodImplOptions.InternalCall)]
+		[DllImport ("libmono-btls-shared")]
 		extern static IntPtr mono_btls_pkcs12_get_private_key (IntPtr pkcs12);
 
 		internal MonoBtlsPkcs12 ()

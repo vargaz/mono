@@ -100,7 +100,7 @@ namespace Mono.Btls
 			CheckError (ret == 1, callerName);
 		}
 
-		[MethodImpl (MethodImplOptions.InternalCall)]
+		[DllImport ("libmono-btls-shared")]
 		extern static void mono_btls_free (IntPtr data);
 
 		protected void FreeDataPtr (IntPtr data)

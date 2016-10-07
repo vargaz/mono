@@ -14,6 +14,20 @@
 #include <string.h>
 #include <openssl/ssl.h>
 
+#if defined(_MSC_VER)
+
+#define MONO_API __declspec(dllexport)
+
+#else
+
+#ifdef __GNUC__
+#define MONO_API __attribute__ ((visibility ("default")))
+#else
+#define MONO_API
+#endif
+
+#endif
+
 void
 mono_btls_free (void *data);
 
