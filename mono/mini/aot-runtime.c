@@ -4386,6 +4386,7 @@ mono_aot_get_method_checked (MonoDomain *domain, MonoMethod *method, MonoError *
 	MonoAotModule *target_amodule;
 	guint8 *code;
 	gboolean cache_result = FALSE;
+	gboolean gshared_llvmonly = FALSE;
 	MonoError inner_error;
 
 	mono_error_init (error);
@@ -4428,7 +4429,6 @@ mono_aot_get_method_checked (MonoDomain *domain, MonoMethod *method, MonoError *
 	/* Find method index */
 	method_index = 0xffffff;
 	if (method->is_inflated && !method->wrapper_type && mono_method_is_generic_sharable_full (method, TRUE, FALSE, FALSE)) {
-		MonoMethod *orig_method = method;
 		/* 
 		 * For generic methods, we store the fully shared instance in place of the
 		 * original method.
@@ -4436,13 +4436,8 @@ mono_aot_get_method_checked (MonoDomain *domain, MonoMethod *method, MonoError *
 		method = mono_method_get_declaring_generic_method (method);
 		method_index = mono_metadata_token_index (method->token) - 1;
 
-		if (mono_llvm_only) {
-			/* Needed by mono_aot_init_gshared_method_this () */
-			/* orig_method is a random instance but it is enough to make init_method () work */
-			amodule_lock (amodule);
-			g_hash_table_insert (amodule->extra_methods, GUINT_TO_POINTER (method_index), orig_method);
-			amodule_unlock (amodule);
-		}
+		if (mono_llvm_only)
+			gshared_llvmonly = TRUE;
 	} else if (method->is_inflated || !method->token) {
 		/* This hash table is used to avoid the slower search in the extra_method_table in the AOT image */
 		amodule_lock (amodule);
@@ -4622,6 +4617,15 @@ mono_aot_get_method_checked (MonoDomain *domain, MonoMethod *method, MonoError *
 		g_hash_table_insert (amodule->method_to_code, orig_method, code);
 		amodule_unlock (amodule);
 	}
+
+	if (gshared_llvmonly) {
+		/* Needed by mono_aot_init_gshared_method_this () */
+		/* orig_method is a random instance but it is enough to make init_method () work */
+		amodule_lock (target_amodule);
+		g_hash_table_insert (target_amodule->extra_methods, GUINT_TO_POINTER (target_method_index), orig_method);
+		amodule_unlock (target_amodule);
+	}
+
 	return code;
 }
 
