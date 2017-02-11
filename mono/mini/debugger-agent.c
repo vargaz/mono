@@ -273,7 +273,7 @@ typedef struct {
 #define HEADER_LENGTH 11
 
 #define MAJOR_VERSION 2
-#define MINOR_VERSION 45
+#define MINOR_VERSION 46
 
 typedef enum {
 	CMD_SET_VM = 1,
@@ -456,6 +456,7 @@ typedef enum {
 
 typedef enum {
 	CMD_MODULE_GET_INFO = 1,
+	CMD_MODULE_APPLY_DELTA = 2
 } CmdModule;
 
 typedef enum {
@@ -8150,6 +8151,31 @@ module_commands (int command, guint8 *p, guint8 *end, Buffer *buf)
 		buffer_add_assemblyid (buf, domain, image->assembly); // assembly
 		g_free (basename);
 		break;			
+	}
+	case CMD_MODULE_APPLY_DELTA: {
+		MonoImage *image = decode_moduleid (p, &p, end, &domain, &err);
+		int md_len, il_len;
+		guint8 *md, *il;
+		MonoImageOpenStatus status;
+
+		if (!is_suspended ())
+			return ERR_NOT_SUSPENDED;
+
+		md_len = decode_int (p, &p, end);
+		g_assert (p + md_len < end);
+		md = g_new0 (guint8, md_len);
+		memcpy (md, p, md_len);
+		p += md_len;
+
+		il_len = decode_int (p, &p, end);
+		g_assert (p + il_len <= end);
+		il = g_new0 (guint8, il_len);
+		memcpy (il, p, il_len);
+		p += il_len;
+
+		MonoImage *delta_image = mono_image_open_from_data_internal ((char*)md, md_len, FALSE, &status, FALSE, TRUE, "");
+
+		return ERR_NOT_IMPLEMENTED;
 	}
 	default:
 		return ERR_NOT_IMPLEMENTED;

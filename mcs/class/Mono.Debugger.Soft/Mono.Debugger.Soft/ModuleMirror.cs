@@ -61,6 +61,15 @@ namespace Mono.Debugger.Soft
 			}
 		}
 
-		// FIXME: Add function to query the guid, check in Metadata
+		// Since protocol version 2.46
+		public void ApplyDelta (byte[] delta_md, byte[] delta_il) {
+			if (delta_md == null)
+				throw new ArgumentNullException ("delta_md");
+			if (delta_il == null)
+				throw new ArgumentNullException ("delta_il");
+			vm.CheckProtocolVersion (2, 46);
+
+			vm.conn.Module_ApplyDelta (id, delta_md, delta_il);
+		}
     }
 }

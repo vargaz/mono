@@ -420,7 +420,7 @@ namespace Mono.Debugger.Soft
 		 * with newer runtimes, and vice versa.
 		 */
 		internal const int MAJOR_VERSION = 2;
-		internal const int MINOR_VERSION = 45;
+		internal const int MINOR_VERSION = 46;
 
 		enum WPSuspendPolicy {
 			NONE = 0,
@@ -538,6 +538,7 @@ namespace Mono.Debugger.Soft
 
 		enum CmdModule {
 			GET_INFO = 1,
+			APPLY_DELTA = 2
 		}
 
 		enum CmdMethod {
@@ -973,6 +974,14 @@ namespace Mono.Debugger.Soft
 
 			public PacketWriter WriteBool (bool val) {
 				WriteByte (val ? (byte)1 : (byte)0);
+				return this;
+			}
+
+			public PacketWriter WriteByteArray (byte[] arr) {
+				WriteInt (arr.Length);
+				MakeRoom (arr.Length);
+				Buffer.BlockCopy (arr, 0, data, offset, arr.Length);
+				offset += arr.Length;
 				return this;
 			}
 
@@ -2085,6 +2094,10 @@ namespace Mono.Debugger.Soft
 			PacketReader r = SendReceive (CommandSet.MODULE, (int)CmdModule.GET_INFO, new PacketWriter ().WriteId (id));
 			ModuleInfo info = new ModuleInfo { Name = r.ReadString (), ScopeName = r.ReadString (), FQName = r.ReadString (), Guid = r.ReadString (), Assembly = r.ReadId () };
 			return info;
+		}
+
+		internal void Module_ApplyDelta (long id, byte[] delta_md, byte[] delta_il) {
+			SendReceive (CommandSet.MODULE, (int)CmdModule.APPLY_DELTA, new PacketWriter ().WriteId (id).WriteByteArray (delta_md).WriteByteArray (delta_il));
 		}
 
 		/*

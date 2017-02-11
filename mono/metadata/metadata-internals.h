@@ -212,6 +212,9 @@ struct _MonoImage {
 	/* Whenever this image contains metadata only without PE data */
 	guint8 metadata_only : 1;
 
+	/* Whenever this is a ENC delta image */
+	guint is_delta : 1;
+
 	guint8 checked_module_cctor : 1;
 	guint8 has_module_cctor : 1;
 

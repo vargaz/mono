@@ -525,6 +525,9 @@ load_metadata_ptrs (MonoImage *image, MonoCLIImageInfo *iinfo)
 			image->heap_pdb.data = image->raw_metadata + read32 (ptr);
 			image->heap_pdb.size = read32 (ptr + 4);
 			ptr += 8 + 5;
+		} else if (strncmp (ptr + 8, "#JTD", 5) == 0) {
+			image->is_delta = TRUE;
+			ptr += 8 + 5;
 		} else {
 			g_message ("Unknown heap type: %s\n", ptr + 8);
 			ptr += 8 + strlen (ptr + 8) + 1;
@@ -1052,6 +1055,9 @@ pe_image_load_cli_data (MonoImage *image)
 void
 mono_image_load_names (MonoImage *image)
 {
+	if (image->is_delta)
+		return;
+
 	/* modules don't have an assembly table row */
 	if (image->tables [MONO_TABLE_ASSEMBLY].rows) {
 		image->assembly_name = mono_metadata_string_heap (image, 
