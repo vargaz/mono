@@ -7255,6 +7255,48 @@ get_source_files_for_type (MonoClass *klass)
 }
 
 static ErrorCode
+apply_delta (MonoImage *base_image, guint8 *md, int md_len, guint8 *il, int il_len)
+{
+	MonoImageOpenStatus status;
+	MonoImage *image;
+	char *delta_mvid;
+
+	image = mono_image_open_from_data_internal ((char*)md, md_len, FALSE, &status, FALSE, TRUE, "");
+
+	MonoTableInfo *t = &image->tables [MONO_TABLE_MODULE];
+	guint32 module_cols [MONO_MODULE_SIZE];
+
+	mono_metadata_decode_row (t, 0, module_cols, MONO_MODULE_SIZE);
+	/*
+	 * For delta images, MVID is the same as for the parent module, ENC is unique, and ENCBASE
+	 * is either 0, or equal to the ENC of the previous delta.
+	 */
+	/* The mvid is the same as for the parent module, while the ENC guid is unique */
+	g_assert (module_cols [MONO_MODULE_MVID]);
+	delta_mvid = mono_guid_to_string ((guint8*)mono_metadata_guid_heap (image, (module_cols [MONO_MODULE_MVID])));
+	g_assert (!strcmp (base_image->guid, delta_mvid));
+	g_free (delta_mvid);
+	/*
+	  if (module_cols [MONO_MODULE_GENERATION] != 1) {
+	  DEBUG_PRINTF (1, "[dbg] Unsupported ENC generation %d\n", module_cols [MONO_MODULE_GENERATION]);
+	  return ERR_NOT_IMPLEMENTED;
+	  }
+	*/
+
+	t = &image->tables [MONO_TABLE_ENCLOG];
+	guint32 enclog_cols [MONO_ENCLOG_SIZE];
+	for (int i = 0; i < t->rows; ++i) {
+		mono_metadata_decode_row (t, i, enclog_cols, MONO_ENCLOG_SIZE);
+		if (enclog_cols [MONO_ENCLOG_FUNC_CODE] != ENC_FUNC_CODE_DEFAULT) {
+			DEBUG_PRINTF (1, "[dbg] Unsupported ENC func code %d\n", enclog_cols [MONO_ENCLOG_FUNC_CODE]);
+			return ERR_NOT_IMPLEMENTED;
+		}
+	}
+
+	return ERR_NOT_IMPLEMENTED;
+}
+
+static ErrorCode
 vm_commands (int command, int id, guint8 *p, guint8 *end, Buffer *buf)
 {
 	switch (command) {
@@ -8153,10 +8195,9 @@ module_commands (int command, guint8 *p, guint8 *end, Buffer *buf)
 		break;			
 	}
 	case CMD_MODULE_APPLY_DELTA: {
-		MonoImage *image = decode_moduleid (p, &p, end, &domain, &err);
+		MonoImage *base_image = decode_moduleid (p, &p, end, &domain, &err);
 		int md_len, il_len;
 		guint8 *md, *il;
-		MonoImageOpenStatus status;
 
 		if (!is_suspended ())
 			return ERR_NOT_SUSPENDED;
@@ -8173,9 +8214,8 @@ module_commands (int command, guint8 *p, guint8 *end, Buffer *buf)
 		memcpy (il, p, il_len);
 		p += il_len;
 
-		MonoImage *delta_image = mono_image_open_from_data_internal ((char*)md, md_len, FALSE, &status, FALSE, TRUE, "");
-
-		return ERR_NOT_IMPLEMENTED;
+		err = apply_delta (base_image, md, md_len, il, il_len);
+		return err;
 	}
 	default:
 		return ERR_NOT_IMPLEMENTED;
