@@ -373,7 +373,16 @@ const static unsigned char TableSchemas [] = {
 	MONO_MT_TDOR_IDX,   /* "Constraint" }, */
 	MONO_MT_END,
 
-#define DOCUMENT_SCHEMA_OFFSET GEN_CONSTRAINT_SCHEMA_OFFSET + 3
+#define ENCLOG_SCHEMA_OFFSET GEN_CONSTRAINT_SCHEMA_OFFSET + 3
+	MONO_MT_UINT32,
+	MONO_MT_UINT32,
+	MONO_MT_END,
+
+#define ENCMAP_SCHEMA_OFFSET ENCLOG_SCHEMA_OFFSET + 3
+	MONO_MT_UINT32,
+	MONO_MT_END,
+
+#define DOCUMENT_SCHEMA_OFFSET ENCMAP_SCHEMA_OFFSET + 2
 	MONO_MT_BLOB_IDX,   /* Name */
 	MONO_MT_GUID_IDX,   /* HashAlgorithm */
 	MONO_MT_BLOB_IDX,   /* Hash */
@@ -458,8 +467,8 @@ table_description [] = {
 	TYPESPEC_SCHEMA_OFFSET,
 	IMPLMAP_SCHEMA_OFFSET,
 	FIELD_RVA_SCHEMA_OFFSET,
-	NULL_SCHEMA_OFFSET,
-	NULL_SCHEMA_OFFSET,
+	ENCLOG_SCHEMA_OFFSET,
+	ENCMAP_SCHEMA_OFFSET,
 	ASSEMBLY_SCHEMA_OFFSET, /* 0x20 */
 	ASSEMBLYPROC_SCHEMA_OFFSET,
 	ASSEMBLYOS_SCHEMA_OFFSET,
@@ -555,7 +564,9 @@ inverse of this mapping.
 static inline int
 idx_size (MonoImage *meta, int tableidx)
 {
-	if (meta->referenced_tables && (meta->referenced_tables & ((guint64)1 << tableidx)))
+	if (meta->uncompressed_metadata)
+		return 4;
+	else if (meta->referenced_tables && (meta->referenced_tables & ((guint64)1 << tableidx)))
 		return meta->referenced_table_rows [tableidx] < 65536 ? 2 : 4;
 	else
 		return meta->tables [tableidx].rows < 65536 ? 2 : 4;
@@ -564,6 +575,9 @@ idx_size (MonoImage *meta, int tableidx)
 static inline int
 get_nrows (MonoImage *meta, int tableidx)
 {
+	if (meta->uncompressed_metadata)
+		/* This forces 4 byte tokens */
+		return 0xfffff;
 	if (meta->referenced_tables && (meta->referenced_tables & ((guint64)1 << tableidx)))
 		return meta->referenced_table_rows [tableidx];
 	else
@@ -1076,7 +1090,7 @@ mono_metadata_blob_heap (MonoImage *meta, guint32 index)
 /**
  * mono_metadata_guid_heap:
  * @meta: metadata context
- * @index: index into the guid heap.
+ * @index: 1 based index into the guid heap.
  *
  * Returns: an in-memory pointer to the @index in the guid heap.
  */

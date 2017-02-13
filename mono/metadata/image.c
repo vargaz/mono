@@ -569,9 +569,15 @@ load_tables (MonoImage *image)
 	int heap_sizes;
 	
 	heap_sizes = heap_tables [6];
-	image->idx_string_wide = ((heap_sizes & 0x01) == 1);
-	image->idx_guid_wide   = ((heap_sizes & 0x02) == 2);
-	image->idx_blob_wide   = ((heap_sizes & 0x04) == 4);
+	if (image->uncompressed_metadata) {
+		image->idx_string_wide = TRUE;
+		image->idx_guid_wide = TRUE;
+		image->idx_blob_wide = TRUE;
+	} else {
+		image->idx_string_wide = ((heap_sizes & 0x01) == 1);
+		image->idx_guid_wide   = ((heap_sizes & 0x02) == 2);
+		image->idx_blob_wide   = ((heap_sizes & 0x04) == 4);
+	}
 	
 	valid_mask = read64 (heap_tables + 8);
 	rows = (const guint32 *) (heap_tables + 24);
@@ -1482,6 +1488,9 @@ mono_image_open_from_data_internal (char *data, guint32 data_len, gboolean need_
 	image = do_mono_image_load (image, status, TRUE, TRUE);
 	if (image == NULL)
 		return NULL;
+
+	if (image->is_delta)
+		return image;
 
 	return register_image (image);
 }
