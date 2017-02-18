@@ -82,6 +82,9 @@ typedef struct _RuntimeMethod
 	guint32 *local_offsets;
 	unsigned int param_count;
 	unsigned int hasthis;
+	gpointer jit_wrapper;
+	gpointer jit_addr;
+	MonoMethodSignature *jit_sig;
 } RuntimeMethod;
 
 struct _MonoInvocation {
