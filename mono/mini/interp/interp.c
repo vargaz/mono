@@ -2211,7 +2211,8 @@ ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context)
 				g_assert_not_reached ();
 				break;
 			}
-			sp++;
+			if (rtype->type != MONO_TYPE_VOID)
+				sp++;
 			MINT_IN_BREAK;
 		}
 
