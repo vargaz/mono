@@ -1015,9 +1015,10 @@ mono_arch_get_enter_icall_trampoline (MonoTrampInfo **info)
 	MonoJumpInfo *ji = NULL;
 	GSList *unwind_ops = NULL;
 	static int farg_regs[] = {AMD64_XMM0, AMD64_XMM1, AMD64_XMM2};
-	int i, framesize = 0, off_rbp, off_methodargs, off_targetaddr;
+	int buf_len, i, framesize = 0, off_rbp, off_methodargs, off_targetaddr;
 
-	start = code = (guint8 *) mono_global_codeman_reserve (256 + MONO_TRAMPOLINE_UNWINDINFO_SIZE(0));
+	buf_len = 400 + MONO_TRAMPOLINE_UNWINDINFO_SIZE(0);
+	start = code = (guint8 *) mono_global_codeman_reserve (buf_len);
 
 	off_rbp = -framesize;
 
@@ -1146,6 +1147,8 @@ mono_arch_get_enter_icall_trampoline (MonoTrampInfo **info)
 	amd64_alu_reg_imm (code, X86_ADD, AMD64_RSP, ALIGN_TO (framesize, MONO_ARCH_FRAME_ALIGNMENT));
 	amd64_pop_reg (code, AMD64_RBP);
 	amd64_ret (code);
+
+	g_assert (code - start < buf_len);
 
 	mono_arch_flush_icache (start, code - start);
 	mono_profiler_code_buffer_new (start, code - start, MONO_PROFILER_CODE_BUFFER_EXCEPTION_HANDLING, NULL);
