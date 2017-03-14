@@ -263,9 +263,9 @@ mono_interp_get_runtime_method (MonoDomain *domain, MonoMethod *method, MonoErro
 	error_init (error);
 
 	info = domain_jit_info (domain);
-	mono_os_mutex_lock (&runtime_method_lookup_section);
+	mono_domain_jit_code_hash_lock (domain);
 	if ((rtm = mono_internal_hash_table_lookup (&info->interp_code_hash, method))) {
-		mono_os_mutex_unlock (&runtime_method_lookup_section);
+		mono_domain_jit_code_hash_unlock (domain);
 		return rtm;
 	}
 	rtm = mono_domain_alloc0 (domain, sizeof (RuntimeMethod));
@@ -273,7 +273,7 @@ mono_interp_get_runtime_method (MonoDomain *domain, MonoMethod *method, MonoErro
 	rtm->param_count = mono_method_signature (method)->param_count;
 	rtm->hasthis = mono_method_signature (method)->hasthis;
 	mono_internal_hash_table_insert (&info->interp_code_hash, method, rtm);
-	mono_os_mutex_unlock (&runtime_method_lookup_section);
+	mono_domain_jit_code_hash_unlock (domain);
 
 	return rtm;
 }
