@@ -1913,6 +1913,13 @@ mono_main (int argc, char* argv[])
 #else
 			fprintf (stderr, "Mono Warning: --interpreter not enabled in this runtime.\n");
 #endif
+		} else if (strncmp (argv [i], "--interp=", 9) == 0) {
+#ifdef ENABLE_INTERPRETER
+			mono_use_interpreter = TRUE;
+			mono_interp_parse_options (argv [i] + 9);
+#else
+			fprintf (stderr, "Mono Warning: --interp= not enabled in this runtime.\n");
+#endif
 
 #ifdef __native_client__
 		} else if (strcmp (argv [i], "--nacl-mono-path") == 0){

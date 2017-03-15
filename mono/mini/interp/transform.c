@@ -640,6 +640,7 @@ static gboolean
 jit_call_supported (MonoMethod *method, MonoMethodSignature *sig)
 {
 	MonoType *t;
+	GSList *l;
 
 	if (sig->param_count > 6)
 		return FALSE;
@@ -656,6 +657,13 @@ jit_call_supported (MonoMethod *method, MonoMethodSignature *sig)
 	t = mini_get_underlying_type (sig->ret);
 	if (MONO_TYPE_ISSTRUCT (t))
 		return FALSE;
+
+	for (l = jit_classes; l; l = l->next) {
+		char *class_name = l->data;
+		// FIXME: Namespaces
+		if (!strcmp (method->klass->name, class_name))
+			return TRUE;
+	}
 
 #if 0
 	static int call_count = 0;
