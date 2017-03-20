@@ -66,7 +66,6 @@
 #include <mono/mini/mini.h>
 #include <mono/mini/jit-icalls.h>
 
-
 /* Mingw 2.1 doesnt need this any more, but leave it in for now for older versions */
 #ifdef _WIN32
 #define isnan _isnan
@@ -1850,6 +1849,8 @@ ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context)
 			if (new_method->alloca_size > rtm->alloca_size)
 				g_error ("MINT_JMP to method which needs more stack space (%d > %d)", new_method->alloca_size, rtm->alloca_size); 
 			rtm = frame->runtime_method = new_method;
+			printf ("%p\n", (frame)->runtime_method);
+			fflush (stdout);
 			vt_sp = (unsigned char *) sp + rtm->stack_size;
 #if DEBUG_INTERP
 			vtalloc = vt_sp;
@@ -2040,6 +2041,7 @@ ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context)
 			MonoFtnDesc ftndesc;
 			// FIXME:
 			guint8 res_buf [256];
+			MonoLMFExt ext;
 
 			/*
 			 * Call JITted code through a gsharedvt_out wrapper. These wrappers receive every argument
@@ -2129,6 +2131,22 @@ ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context)
 				}
 			}
 
+			memset (&ext, 0, sizeof (ext));
+			ext.interp_exit = TRUE;
+			ext.interp_exit_data = frame;
+
+#ifdef MONO_ARCH_HAVE_INIT_LMF_EXT
+			MonoLMF **lmf_addr;
+
+			lmf_addr = mono_get_lmf_addr ();
+
+			mono_arch_init_lmf_ext (&ext, lmf_addr);
+
+			mono_set_lmf ((MonoLMF*)&ext);
+#else
+			NOT_IMPLEMENTED;
+#endif
+
 			switch (pindex) {
 			case 0: {
 				void (*func)(gpointer) = rmethod->jit_wrapper;
@@ -2182,6 +2200,9 @@ ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context)
 				g_assert_not_reached ();
 				break;
 			}
+
+			mono_set_lmf ((MonoLMF *)(((gssize)ext.lmf.previous_lmf) & ~3));
+
 			MonoType *rtype = mini_get_underlying_type (sig->ret);
 			switch (rtype->type) {
 			case MONO_TYPE_VOID:
@@ -4463,6 +4484,8 @@ ves_exec_method (MonoInvocation *frame)
 	frame->ip = NULL;
 	frame->parent = context->current_frame;
 	frame->runtime_method = mono_interp_get_runtime_method (context->domain, frame->method, &error);
+	printf ("%p\n", (frame)->runtime_method);
+	fflush (stdout);
 	mono_error_cleanup (&error); /* FIXME: don't swallow the error */
 	context->managed_code = 1;
 	ves_exec_method_with_context (frame, context);
@@ -4812,3 +4835,40 @@ mono_interp_regression_list (int verbose, int count, char *images [])
 	return total;
 }
 
+typedef struct {
+	MonoInvocation *current;
+} StackIter;
+
+/*
+ * mono_interp_frame_iter_init:
+ *
+ *   Initialize an iterator for iterating through interpreted frames.
+ */
+void
+mono_interp_frame_iter_init (MonoInterpStackIter *iter, gpointer interp_last_frame)
+{
+	StackIter *stack_iter = (StackIter*)iter;
+
+	stack_iter->current = interp_last_frame;
+}
+
+gboolean
+mono_interp_frame_iter_next (MonoInterpStackIter *iter, StackFrameInfo *frame)
+{
+	StackIter *stack_iter = (StackIter*)iter;
+	MonoInvocation *iframe = stack_iter->current;
+
+	memset (frame, 0, sizeof (StackFrameInfo));
+	/* pinvoke frames doesn't have runtime_method set */
+	while (iframe && !iframe->runtime_method)
+		iframe = iframe->parent;
+	if (!iframe)
+		return FALSE;
+
+	frame->method = iframe->runtime_method->method;
+	frame->actual_method = frame->method;
+
+	stack_iter->current = iframe->parent;
+
+	return TRUE;
+}

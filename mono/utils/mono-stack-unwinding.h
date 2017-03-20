@@ -21,8 +21,12 @@ typedef enum {
 	FRAME_TYPE_DEBUGGER_INVOKE = 1,
 	/* Frame for transitioning to native code */
 	FRAME_TYPE_MANAGED_TO_NATIVE = 2,
-	FRAME_TYPE_TRAMPOLINE = 3,
-	FRAME_TYPE_NUM = 4
+	/* Interpreter frame */
+	FRAME_TYPE_INTERP = 3,
+	/* Frame for exiting interpreted code */
+	FRAME_TYPE_INTERP_EXIT = 4,
+	FRAME_TYPE_TRAMPOLINE = 5,
+	FRAME_TYPE_NUM = 5
 } MonoStackFrameType;
 
 typedef enum {
@@ -73,6 +77,9 @@ typedef struct {
 	 *  il offset resultion was requested (MONO_UNWIND_LOOKUP_IL_OFFSET)
 	 */
 	int il_offset;
+
+	/* For FRAME_TYPE_INTERP_EXIT */
+	gpointer interp_exit_data;
 
 	/* The next fields are only useful for the jit */
 	gpointer lmf;
