@@ -654,7 +654,8 @@ mono_mb_emit_cominterop_call (MonoMethodBuilder *mb, MonoMethodSignature *sig, M
 }
 
 void
-mono_cominterop_emit_ptr_to_object_conv (MonoMethodBuilder *mb, MonoType *type, MonoMarshalConv conv, MonoMarshalSpec *mspec)
+mono_cominterop_emit_ptr_to_object_conv (MonoMethodBuilder *mb, MonoType *type, MonoMarshalConv conv, MonoMarshalSpec *mspec,
+										 int src_var, int dst_var)
 {
 #ifndef DISABLE_JIT
 	switch (conv) {
@@ -668,18 +669,18 @@ mono_cominterop_emit_ptr_to_object_conv (MonoMethodBuilder *mb, MonoType *type, 
 
 		klass = mono_class_from_mono_type (type);
 
-		mono_mb_emit_ldloc (mb, 1);
+		mono_mb_emit_ldloc (mb, dst_var);
 		mono_mb_emit_byte (mb, CEE_LDNULL);
 		mono_mb_emit_byte (mb, CEE_STIND_REF);
 
-		mono_mb_emit_ldloc (mb, 0);
+		mono_mb_emit_ldloc (mb, src_var);
 		mono_mb_emit_byte (mb, CEE_LDIND_I);
 		pos_null = mono_mb_emit_short_branch (mb, CEE_BRFALSE_S);
 
 		/* load dst to store later */
-		mono_mb_emit_ldloc (mb, 1);
+		mono_mb_emit_ldloc (mb, dst_var);
 
-		mono_mb_emit_ldloc (mb, 0);
+		mono_mb_emit_ldloc (mb, src_var);
 		mono_mb_emit_byte (mb, CEE_LDIND_I);
 		mono_mb_emit_icon (mb, TRUE);
 		mono_mb_emit_icall (mb, cominterop_get_ccw_object);
@@ -694,7 +695,7 @@ mono_cominterop_emit_ptr_to_object_conv (MonoMethodBuilder *mb, MonoType *type, 
 
 		mono_mb_add_local (mb, &mono_class_get_interop_proxy_class ()->byval_arg);
 
-		mono_mb_emit_ldloc (mb, 0);
+		mono_mb_emit_ldloc (mb, src_var);
 		mono_mb_emit_byte (mb, CEE_LDIND_I);
 		mono_mb_emit_ptr (mb, &mono_class_get_com_object_class ()->byval_arg);
 		mono_mb_emit_icall (mb, cominterop_type_from_handle);
@@ -709,7 +710,7 @@ mono_cominterop_emit_ptr_to_object_conv (MonoMethodBuilder *mb, MonoType *type, 
 
 		/* is already managed object */
 		mono_mb_patch_short_branch (mb, pos_ccw);
-		mono_mb_emit_ldloc (mb, 0);
+		mono_mb_emit_ldloc (mb, src_var);
 		mono_mb_emit_byte (mb, CEE_LDIND_I);
 		mono_mb_emit_icon (mb, TRUE);
 		mono_mb_emit_icall (mb, cominterop_get_ccw_object);
@@ -732,7 +733,8 @@ mono_cominterop_emit_ptr_to_object_conv (MonoMethodBuilder *mb, MonoType *type, 
 }
 
 void
-mono_cominterop_emit_object_to_ptr_conv (MonoMethodBuilder *mb, MonoType *type, MonoMarshalConv conv, MonoMarshalSpec *mspec)
+mono_cominterop_emit_object_to_ptr_conv (MonoMethodBuilder *mb, MonoType *type, MonoMarshalConv conv, MonoMarshalSpec *mspec,
+										 int src_var, int dst_var)
 {
 #ifndef DISABLE_JIT
 	switch (conv) {
@@ -741,27 +743,27 @@ mono_cominterop_emit_object_to_ptr_conv (MonoMethodBuilder *mb, MonoType *type, 
 	case MONO_MARSHAL_CONV_OBJECT_IUNKNOWN: {
 		guint32 pos_null = 0, pos_rcw = 0, pos_end = 0;
 
-		mono_mb_emit_ldloc (mb, 1);
-		mono_mb_emit_icon (mb, 0);
+		mono_mb_emit_ldloc (mb, dst_var);
+		mono_mb_emit_icon (mb, src_var);
 		mono_mb_emit_byte (mb, CEE_CONV_U);
 		mono_mb_emit_byte (mb, CEE_STIND_I);
 
-		mono_mb_emit_ldloc (mb, 0);	
+		mono_mb_emit_ldloc (mb, src_var);
 		mono_mb_emit_byte (mb, CEE_LDIND_REF);
 
 		// if null just break, dst was already inited to 0
 		pos_null = mono_mb_emit_short_branch (mb, CEE_BRFALSE_S);
 
-		mono_mb_emit_ldloc (mb, 0);	
+		mono_mb_emit_ldloc (mb, src_var);
 		mono_mb_emit_byte (mb, CEE_LDIND_REF);
 		mono_mb_emit_icall (mb, cominterop_object_is_rcw);
 		pos_rcw = mono_mb_emit_short_branch (mb, CEE_BRFALSE_S);
 
 		// load dst to store later
-		mono_mb_emit_ldloc (mb, 1);
+		mono_mb_emit_ldloc (mb, dst_var);
 
 		// load src
-		mono_mb_emit_ldloc (mb, 0);	
+		mono_mb_emit_ldloc (mb, src_var);
 		mono_mb_emit_byte (mb, CEE_LDIND_REF);
 		mono_mb_emit_ldflda (mb, MONO_STRUCT_OFFSET (MonoTransparentProxy, rp));
 		mono_mb_emit_byte (mb, CEE_LDIND_REF);
@@ -799,9 +801,9 @@ mono_cominterop_emit_object_to_ptr_conv (MonoMethodBuilder *mb, MonoType *type, 
 		// if not rcw
 		mono_mb_patch_short_branch (mb, pos_rcw);
 		/* load dst to store later */
-		mono_mb_emit_ldloc (mb, 1);
+		mono_mb_emit_ldloc (mb, dst_var);
 		/* load src */
-		mono_mb_emit_ldloc (mb, 0);	
+		mono_mb_emit_ldloc (mb, src_var);
 		mono_mb_emit_byte (mb, CEE_LDIND_REF);
 		
 		if (conv == MONO_MARSHAL_CONV_OBJECT_INTERFACE)
