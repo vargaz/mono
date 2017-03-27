@@ -101,6 +101,7 @@ struct _MonoInvocation {
 	const unsigned short  *ip;
 	MonoException     *ex;
 	MonoExceptionClause *ex_handler;
+	gboolean has_jit_ex;
 };
 
 typedef struct {

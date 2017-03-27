@@ -44,4 +44,7 @@ mono_interp_frame_iter_init (MonoInterpStackIter *iter, gpointer interp_last_fra
 gboolean
 mono_interp_frame_iter_next (MonoInterpStackIter *iter, StackFrameInfo *frame);
 
+void
+mono_interp_store_eh_state (gpointer interp_last_frame, MonoException *ex);
+
 #endif /* __MONO_MINI_INTERPRETER_H__ */

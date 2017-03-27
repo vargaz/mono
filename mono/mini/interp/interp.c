@@ -86,6 +86,7 @@
 		(frame)->ex = NULL;	\
 		(frame)->ip = NULL;	\
 		(frame)->invoke_trap = 0;	\
+		(frame)->has_jit_ex = 0;	\
 	} while (0)
 
 /*
@@ -2202,6 +2203,16 @@ ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context)
 			}
 
 			mono_set_lmf ((MonoLMF *)(((gssize)ext.lmf.previous_lmf) & ~3));
+
+			if (frame->has_jit_ex) {
+				/*
+				 * If this bit is set, it means the call has thrown the exception, and we
+				 * reached this point because the EH code in mono_handle_exception ()
+				 * unwound all the JITted frames below us. frame->ex has the exception.
+				 */
+				frame->ip = ip - 2;
+				goto handle_exception;
+			}
 
 			MonoType *rtype = mini_get_underlying_type (sig->ret);
 			switch (rtype->type) {
@@ -4871,4 +4882,14 @@ mono_interp_frame_iter_next (MonoInterpStackIter *iter, StackFrameInfo *frame)
 	stack_iter->current = iframe->parent;
 
 	return TRUE;
+}
+
+void
+mono_interp_store_eh_state (gpointer interp_last_frame, MonoException *ex)
+{
+	MonoInvocation *iframe = (MonoInvocation*)interp_last_frame;
+
+	iframe->has_jit_ex = TRUE;
+	/* This is on the stack, so it doesn't need a wbarrier */
+	iframe->ex = ex;
 }

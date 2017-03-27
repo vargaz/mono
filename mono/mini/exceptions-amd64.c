@@ -592,7 +592,7 @@ mono_arch_unwind_frame (MonoDomain *domain, MonoJitTlsData *jit_tls,
 				memcpy (new_ctx, &ext->ctx, sizeof (MonoContext));
 				frame->type = FRAME_TYPE_DEBUGGER_INVOKE;
 			} else if (ext->interp_exit) {
-				frame->type = FRAME_TYPE_INTERP_EXIT;
+				frame->type = FRAME_TYPE_INTERP_TO_MANAGED;
 				frame->interp_exit_data = ext->interp_exit_data;
 			} else {
 				g_assert_not_reached ();
