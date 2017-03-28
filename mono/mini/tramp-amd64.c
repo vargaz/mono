@@ -1017,7 +1017,7 @@ mono_arch_get_enter_icall_trampoline (MonoTrampInfo **info)
 	static int farg_regs[] = {AMD64_XMM0, AMD64_XMM1, AMD64_XMM2};
 	int buf_len, i, framesize = 0, off_rbp, off_methodargs, off_targetaddr;
 
-	buf_len = 400 + MONO_TRAMPOLINE_UNWINDINFO_SIZE(0);
+	buf_len = 512 + MONO_TRAMPOLINE_UNWINDINFO_SIZE(0);
 	start = code = (guint8 *) mono_global_codeman_reserve (buf_len);
 
 	off_rbp = -framesize;

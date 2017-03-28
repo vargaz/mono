@@ -1715,42 +1715,6 @@ do_icall (ThreadContext *context, int op, stackval *sp, gpointer ptr)
 	return sp;
 }
 
-static mono_mutex_t create_method_pointer_mutex;
-
-static GHashTable *method_pointer_hash = NULL;
-
-#define TRAMPS_USED 8
-
-static MonoMethod *method_pointers [TRAMPS_USED] = {0};
-
-#define GEN_METHOD_PTR_TRAMP(num) \
-		static MonoObject * mp_tramp_ ## num (MonoObject *this_obj, void **params, MonoObject **exc, void *compiled_method) { \
-			MonoError error; \
-			void *params_real[] = {this_obj, &params, &exc, &compiled_method}; \
-			MonoObject *ret = mono_interp_runtime_invoke (method_pointers [num], NULL, params_real, NULL, &error); \
-			mono_error_cleanup (&error); \
-			return ret; \
-		}
-
-
-GEN_METHOD_PTR_TRAMP (0);
-GEN_METHOD_PTR_TRAMP (1);
-GEN_METHOD_PTR_TRAMP (2);
-GEN_METHOD_PTR_TRAMP (3);
-GEN_METHOD_PTR_TRAMP (4);
-GEN_METHOD_PTR_TRAMP (5);
-GEN_METHOD_PTR_TRAMP (6);
-GEN_METHOD_PTR_TRAMP (7);
-
-#undef GEN_METHOD_PTR_TRAMP
-
-gpointer *mp_tramps[TRAMPS_USED] = {
-	(gpointer) mp_tramp_0, (gpointer) mp_tramp_1, (gpointer) mp_tramp_2, (gpointer) mp_tramp_3,
-	(gpointer) mp_tramp_4, (gpointer) mp_tramp_5, (gpointer) mp_tramp_6, (gpointer) mp_tramp_7
-};
-
-static int tramps_used = 0;
-
 /*
  * These functions are the entry points into the interpreter from compiled code.
  * They are called by the interp_in wrappers. They have the following signature:
@@ -1906,104 +1870,61 @@ gpointer
 mono_interp_create_method_pointer (MonoMethod *method, MonoError *error)
 {
 	gpointer addr;
-	MonoJitInfo *ji;
+	MonoMethodSignature *sig = mono_method_signature (method);
+	MonoMethod *wrapper;
+	RuntimeMethod *rmethod;
 
-	if (!method->wrapper_type) {
-		MonoMethodSignature *sig = mono_method_signature (method);
-		MonoMethod *wrapper;
-		RuntimeMethod *rmethod;
-
-		if (sig->param_count > MAX_INTERP_ENTRY_ARGS)
-			return NULL;
-
-#if 0
-		// FIXME:
-		if (strcmp (method->klass->name, "InterpClass"))
-			return NULL;
-#endif
-
-		rmethod = mono_interp_get_runtime_method (mono_domain_get (), method, error);
-		if (rmethod->jit_entry)
-			return rmethod->jit_entry;
-
-		wrapper = mini_get_interp_in_wrapper (sig);
-
-		gpointer jit_wrapper = mono_jit_compile_method_jit_only (wrapper, error);
-		mono_error_assert_ok (error);
-
-		//printf ("%s %s\n", mono_method_full_name (method, 1), mono_method_full_name (wrapper, 1));
-		gpointer entry_func;
-		if (sig->hasthis) {
-			if (sig->ret->type == MONO_TYPE_VOID)
-				entry_func = entry_funcs_instance [sig->param_count];
-			else
-				entry_func = entry_funcs_instance_ret [sig->param_count];
-		} else {
-			if (sig->ret->type == MONO_TYPE_VOID)
-				entry_func = entry_funcs_static [sig->param_count];
-			else
-				entry_func = entry_funcs_static_ret [sig->param_count];
-		}
-		g_assert (entry_func);
-
-		/* This is the argument passed to the interp_in wrapper by the static rgctx trampoline */
-		MonoFtnDesc *ftndesc = g_new0 (MonoFtnDesc, 1);
-		ftndesc->addr = entry_func;
-		ftndesc->arg = rmethod;
-		mono_error_assert_ok (error);
-
-		/*
-		 * The wrapper is called by compiled code, which doesn't pass the extra argument, so we pass it in the
-		 * rgctx register using a trampoline.
-		 */
-
-		// FIXME: AOT
-		g_assert (!mono_aot_only);
-		// FIXME: Clean up the signature
-		addr = mono_arch_get_static_rgctx_trampoline (NULL, (MonoMethodRuntimeGenericContext*)ftndesc, jit_wrapper);
-
-		mono_memory_barrier ();
-		rmethod->jit_entry = addr;
-
-		return addr;
-	}
-
-	if (!(method->wrapper_type == MONO_WRAPPER_RUNTIME_INVOKE))
+	if (sig->param_count > MAX_INTERP_ENTRY_ARGS)
 		return NULL;
 
-	mono_os_mutex_lock (&create_method_pointer_mutex);
-	if (!method_pointer_hash)
-		method_pointer_hash = g_hash_table_new (NULL, NULL);
-	addr = g_hash_table_lookup (method_pointer_hash, method);
-	if (addr) {
-		mono_os_mutex_unlock (&create_method_pointer_mutex);
-		return addr;
+#if 0
+	// FIXME:
+	if (strcmp (method->klass->name, "InterpClass"))
+		return NULL;
+#endif
+
+	rmethod = mono_interp_get_runtime_method (mono_domain_get (), method, error);
+	if (rmethod->jit_entry)
+		return rmethod->jit_entry;
+
+	wrapper = mini_get_interp_in_wrapper (sig);
+
+	gpointer jit_wrapper = mono_jit_compile_method_jit_only (wrapper, error);
+	mono_error_assert_ok (error);
+
+	//printf ("%s %s\n", mono_method_full_name (method, 1), mono_method_full_name (wrapper, 1));
+	gpointer entry_func;
+	if (sig->hasthis) {
+		if (sig->ret->type == MONO_TYPE_VOID)
+			entry_func = entry_funcs_instance [sig->param_count];
+		else
+			entry_func = entry_funcs_instance_ret [sig->param_count];
+	} else {
+		if (sig->ret->type == MONO_TYPE_VOID)
+			entry_func = entry_funcs_static [sig->param_count];
+		else
+			entry_func = entry_funcs_static_ret [sig->param_count];
 	}
+	g_assert (entry_func);
+
+	/* This is the argument passed to the interp_in wrapper by the static rgctx trampoline */
+	MonoFtnDesc *ftndesc = g_new0 (MonoFtnDesc, 1);
+	ftndesc->addr = entry_func;
+	ftndesc->arg = rmethod;
+	mono_error_assert_ok (error);
 
 	/*
-	 * If it is a static P/Invoke method, we can just return the pointer
-	 * to the method implementation.
+	 * The wrapper is called by compiled code, which doesn't pass the extra argument, so we pass it in the
+	 * rgctx register using a trampoline.
 	 */
-	if (method->flags & METHOD_ATTRIBUTE_PINVOKE_IMPL && ((MonoMethodPInvoke*) method)->addr) {
-		ji = g_new0 (MonoJitInfo, 1);
-		ji->d.method = method;
-		ji->code_size = 1;
-		ji->code_start = addr = ((MonoMethodPInvoke*) method)->addr;
 
-		mono_jit_info_table_add (mono_get_root_domain (), ji);
-	}		
-	else {
-		g_assert (method->wrapper_type == MONO_WRAPPER_RUNTIME_INVOKE);
-		g_assert (tramps_used < TRAMPS_USED);
+	// FIXME: AOT
+	g_assert (!mono_aot_only);
+	// FIXME: Clean up the signature
+	addr = mono_arch_get_static_rgctx_trampoline (NULL, (MonoMethodRuntimeGenericContext*)ftndesc, jit_wrapper);
 
-		/* FIXME: needs locking */
-		method_pointers [tramps_used] = method;
-		addr = mp_tramps [tramps_used];
-		tramps_used++;
-	}
-
-	g_hash_table_insert (method_pointer_hash, method, addr);
-	mono_os_mutex_unlock (&create_method_pointer_mutex);
+	mono_memory_barrier ();
+	rmethod->jit_entry = addr;
 
 	return addr;
 }
@@ -5089,8 +5010,7 @@ void
 mono_interp_init ()
 {
 	mono_native_tls_alloc (&thread_context_id, NULL);
-    mono_native_tls_set_value (thread_context_id, NULL);
-	mono_os_mutex_init_recursive (&create_method_pointer_mutex);
+	mono_native_tls_set_value (thread_context_id, NULL);
 
 	mono_interp_transform_init ();
 }
