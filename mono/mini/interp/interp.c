@@ -2184,7 +2184,7 @@ ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context)
 			if (new_method->alloca_size > rtm->alloca_size)
 				g_error ("MINT_JMP to method which needs more stack space (%d > %d)", new_method->alloca_size, rtm->alloca_size); 
 			rtm = frame->runtime_method = new_method;
-			printf ("%p\n", (frame)->runtime_method);
+			//printf ("%p\n", (frame)->runtime_method);
 			fflush (stdout);
 			vt_sp = (unsigned char *) sp + rtm->stack_size;
 #if DEBUG_INTERP
@@ -4233,6 +4233,9 @@ array_constructed:
 			BINOP_CAST(l, -, guint64);
 			MINT_IN_BREAK;
 		MINT_IN_CASE(MINT_ENDFINALLY)
+			while (sp > frame->stack) {
+				--sp;
+			}
 			if (finally_ips) {
 				ip = finally_ips->data;
 				finally_ips = g_slist_remove (finally_ips, ip);
