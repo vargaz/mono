@@ -1507,16 +1507,16 @@ interp_entry (InterpEntryData *data)
 			break;
 		case MONO_TYPE_U:
 #if SIZEOF_VOID_P == 4
-			args [a_index].data.i = *(guint32*)params [i];
+			args [a_index].data.p = GINT_TO_POINTER (*(guint32*)params [i]);
 #else
-			args [a_index].data.i = *(guint64*)params [i];
+			args [a_index].data.p = GINT_TO_POINTER (*(guint64*)params [i]);
 #endif
 			break;
 		case MONO_TYPE_I:
 #if SIZEOF_VOID_P == 4
-			args [a_index].data.i = *(gint32*)params [i];
+			args [a_index].data.p = GINT_TO_POINTER (*(gint32*)params [i]);
 #else
-			args [a_index].data.i = *(gint64*)params [i];
+			args [a_index].data.p = GINT_TO_POINTER (*(gint64*)params [i]);
 #endif
 			break;
 		case MONO_TYPE_U4:
@@ -1604,6 +1604,20 @@ interp_entry (InterpEntryData *data)
 		break;
 	case MONO_TYPE_U8:
 		*(guint64*)data->res = frame.retval->data.i;
+		break;
+	case MONO_TYPE_I:
+#if SIZEOF_VOID_P == 8
+		*(gint64*)data->res = (gint64)frame.retval->data.p;
+#else
+		*(gint32*)data->res = (gint32)frame.retval->data.p;
+#endif
+		break;
+	case MONO_TYPE_U:
+#if SIZEOF_VOID_P == 8
+		*(guint64*)data->res = (guint64)frame.retval->data.p;
+#else
+		*(guint32*)data->res = (guint32)frame.retval->data.p;
+#endif
 		break;
 	case MONO_TYPE_OBJECT:
 		/* No need for a write barrier */
@@ -1875,6 +1889,8 @@ mono_interp_create_method_pointer (MonoMethod *method, MonoError *error)
 	RuntimeMethod *rmethod;
 
 	if (sig->param_count > MAX_INTERP_ENTRY_ARGS)
+		return NULL;
+	if (method->wrapper_type && method->wrapper_type != MONO_WRAPPER_RUNTIME_INVOKE)
 		return NULL;
 
 #if 0
