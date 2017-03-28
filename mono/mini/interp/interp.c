@@ -2392,6 +2392,7 @@ ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context)
 			MonoFtnDesc ftndesc;
 			guint8 res_buf [256];
 			MonoLMFExt ext;
+			MonoType *type;
 
 			//printf ("%s\n", mono_method_full_name (rmethod->method, 1));
 
@@ -2439,18 +2440,19 @@ ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context)
 			gpointer args [32];
 			int pindex = 0;
 			int stack_index = 0;
-			if (sig->hasthis) {
+			if (rmethod->hasthis) {
 				args [pindex ++] = sp [0].data.p;
 				stack_index ++;
 			}
-			if (sig->ret->type != MONO_TYPE_VOID) {
-				if (MONO_TYPE_ISSTRUCT (sig->ret))
+			type = rmethod->rtype;
+			if (type->type != MONO_TYPE_VOID) {
+				if (MONO_TYPE_ISSTRUCT (type))
 					args [pindex ++] = vt_sp;
 				else
 					args [pindex ++] = res_buf;
 			}
-			for (int i = 0; i < sig->param_count; ++i) {
-				MonoType *t = sig->params [i];
+			for (int i = 0; i < rmethod->param_count; ++i) {
+				MonoType *t = rmethod->param_types [i];
 				stackval *sval = &sp [stack_index + i];
 				if (t->byref) {
 					args [pindex ++] = sval->data.p;
@@ -2459,7 +2461,6 @@ ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context)
 				} else if (MONO_TYPE_IS_REFERENCE (t)) {
 					args [pindex ++] = &sval->data.p;
 				} else {
-					t = mini_get_underlying_type (t);
 					switch (t->type) {
 					case MONO_TYPE_I1:
 					case MONO_TYPE_U1:
@@ -2570,7 +2571,7 @@ ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context)
 				goto handle_exception;
 			}
 
-			MonoType *rtype = mini_get_underlying_type (sig->ret);
+			MonoType *rtype = rmethod->rtype;
 			switch (rtype->type) {
 			case MONO_TYPE_VOID:
 			case MONO_TYPE_OBJECT:
