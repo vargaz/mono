@@ -2390,9 +2390,10 @@ ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context)
 			MonoMethodSignature *sig;
 			RuntimeMethod *rmethod = rtm->data_items [* (guint16 *)(ip + 1)];
 			MonoFtnDesc ftndesc;
-			// FIXME:
 			guint8 res_buf [256];
 			MonoLMFExt ext;
+
+			//printf ("%s\n", mono_method_full_name (rmethod->method, 1));
 
 			/*
 			 * Call JITted code through a gsharedvt_out wrapper. These wrappers receive every argument
@@ -2442,8 +2443,12 @@ ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context)
 				args [pindex ++] = sp [0].data.p;
 				stack_index ++;
 			}
-			if (sig->ret->type != MONO_TYPE_VOID)
-				args [pindex ++] = res_buf;
+			if (sig->ret->type != MONO_TYPE_VOID) {
+				if (MONO_TYPE_ISSTRUCT (sig->ret))
+					args [pindex ++] = vt_sp;
+				else
+					args [pindex ++] = res_buf;
+			}
 			for (int i = 0; i < sig->param_count; ++i) {
 				MonoType *t = sig->params [i];
 				stackval *sval = &sp [stack_index + i];
@@ -2468,6 +2473,7 @@ ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context)
 					case MONO_TYPE_PTR:
 					case MONO_TYPE_FNPTR:
 					case MONO_TYPE_I:
+					case MONO_TYPE_U:
 					case MONO_TYPE_OBJECT:
 						args [pindex ++] = &sval->data.p;
 						break;
@@ -2593,6 +2599,18 @@ ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context)
 				break;
 			case MONO_TYPE_U4:
 				sp->data.i = *(guint32*)res_buf;
+				break;
+			case MONO_TYPE_VALUETYPE:
+				/* The result was written to vt_sp */
+				sp->data.p = vt_sp;
+				break;
+			case MONO_TYPE_GENERICINST:
+				if (MONO_TYPE_IS_REFERENCE (rtype)) {
+					sp->data.p = *(gpointer*)res_buf;
+				} else {
+					/* The result was written to vt_sp */
+					sp->data.p = vt_sp;
+				}
 				break;
 			default:
 				printf ("%s\n", mono_type_full_name (rtype));

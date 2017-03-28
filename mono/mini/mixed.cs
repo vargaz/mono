@@ -112,6 +112,21 @@ class JitClass
 			return 9;
 		return 0;
 	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	public static AStruct exit_vtype (AStruct s) {
+		return s;
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	public static List<string> exit_ginst (List<string> l) {
+		return l;
+	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	public static GStruct<string> exit_ginst_vtype (GStruct<string> l) {
+		return l;
+	}
 }
 
 #if __MOBILE__
@@ -130,5 +145,21 @@ class Tests
 	public static int test_0_entry () {
 		// This does an interp->jit transition
 		return JitClass.entry ();
+	}
+
+	public static int test_0_exit () {
+		var astruct = new AStruct () { i = 1};
+		var astruct2 = JitClass.exit_vtype (astruct);
+		if (astruct2.i != 1)
+			return 1;
+		var ginst = new List<string> ();
+		var ginst2 = JitClass.exit_ginst (ginst);
+		if (ginst != ginst2)
+			return 2;
+		var gstruct = new GStruct<string> () { i = 1 };
+		var gstruct2 = JitClass.exit_ginst_vtype (gstruct);
+		if (gstruct2.i != 1)
+			return 3;
+		return 0;
 	}
 }

@@ -639,7 +639,6 @@ get_data_item_index (TransformData *td, void *ptr)
 static gboolean
 jit_call_supported (MonoMethod *method, MonoMethodSignature *sig)
 {
-	MonoType *t;
 	GSList *l;
 
 	if (sig->param_count > 6)
@@ -653,9 +652,6 @@ jit_call_supported (MonoMethod *method, MonoMethodSignature *sig)
 	if (method->is_inflated)
 		return FALSE;
 	if (method->string_ctor)
-		return FALSE;
-	t = mini_get_underlying_type (sig->ret);
-	if (MONO_TYPE_ISSTRUCT (t))
 		return FALSE;
 
 	for (l = jit_classes; l; l = l->next) {
