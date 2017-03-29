@@ -127,6 +127,11 @@ class JitClass
 	public static GStruct<string> exit_ginst_vtype (GStruct<string> l) {
 		return l;
 	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	public static void exit_byref (ref int i) {
+		i += 1;
+	}
 }
 
 #if __MOBILE__
@@ -160,6 +165,10 @@ class Tests
 		var gstruct2 = JitClass.exit_ginst_vtype (gstruct);
 		if (gstruct2.i != 1)
 			return 3;
+		var anint = 1;
+		JitClass.exit_byref (ref anint);
+		if (anint != 2)
+			return 4;
 		return 0;
 	}
 }

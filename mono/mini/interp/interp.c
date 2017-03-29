@@ -2454,7 +2454,7 @@ ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context)
 			for (int i = 0; i < rmethod->param_count; ++i) {
 				MonoType *t = rmethod->param_types [i];
 				stackval *sval = &sp [stack_index + i];
-				if (t->byref) {
+				if (sig->params [i]->byref) {
 					args [pindex ++] = sval->data.p;
 				} else if (MONO_TYPE_ISSTRUCT (t)) {
 					args [pindex ++] = sval->data.p;
