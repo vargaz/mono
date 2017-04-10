@@ -29,4 +29,8 @@ mono_interp_parse_options (const char *options);
 
 void
 interp_walk_stack_with_ctx (MonoInternalStackWalk func, MonoContext *ctx, MonoUnwindOptions options, void *user_data);
+
+void
+mono_interp_store_eh_state (gpointer interp_last_frame, MonoException *ex);
+
 #endif /* __MONO_MINI_INTERPRETER_H__ */

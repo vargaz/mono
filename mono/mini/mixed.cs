@@ -140,6 +140,11 @@ class JitClass
 	public static void exit_byref (ref int i) {
 		i += 1;
 	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	public static void throw_ex () {
+		throw new Exception ();
+	}
 }
 
 #if __MOBILE__
@@ -178,5 +183,15 @@ class Tests
 		if (anint != 2)
 			return 4;
 		return 0;
+	}
+
+	public static int test_0_eh1 () {
+		// Throw an exception from jitted code, catch it in interpreted code
+		try {
+			JitClass.throw_ex ();
+		} catch (Exception ex) {
+			return 0;
+		}
+		return 1;
 	}
 }

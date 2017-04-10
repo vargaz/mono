@@ -1527,6 +1527,10 @@ mono_handle_exception_internal_first_pass (MonoContext *ctx, MonoObject *obj, gi
 				*ctx = new_ctx;
 				continue;
 			}
+
+			if (frame.type == FRAME_TYPE_INTERP_TO_MANAGED)
+				return TRUE;
+
 			g_assert (frame.type == FRAME_TYPE_MANAGED);
 			ji = frame.ji;
 		}
@@ -1868,13 +1872,37 @@ mono_handle_exception_internal (MonoContext *ctx, MonoObject *obj, gboolean resu
 
 			unwind_res = mono_find_jit_info_ext (domain, jit_tls, NULL, ctx, &new_ctx, NULL, &lmf, NULL, &frame);
 			if (unwind_res) {
-				if (frame.type == FRAME_TYPE_DEBUGGER_INVOKE ||
-						frame.type == FRAME_TYPE_MANAGED_TO_NATIVE ||
-						frame.type == FRAME_TYPE_TRAMPOLINE) {
+				switch (frame.type) {
+				case FRAME_TYPE_DEBUGGER_INVOKE:
+				case FRAME_TYPE_MANAGED_TO_NATIVE:
+				case FRAME_TYPE_TRAMPOLINE:
 					*ctx = new_ctx;
 					continue;
+				case FRAME_TYPE_INTERP_TO_MANAGED:
+					/*
+					 * ctx->pc points into the interpreter, after the call which transitioned to
+					 * JITted code. Store the exception info into the
+					 * interpeter state, then resume, then interpreter will take over exception
+					 * handling.
+					 * The resuming is kinda hackish, from the native code standpoint, it looks
+					 * like the call which transitioned to JITted code has succeeded, but the
+					 * return value register etc. is not set, so we have to be careful.
+					 */
+					mono_interp_store_eh_state (frame.interp_exit_data, mono_ex);
+					// FIXME: Fixup the ip adjustment done by mono_arch_unwind_frame ()
+#ifdef TARGET_AMD64
+					/* Adjust IP */
+					ctx->gregs [AMD64_RIP] ++;
+#else
+					NOT_IMPLEMENTED;
+#endif
+					return 0;
+				case FRAME_TYPE_MANAGED:
+					break;
+				default:
+					g_assert_not_reached ();
 				}
-				g_assert (frame.type == FRAME_TYPE_MANAGED);
+
 				ji = frame.ji;
 			}
 		}

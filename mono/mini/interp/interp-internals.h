@@ -101,6 +101,7 @@ struct _MonoInvocation {
 	stackval       *sp; /* For GC stack marking */
 	/* exception info */
 	unsigned char  invoke_trap;
+	gboolean       has_jit_ex;
 	const unsigned short  *ip;
 	MonoException     *ex;
 	MonoExceptionClause *ex_handler;
