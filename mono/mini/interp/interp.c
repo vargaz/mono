@@ -2401,6 +2401,7 @@ ves_exec_method_with_context_with_ip (MonoInvocation *frame, ThreadContext *cont
 			MonoFtnDesc ftndesc;
 			guint8 res_buf [256];
 			MonoType *type;
+			MonoLMFExt ext;
 
 			//printf ("%s\n", mono_method_full_name (rmethod->method, 1));
 
@@ -2497,6 +2498,26 @@ ves_exec_method_with_context_with_ip (MonoInvocation *frame, ThreadContext *cont
 				}
 			}
 
+			/*
+			 * Push an LMF frame on the LMF stack
+			 * to mark the transition to compiled code.
+			 */
+			memset (&ext, 0, sizeof (ext));
+			ext.interp_exit = TRUE;
+			ext.interp_exit_data = frame;
+
+#ifdef MONO_ARCH_HAVE_INIT_LMF_EXT
+			MonoLMF **lmf_addr;
+
+			lmf_addr = mono_get_lmf_addr ();
+
+			mono_arch_init_lmf_ext (&ext, lmf_addr);
+
+			mono_set_lmf ((MonoLMF*)&ext);
+#else
+			NOT_IMPLEMENTED;
+#endif
+
 			switch (pindex) {
 			case 0: {
 				void (*func)(gpointer) = rmethod->jit_wrapper;
@@ -2550,6 +2571,9 @@ ves_exec_method_with_context_with_ip (MonoInvocation *frame, ThreadContext *cont
 				g_assert_not_reached ();
 				break;
 			}
+
+			/* Pop LMF frame */
+			mono_set_lmf ((MonoLMF *)(((gssize)ext.lmf.previous_lmf) & ~3));
 
 			MonoType *rtype = rmethod->rtype;
 			switch (rtype->type) {

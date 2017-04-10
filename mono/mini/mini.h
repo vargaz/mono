@@ -1216,7 +1216,10 @@ typedef struct {
 typedef struct {
 	struct MonoLMF lmf;
 	gboolean debugger_invoke;
+	gboolean interp_exit;
 	MonoContext ctx; /* if debugger_invoke is TRUE */
+	/* If interp_exit is TRUE */
+	gpointer interp_exit_data;
 } MonoLMFExt;
 
 /* Generic sharing */
