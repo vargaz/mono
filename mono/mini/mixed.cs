@@ -194,4 +194,29 @@ class Tests
 		}
 		return 1;
 	}
+
+	static bool finally_called;
+
+	public static void call_finally () {
+		try {
+			JitClass.throw_ex ();
+		} finally {
+			finally_called = true;
+		}
+	}
+
+	public static int test_0_eh2 () {
+		finally_called = false;
+
+		// Throw an exception from jitted code, execute finally in interpreted code
+		try {
+			call_finally ();
+		} catch (Exception ex) {
+			return 0;
+		}
+		if (!finally_called)
+			return 2;
+		return 1;
+	}
+
 }
