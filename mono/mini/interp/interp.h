@@ -6,6 +6,13 @@
 #define __MONO_MINI_INTERPRETER_H__
 #include <mono/mini/mini.h>
 
+typedef struct _MonoInterpStackIter MonoInterpStackIter;
+
+/* Needed for stack allocation */
+struct _MonoInterpStackIter {
+	gpointer dummy [8];
+};
+
 int
 mono_interp_regression_list (int verbose, int count, char *images []);
 
@@ -32,5 +39,11 @@ interp_walk_stack_with_ctx (MonoInternalStackWalk func, MonoContext *ctx, MonoUn
 
 void
 mono_interp_store_eh_state (gpointer interp_last_frame, MonoException *ex);
+
+void
+mono_interp_frame_iter_init (MonoInterpStackIter *iter, gpointer interp_exit_data);
+
+gboolean
+mono_interp_frame_iter_next (MonoInterpStackIter *iter, StackFrameInfo *frame);
 
 #endif /* __MONO_MINI_INTERPRETER_H__ */

@@ -582,10 +582,6 @@ mono_arch_unwind_frame (MonoDomain *domain, MonoJitTlsData *jit_tls,
 		guint64 rip;
 
 		if (((guint64)(*lmf)->previous_lmf) & 2) {
-			/* 
-			 * This LMF entry is created by the soft debug code to mark transitions to
-			 * managed code done during invokes.
-			 */
 			MonoLMFExt *ext = (MonoLMFExt*)(*lmf);
 
 			if (ext->debugger_invoke) {
@@ -594,14 +590,13 @@ mono_arch_unwind_frame (MonoDomain *domain, MonoJitTlsData *jit_tls,
 				 * managed code done during invokes.
 				 */
 				frame->type = FRAME_TYPE_DEBUGGER_INVOKE;
+				memcpy (new_ctx, &ext->ctx, sizeof (MonoContext));
 			} else if (ext->interp_exit) {
 				frame->type = FRAME_TYPE_INTERP_TO_MANAGED;
 				frame->interp_exit_data = ext->interp_exit_data;
 			} else {
 				g_assert_not_reached ();
 			}
-
-			memcpy (new_ctx, &ext->ctx, sizeof (MonoContext));
 
 			*lmf = (MonoLMF *)(((guint64)(*lmf)->previous_lmf) & ~7);
 

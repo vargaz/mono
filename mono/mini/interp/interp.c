@@ -892,6 +892,7 @@ ves_pinvoke_method (MonoInvocation *frame, MonoMethodSignature *sig, MonoFuncV a
 	MonoInvocation *old_frame = context->current_frame;
 	MonoInvocation *old_env_frame = context->env_frame;
 	jmp_buf *old_env = context->current_env;
+	MonoLMFExt ext;
 
 	if (setjmp (env)) {
 		context->current_frame = old_frame;
@@ -922,7 +923,30 @@ ves_pinvoke_method (MonoInvocation *frame, MonoMethodSignature *sig, MonoFuncV a
 	context->current_frame = frame;
 	context->managed_code = 0;
 
+	/*
+	 * Push an LMF frame on the LMF stack
+	 * to mark the transition to native code.
+	 */
+	memset (&ext, 0, sizeof (ext));
+	ext.interp_exit = TRUE;
+	ext.interp_exit_data = frame;
+
+#ifdef MONO_ARCH_HAVE_INIT_LMF_EXT
+	MonoLMF **lmf_addr;
+
+	lmf_addr = mono_get_lmf_addr ();
+
+	mono_arch_init_lmf_ext (&ext, *lmf_addr);
+
+	mono_set_lmf ((MonoLMF*)&ext);
+#else
+	NOT_IMPLEMENTED;
+#endif
+
 	mono_interp_enter_icall_trampoline (addr, margs);
+
+	/* Pop LMF frame */
+	mono_set_lmf ((MonoLMF *)(((gssize)ext.lmf.previous_lmf) & ~3));
 
 	context->managed_code = 1;
 	/* domain can only be changed by native code */
@@ -1557,7 +1581,7 @@ interp_entry (InterpEntryData *data)
 		}
 	}
 
-	init_frame (&frame, context->current_frame, data->rmethod, args, &result);
+	init_frame (&frame, NULL, data->rmethod, args, &result);
 	context->managed_code = 1;
 
 	type = rmethod->rtype;
@@ -2512,7 +2536,7 @@ ves_exec_method_with_context_with_ip (MonoInvocation *frame, ThreadContext *cont
 
 			lmf_addr = mono_get_lmf_addr ();
 
-			mono_arch_init_lmf_ext (&ext, lmf_addr);
+			mono_arch_init_lmf_ext (&ext, *lmf_addr);
 
 			mono_set_lmf ((MonoLMF*)&ext);
 #else
@@ -5266,4 +5290,43 @@ mono_interp_store_eh_state (gpointer interp_last_frame, MonoException *ex)
 	iframe->has_jit_ex = TRUE;
 	/* This is on the stack, so it doesn't need a wbarrier */
 	iframe->ex = ex;
+}
+
+typedef struct {
+	MonoInvocation *current;
+} StackIter;
+
+/*
+ * mono_interp_frame_iter_init:
+ *
+ *   Initialize an iterator for iterating through interpreted frames.
+ */
+void
+mono_interp_frame_iter_init (MonoInterpStackIter *iter, gpointer interp_exit_data)
+{
+	StackIter *stack_iter = (StackIter*)iter;
+
+	stack_iter->current = (MonoInvocation*)interp_exit_data;
+}
+
+gboolean
+mono_interp_frame_iter_next (MonoInterpStackIter *iter, StackFrameInfo *frame)
+{
+	StackIter *stack_iter = (StackIter*)iter;
+	MonoInvocation *iframe = stack_iter->current;
+
+	memset (frame, 0, sizeof (StackFrameInfo));
+	/* pinvoke frames doesn't have runtime_method set */
+	while (iframe && !iframe->runtime_method)
+		iframe = iframe->parent;
+	if (!iframe)
+		return FALSE;
+
+	frame->type = FRAME_TYPE_INTERP;
+	frame->method = iframe->runtime_method->method;
+	frame->actual_method = frame->method;
+
+	stack_iter->current = iframe->parent;
+
+	return TRUE;
 }
