@@ -76,7 +76,8 @@ class InterpClass
 
 	[MethodImplAttribute (MethodImplOptions.NoInlining)]
 	public static StackTrace get_stacktrace_interp () {
-		return new StackTrace ();
+		var o = new object ();
+		return new StackTrace (true);
 	}
 }
 
