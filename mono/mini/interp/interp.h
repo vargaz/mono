@@ -13,6 +13,8 @@ struct _MonoInterpStackIter {
 	gpointer dummy [8];
 };
 
+typedef gpointer InterpExitData;
+
 int
 mono_interp_regression_list (int verbose, int count, char *images []);
 
@@ -38,10 +40,13 @@ void
 interp_walk_stack_with_ctx (MonoInternalStackWalk func, MonoContext *ctx, MonoUnwindOptions options, void *user_data);
 
 void
-mono_interp_store_eh_state (gpointer interp_last_frame, MonoException *ex);
+mono_interp_set_resume_state (MonoException *ex, StackFrameInfo *frame, gpointer handler_ip);
 
 void
-mono_interp_frame_iter_init (MonoInterpStackIter *iter, gpointer interp_exit_data);
+mono_interp_run_finally (StackFrameInfo *frame, int clause_index, gpointer handler_ip);
+
+void
+mono_interp_frame_iter_init (MonoInterpStackIter *iter, InterpExitData interp_exit_data);
 
 gboolean
 mono_interp_frame_iter_next (MonoInterpStackIter *iter, StackFrameInfo *frame);

@@ -966,6 +966,7 @@ generate (MonoMethod *method, RuntimeMethod *rtm, unsigned char *is_bb_start, Mo
 	TransformData td;
 	int generating_code = 1;
 	GArray *line_numbers;
+	int *clause_indexes;
 
 	memset(&td, 0, sizeof(td));
 	td.method = method;
@@ -987,9 +988,11 @@ generate (MonoMethod *method, RuntimeMethod *rtm, unsigned char *is_bb_start, Mo
 	td.data_items = NULL;
 	td.data_hash = g_hash_table_new (NULL, NULL);
 	rtm->data_items = td.data_items;
+	clause_indexes = g_malloc (header->code_size * sizeof (int));
 	for (i = 0; i < header->code_size; i++) {
 		td.forward_refs [i] = -1;
 		td.stack_height [i] = -1;
+		clause_indexes [i] = -1;
 	}
 	td.new_ip = td.new_code;
 	td.last_new_ip = NULL;
@@ -1020,6 +1023,13 @@ generate (MonoMethod *method, RuntimeMethod *rtm, unsigned char *is_bb_start, Mo
 			td.stack_state [c->data.filter_offset] = g_malloc0(sizeof(StackInfo));
 			td.stack_state [c->data.filter_offset][0].type = STACK_TYPE_O;
 			td.stack_state [c->data.filter_offset][0].klass = NULL; /*FIX*/
+		}
+
+		if (c->flags & MONO_EXCEPTION_CLAUSE_FINALLY) {
+			for (int j = c->handler_offset; j < c->handler_offset + c->handler_len; ++j) {
+				if (clause_indexes [j] == -1)
+					clause_indexes [j] = i;
+			}
 		}
 	}
 
@@ -2842,9 +2852,10 @@ generate (MonoMethod *method, RuntimeMethod *rtm, unsigned char *is_bb_start, Mo
 			++td.ip;
 			break;
 		case CEE_ENDFINALLY:
+			g_assert (clause_indexes [in_offset] != -1);
 			td.sp = td.stack;
 			SIMPLE_OP (td, MINT_ENDFINALLY);
-			generating_code = 0;
+			ADD_CODE (&td, clause_indexes [in_offset]);
 			break;
 		case CEE_LEAVE:
 			td.sp = td.stack;
@@ -3274,6 +3285,8 @@ generate (MonoMethod *method, RuntimeMethod *rtm, unsigned char *is_bb_start, Mo
 	}
 	g_assert (td.max_stack_height <= (header->max_stack + 1));
 
+	int code_len = td.new_ip - td.new_code;
+
 	rtm->clauses = mono_domain_alloc0 (domain, header->num_clauses * sizeof (MonoExceptionClause));
 	memcpy (rtm->clauses, header->clauses, header->num_clauses * sizeof(MonoExceptionClause));
 	rtm->code = mono_domain_alloc0 (domain, (td.new_ip - td.new_code) * sizeof (gushort));
@@ -3300,6 +3313,24 @@ generate (MonoMethod *method, RuntimeMethod *rtm, unsigned char *is_bb_start, Mo
 	/* Save debug info */
 	interp_save_debug_info (rtm, header, &td, line_numbers);
 
+	int jinfo_len = mono_jit_info_size (0, header->num_clauses, 0);
+	MonoJitInfo *jinfo = (MonoJitInfo *)mono_domain_alloc0 (domain, jinfo_len);
+	rtm->jinfo = jinfo;
+	mono_jit_info_init (jinfo, method, (guint8*)rtm->code, code_len, 0, header->num_clauses, 0);
+	for (i = 0; i < jinfo->num_clauses; ++i) {
+		MonoJitExceptionInfo *ei = &jinfo->clauses [i];
+		MonoExceptionClause *c = rtm->clauses + i;
+
+		ei->flags = c->flags;
+		ei->try_start = rtm->code + c->try_offset;
+		ei->try_end = rtm->code + c->try_offset + c->try_len;
+		ei->handler_start = rtm->code + c->handler_offset;
+		if (ei->flags == MONO_EXCEPTION_CLAUSE_FILTER || ei->flags == MONO_EXCEPTION_CLAUSE_FINALLY) {
+		} else {
+			ei->data.catch_class = c->data.catch_class;
+		}
+	}
+
 	g_free (td.in_offsets);
 	g_free (td.forward_refs);
 	for (i = 0; i < header->code_size; ++i)
@@ -3311,6 +3342,7 @@ generate (MonoMethod *method, RuntimeMethod *rtm, unsigned char *is_bb_start, Mo
 	g_free (td.stack);
 	g_hash_table_destroy (td.data_hash);
 	g_array_free (line_numbers, TRUE);
+	g_free (clause_indexes);
 }
 
 static mono_mutex_t calc_section;

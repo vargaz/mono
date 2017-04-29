@@ -88,7 +88,6 @@ init_frame (MonoInvocation *frame, MonoInvocation *parent_frame, RuntimeMethod *
 	frame->ex = NULL;
 	frame->ip = NULL;
 	frame->invoke_trap = 0;
-	frame->has_jit_ex = 0;
 }
 
 #define INIT_FRAME(frame,parent_frame,method_args,method_retval,domain,mono_method,error) do { \
@@ -148,7 +147,8 @@ db_match_method (gpointer data, gpointer user_data)
 		break_on_method = 1;
 }
 
-static void debug_enter (MonoInvocation *frame, int *tracing)
+static void
+debug_enter (MonoInvocation *frame, int *tracing)
 {
 	if (db_methods) {
 		g_list_foreach (db_methods, db_match_method, (gpointer)frame->runtime_method->method);
@@ -197,6 +197,17 @@ static void debug_enter (MonoInvocation *frame, int *tracing)
 #define DEBUG_LEAVE()
 
 #endif
+
+/* Set the current execution state to the resume state */
+#define SET_RESUME_STATE() do { \
+		ip = context->handler_ip;			 \
+		sp->data.p = frame->ex;			 \
+		++sp;							 \
+		frame->ex = NULL;				 \
+		context->has_resume_state = 0;   \
+		context->handler_frame = NULL;   \
+		goto main_loop;					 \
+	} while (0)
 
 static void
 interp_ex_handler (MonoException *ex) {
@@ -1315,12 +1326,10 @@ mono_interp_runtime_invoke (MonoMethod *method, void *obj, void **params, MonoOb
 
 	if (context == NULL) {
 		context = &context_struct;
+		memset (context, 0, sizeof (ThreadContext));
 		context_struct.base_frame = &frame;
-		context_struct.current_frame = NULL;
 		context_struct.env_frame = &frame;
 		context_struct.current_env = &env;
-		context_struct.search_for_handler = 0;
-		context_struct.managed_code = 0;
 		mono_native_tls_set_value (thread_context_id, context);
 	}
 	else
@@ -1990,7 +1999,7 @@ static int opcode_counts[512];
 	if (tracing > 1) { \
 		char *ins; \
 		if (sp > frame->stack) { \
-			ins = dump_stack (frame->stack, sp); \
+			ins = dump_stack (frame->stack, sp);	\
 		} else { \
 			ins = g_strdup (""); \
 		} \
@@ -2029,8 +2038,11 @@ static int opcode_counts[512];
 static void
 ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context);
 
+/*
+ * If EXIT_AT_CLAUSE is not -1, exit after exiting the finally clause with that index.
+ */
 static void 
-ves_exec_method_with_context_with_ip (MonoInvocation *frame, ThreadContext *context, unsigned short *start_with_ip, MonoException *filter_exception)
+ves_exec_method_with_context_with_ip (MonoInvocation *frame, ThreadContext *context, unsigned short *start_with_ip, int exit_at_clause, MonoException *filter_exception)
 {
 	MonoInvocation child_frame;
 	GSList *finally_ips = NULL;
@@ -2286,6 +2298,13 @@ ves_exec_method_with_context_with_ip (MonoInvocation *frame, ThreadContext *cont
 
 			context->current_frame = frame;
 
+			if (context->has_resume_state) {
+				if (frame == context->handler_frame)
+					SET_RESUME_STATE ();
+				else
+					goto exit_frame;
+			}
+
 			if (child_frame.ex) {
 				/*
 				 * An exception occurred, need to run finally, fault and catch handlers..
@@ -2325,6 +2344,13 @@ ves_exec_method_with_context_with_ip (MonoInvocation *frame, ThreadContext *cont
 			ves_pinvoke_method (&child_frame, csignature, (MonoFuncV) code, FALSE, context);
 
 			context->current_frame = frame;
+
+			if (context->has_resume_state) {
+				if (frame == context->handler_frame)
+					SET_RESUME_STATE ();
+				else
+					goto exit_frame;
+			}
 
 			if (child_frame.ex) {
 				/*
@@ -2370,6 +2396,13 @@ ves_exec_method_with_context_with_ip (MonoInvocation *frame, ThreadContext *cont
 
 			context->current_frame = frame;
 
+			if (context->has_resume_state) {
+				if (frame == context->handler_frame)
+					SET_RESUME_STATE ();
+				else
+					goto exit_frame;
+			}
+
 			if (child_frame.ex) {
 				/*
 				 * An exception occurred, need to run finally, fault and catch handlers..
@@ -2409,6 +2442,13 @@ ves_exec_method_with_context_with_ip (MonoInvocation *frame, ThreadContext *cont
 			ves_exec_method_with_context (&child_frame, context);
 
 			context->current_frame = frame;
+
+			if (context->has_resume_state) {
+				if (frame == context->handler_frame)
+					SET_RESUME_STATE ();
+				else
+					goto exit_frame;
+			}
 
 			if (child_frame.ex) {
 				/*
@@ -2600,14 +2640,17 @@ ves_exec_method_with_context_with_ip (MonoInvocation *frame, ThreadContext *cont
 			/* Pop LMF frame */
 			mono_set_lmf ((MonoLMF *)(((gssize)ext.lmf.previous_lmf) & ~3));
 
-			if (frame->has_jit_ex) {
+			if (context->has_resume_state) {
 				/*
 				 * If this bit is set, it means the call has thrown the exception, and we
 				 * reached this point because the EH code in mono_handle_exception ()
-				 * unwound all the JITted frames below us. frame->ex has the exception.
+				 * unwound all the JITted frames below us. mono_interp_set_resume_state ()
+				 * has set the fields in context to indicate where we have to resume execution.
 				 */
-				frame->ip = ip - 2;
-				goto handle_exception;
+				if (frame == context->handler_frame)
+					SET_RESUME_STATE ();
+				else
+					goto exit_frame;
 			}
 
 			MonoType *rtype = rmethod->rtype;
@@ -2694,6 +2737,13 @@ ves_exec_method_with_context_with_ip (MonoInvocation *frame, ThreadContext *cont
 
 			context->current_frame = frame;
 
+			if (context->has_resume_state) {
+				if (frame == context->handler_frame)
+					SET_RESUME_STATE ();
+				else
+					goto exit_frame;
+			}
+
 			if (child_frame.ex) {
 				/*
 				 * An exception occurred, need to run finally, fault and catch handlers..
@@ -2740,6 +2790,13 @@ ves_exec_method_with_context_with_ip (MonoInvocation *frame, ThreadContext *cont
 			ves_exec_method_with_context (&child_frame, context);
 
 			context->current_frame = frame;
+
+			if (context->has_resume_state) {
+				if (frame == context->handler_frame)
+					SET_RESUME_STATE ();
+				else
+					goto exit_frame;
+			}
 
 			if (child_frame.ex) {
 				/*
@@ -3526,6 +3583,13 @@ ves_exec_method_with_context_with_ip (MonoInvocation *frame, ThreadContext *cont
 
 			context->current_frame = frame;
 
+			if (context->has_resume_state) {
+				if (frame == context->handler_frame)
+					SET_RESUME_STATE ();
+				else
+					goto exit_frame;
+			}
+
 			if (child_frame.ex) {
 				/*
 				 * An exception occurred, need to run finally, fault and catch handlers..
@@ -4307,6 +4371,11 @@ array_constructed:
 			BINOP_CAST(l, -, guint64);
 			MINT_IN_BREAK;
 		MINT_IN_CASE(MINT_ENDFINALLY)
+			ip ++;
+			int clause_index = *ip;
+			if (clause_index == exit_at_clause)
+				goto exit_frame;
+			ip ++;
 			while (sp > frame->stack) {
 				--sp;
 			}
@@ -4751,7 +4820,7 @@ array_constructed:
 					stackval retval;
 					memcpy (&dup_frame, inv, sizeof (MonoInvocation));
 					dup_frame.retval = &retval;
-					ves_exec_method_with_context_with_ip (&dup_frame, context, inv->runtime_method->code + clause->data.filter_offset, frame->ex);
+					ves_exec_method_with_context_with_ip (&dup_frame, context, inv->runtime_method->code + clause->data.filter_offset, -1, frame->ex);
 					if (dup_frame.retval->data.i) {
 #if DEBUG_INTERP
 						if (tracing)
@@ -4902,7 +4971,7 @@ exit_frame:
 static void
 ves_exec_method_with_context (MonoInvocation *frame, ThreadContext *context)
 {
-	ves_exec_method_with_context_with_ip (frame, context, NULL, NULL);
+	ves_exec_method_with_context_with_ip (frame, context, NULL, -1, NULL);
 }
 
 void
@@ -5282,14 +5351,30 @@ mono_interp_regression_list (int verbose, int count, char *images [])
 	return total;
 }
 
+/*
+ * mono_interp_set_resume_state:
+ *
+ *   Set the state the interpeter will continue to execute from after execution returns to the interpreter.
+ */
 void
-mono_interp_store_eh_state (gpointer interp_last_frame, MonoException *ex)
+mono_interp_set_resume_state (MonoException *ex, StackFrameInfo *frame, gpointer handler_ip)
 {
-	MonoInvocation *iframe = (MonoInvocation*)interp_last_frame;
+	ThreadContext *context = mono_native_tls_get_value (thread_context_id);
 
-	iframe->has_jit_ex = TRUE;
+	context->has_resume_state = TRUE;
+	context->handler_frame = frame->interp_frame;
 	/* This is on the stack, so it doesn't need a wbarrier */
-	iframe->ex = ex;
+	context->handler_frame->ex = ex;
+	context->handler_ip = handler_ip;
+}
+
+void
+mono_interp_run_finally (StackFrameInfo *frame, int clause_index, gpointer handler_ip)
+{
+	MonoInvocation *iframe = frame->interp_frame;
+	ThreadContext *context = mono_native_tls_get_value (thread_context_id);
+
+	ves_exec_method_with_context_with_ip (iframe, context, handler_ip, clause_index, NULL);
 }
 
 typedef struct {
@@ -5323,10 +5408,12 @@ mono_interp_frame_iter_next (MonoInterpStackIter *iter, StackFrameInfo *frame)
 		return FALSE;
 
 	frame->type = FRAME_TYPE_INTERP;
+	frame->interp_frame = iframe;
 	frame->method = iframe->runtime_method->method;
 	frame->actual_method = frame->method;
 	/* This is the offset in the interpreter IR */
 	frame->native_offset = iframe->ip - iframe->runtime_method->code;
+	frame->ji = iframe->runtime_method->jinfo;
 
 	stack_iter->current = iframe->parent;
 

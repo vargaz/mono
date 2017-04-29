@@ -81,6 +81,9 @@ typedef struct {
 	/* For FRAME_TYPE_INTERP_EXIT */
 	gpointer interp_exit_data;
 
+	/* For FRAME_TYPE_INTERP */
+	gpointer interp_frame;
+
 	/* The next fields are only useful for the jit */
 	gpointer lmf;
 	guint32 unwind_info_len;

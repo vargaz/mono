@@ -79,6 +79,11 @@ class InterpClass
 		var o = new object ();
 		return new StackTrace (true);
 	}
+
+	[MethodImplAttribute (MethodImplOptions.NoInlining)]
+	public static void throw_ex () {
+		JitClass.throw_ex ();
+	}
 }
 
 /* The methods in this class will always be JITted */
@@ -196,10 +201,19 @@ class Tests
 		return 0;
 	}
 
-	public static int test_0_eh1 () {
+	public static int test_0_throw () {
 		// Throw an exception from jitted code, catch it in interpreted code
 		try {
 			JitClass.throw_ex ();
+		} catch {
+			return 0;
+		}
+		return 1;
+	}
+
+	public static int test_0_throw_child () {
+		try {
+			InterpClass.throw_ex ();
 		} catch {
 			return 0;
 		}

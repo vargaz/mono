@@ -89,6 +89,7 @@ typedef struct _RuntimeMethod
 	gpointer jit_entry;
 	MonoType *rtype;
 	MonoType **param_types;
+	MonoJitInfo *jinfo;
 } RuntimeMethod;
 
 struct _MonoInvocation {
@@ -102,7 +103,6 @@ struct _MonoInvocation {
 	stackval       *sp; /* For GC stack marking */
 	/* exception info */
 	unsigned char  invoke_trap;
-	gboolean       has_jit_ex;
 	const unsigned short  *ip;
 	MonoException     *ex;
 	MonoExceptionClause *ex_handler;
@@ -116,6 +116,11 @@ typedef struct {
 	jmp_buf *current_env;
 	unsigned char search_for_handler;
 	unsigned char managed_code;
+
+	/* Resume state for resuming execution in mixed mode */
+	gboolean       has_resume_state;
+	MonoInvocation *handler_frame;
+	gpointer handler_ip;
 } ThreadContext;
 
 extern int mono_interp_traceopt;
