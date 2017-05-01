@@ -316,6 +316,7 @@ net_4_x_parallel_dirs := \
 	System.Workflow.Runtime \
 	System.Reflection.Context \
 	legacy/Mono.Cecil \
+	Mono.Reflection.Emit.Save \
 	$(pcl_facade_dirs)
 
 xbuild_2_0_dirs := \

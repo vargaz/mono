@@ -254,6 +254,48 @@ namespace System.Reflection.Emit
 			return parameters [pos];
 		}
 
+		internal ParameterBuilder[] GetParameterBuilders () {
+			if (pinfo == null)
+				return EmptyArray<ParameterBuilder>.Value;
+			return pinfo;
+		}
+
+		internal ParameterBuilder GetParameterBuilder (int pos) {
+			if (pinfo != null)
+				return pinfo [pos];
+			return null;
+		}
+
+		internal Type[] GetParamModReq (int pos) {
+			if (paramModReq != null)
+				return paramModReq [pos];
+			return null;
+		}
+
+		internal Type[] GetParamModOpt (int pos) {
+			if (paramModOpt != null)
+				return paramModOpt [pos];
+			return null;
+		}
+
+		internal Type[] GetReturnModReq () {
+			return returnModReq;
+		}
+
+		internal Type[] GetReturnModOpt () {
+			return returnModOpt;
+		}
+
+		internal CustomAttributeBuilder[] GetCustomAttributeBuilders () {
+			if (cattrs == null)
+				return EmptyArray<CustomAttributeBuilder>.Value;
+			return cattrs;
+		}
+
+		internal ILGenerator GetILGen () {
+			return ilgen;
+		}
+
 		internal MethodBase RuntimeResolve () {
 			return type.RuntimeResolve ().GetMethod (this);
 		}
@@ -585,6 +627,12 @@ namespace System.Reflection.Emit
 		internal void set_override (MethodInfo mdecl)
 		{
 			ExtendArray<MethodInfo> (ref override_methods, mdecl);
+		}
+
+		internal MethodInfo[] GetOverrides () {
+			if (override_methods == null)
+				return EmptyArray<MethodInfo>.Value;
+			return override_methods;
 		}
 
 		private void RejectIfCreated ()

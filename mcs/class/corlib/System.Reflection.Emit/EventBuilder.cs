@@ -140,6 +140,30 @@ namespace System.Reflection.Emit {
 				throw new InvalidOperationException ("Type definition of the method is complete.");
 		}
 
+		internal string Name {
+			get {
+				return name;
+			}
+		}
+
+		internal EventAttributes Attributes {
+			get {
+				return attrs;
+			}
+		}
+
+		internal Type EventType {
+			get {
+				return type;
+			}
+		}
+
+		internal CustomAttributeBuilder[] GetCustomAttributeBuilders () {
+			if (cattrs == null)
+				return EmptyArray<CustomAttributeBuilder>.Value;
+			return cattrs;
+		}
+
 		void _EventBuilder.GetIDsOfNames ([In] ref Guid riid, IntPtr rgszNames, uint cNames, uint lcid, IntPtr rgDispId)
 		{
 			throw new NotImplementedException ();

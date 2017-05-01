@@ -107,6 +107,14 @@ namespace System.Reflection.Emit {
 			def_value = defaultValue;
 			attrs |= ParameterAttributes.HasDefault;
 		}
+
+		internal object GetConstant () {
+			return def_value;
+		}
+
+		internal UnmanagedMarshal GetMarshal () {
+			return marshal_info;
+		}
 		
 		public void SetCustomAttribute( CustomAttributeBuilder customBuilder) {
 			string attrname = customBuilder.Ctor.ReflectedType.FullName;
@@ -152,6 +160,12 @@ namespace System.Reflection.Emit {
 		public virtual void SetMarshal( UnmanagedMarshal unmanagedMarshal) {
 			marshal_info = unmanagedMarshal;
 			attrs |= ParameterAttributes.HasFieldMarshal;
+		}
+
+		internal CustomAttributeBuilder[] GetCustomAttributeBuilders () {
+			if (cattrs == null)
+				return EmptyArray<CustomAttributeBuilder>.Value;
+			return cattrs;
 		}
 
                 void _ParameterBuilder.GetIDsOfNames([In] ref Guid riid, IntPtr rgszNames, uint cNames, uint lcid, IntPtr rgDispId)

@@ -287,6 +287,12 @@ namespace System.Reflection.Emit {
 			return result;
 		}
 
+		internal CustomAttributeBuilder[] GetCustomAttributeBuilders () {
+			if (cattrs == null)
+				return EmptyArray<CustomAttributeBuilder>.Value;
+			return cattrs;
+		}
+
 		[ComVisible (true)]
 		public TypeBuilder DefineType (string name, TypeAttributes attr, Type parent, Type[] interfaces) {
 			return DefineType (name, attr, parent, interfaces, PackingSize.Unspecified, TypeBuilder.UnspecifiedTypeSize);
@@ -479,6 +485,13 @@ namespace System.Reflection.Emit {
 					copy [i] = types [i].CreateType ();
 
 			return copy;
+		}
+
+		internal TypeBuilder [] GetTypeBuilders ()
+		{
+			if (types == null)
+				return EmptyArray<TypeBuilder>.Value;
+			return types;
 		}
 
 		public IResourceWriter DefineResource (string name, string description, ResourceAttributes attribute)
@@ -981,6 +994,11 @@ namespace System.Reflection.Emit {
 		internal static Guid Mono_GetGuid (ModuleBuilder mb)
 		{
 			return mb.GetModuleVersionId ();
+		}
+
+		internal TypeBuilder GetGlobalTypeInternal ()
+		{
+			return global_type;
 		}
 
 		void _ModuleBuilder.GetIDsOfNames ([In] ref Guid riid, IntPtr rgszNames, uint cNames, uint lcid, IntPtr rgDispId)

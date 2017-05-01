@@ -97,7 +97,7 @@ namespace System.Reflection.Emit {
 			get {
 				return init_locals;
 			}
-			set {
+		set {
 				init_locals = value;
 			}
 		}
@@ -130,7 +130,6 @@ namespace System.Reflection.Emit {
 			for (int i = 0; i < parameters.Length; i++)
 				retval [i] = ParameterInfo.New (pinfo == null ? null
 					: pinfo [i + 1], parameters [i], this, i + 1);
-
 			return retval;
 		}
 		
@@ -144,6 +143,34 @@ namespace System.Reflection.Emit {
 
 		internal override Type GetParameterType (int pos) {
 			return parameters [pos];
+		}
+
+		internal ParameterBuilder GetParameterBuilder (int pos) {
+			if (pinfo != null)
+				return pinfo [pos];
+			return null;
+		}
+
+		internal Type[] GetParamModReq (int pos) {
+			if (paramModReq != null)
+				return paramModReq [pos];
+			return null;
+		}
+
+		internal Type[] GetParamModOpt (int pos) {
+			if (paramModOpt != null)
+				return paramModOpt [pos];
+			return null;
+		}
+
+		internal CustomAttributeBuilder[] GetCustomAttributeBuilders () {
+			if (cattrs == null)
+				return EmptyArray<CustomAttributeBuilder>.Value;
+			return cattrs;
+		}
+
+		internal ILGenerator GetILGen () {
+			return ilgen;
 		}
 
 		internal MethodBase RuntimeResolve () {

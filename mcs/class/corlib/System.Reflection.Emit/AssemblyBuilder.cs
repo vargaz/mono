@@ -253,6 +253,7 @@ namespace System.Reflection.Emit
 		private Mono.Security.StrongName sn;
 		NativeResourceType native_resource;
 		string versioninfo_culture;
+		AssemblyName aname;
 
 		[MethodImplAttribute(MethodImplOptions.InternalCall)]
 		private static extern void basic_init (AssemblyBuilder ab);
@@ -274,6 +275,7 @@ namespace System.Reflection.Emit
 			name = n.Name;
 			this.access = (uint)access;
 			flags = (uint) n.Flags;
+			aname = n;
 
 			// don't call GetCurrentDirectory for Run-only builders (CAS may not like that)
 			if (IsSave && (directory == null || directory.Length == 0)) {
@@ -825,6 +827,12 @@ namespace System.Reflection.Emit
 			}
 		}
 
+		internal CustomAttributeBuilder[] GetCustomAttributeBuilders () {
+			if (cattrs == null)
+				return EmptyArray<CustomAttributeBuilder>.Value;
+			return cattrs;
+		}
+
 		ModuleBuilder manifest_module;
 
 		//
@@ -909,6 +917,17 @@ namespace System.Reflection.Emit
 
 			if ((sn != null) && (sn.CanSign)) {
 				sn.Sign (System.IO.Path.Combine (this.AssemblyDir, assemblyFileName));
+			}
+
+			{
+				Assembly a = Assembly.Load ("Mono.Reflection.Emit.Save");
+				Type emit_type = a.GetType ("RefEmitEmitter");
+
+				emit_type.GetMethod ("EmitAssembly").Invoke (null, new object [] { this, assemblyFileName, aname });
+				/*
+				created = true;
+				return;
+				*/
 			}
 
 			created = true;

@@ -145,6 +145,36 @@ namespace System.Reflection.Emit {
 			rva_data = (byte[])data.Clone ();
 		}
 
+		internal byte[] GetRVAData () {
+			return rva_data;
+		}
+
+		internal int GetOffset () {
+			return offset;
+		}
+
+		internal Type[] GetModReq () {
+			return modReq;
+		}
+
+		internal Type[] GetModOpt () {
+			return modOpt;
+		}
+
+		internal UnmanagedMarshal GetMarshal () {
+			return marshal_info;
+		}
+
+		internal object GetConstant () {
+			return def_value;
+		}
+
+		internal CustomAttributeBuilder[] GetCustomAttributeBuilders () {
+			if (cattrs == null)
+				return EmptyArray<CustomAttributeBuilder>.Value;
+			return cattrs;
+		}
+
 		public void SetConstant( object defaultValue) {
 			RejectIfCreated ();
 

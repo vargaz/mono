@@ -91,6 +91,30 @@ namespace System.Reflection.Emit {
 			get {return new Guid (guid);}
 		}
 
+		internal string MarshalCookie {
+			get {
+				return mcookie;
+			}
+		}
+
+		internal string MarshalGuid {
+			get {
+				return guid;
+			}
+		}
+
+		internal string MarshalType {
+			get {
+				return marshaltype;
+			}
+		}
+
+		internal Type MarshalTypeRef {
+			get {
+				return marshaltyperef;
+			}
+		}
+
 		public static UnmanagedMarshal DefineByValArray( int elemCount) {
 			return new UnmanagedMarshal (UnmanagedType.ByValArray, elemCount);
 		}

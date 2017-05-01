@@ -178,6 +178,16 @@ namespace System.Reflection.Emit {
 			}
 		}
 
+		internal object GetConstant () {
+			return def_value;
+		}
+
+		internal CustomAttributeBuilder[] GetCustomAttributeBuilders () {
+			if (cattrs == null)
+				return EmptyArray<CustomAttributeBuilder>.Value;
+			return cattrs;
+		}
+
                 void _PropertyBuilder.GetIDsOfNames([In] ref Guid riid, IntPtr rgszNames, uint cNames, uint lcid, IntPtr rgDispId)
                 {
                         throw new NotImplementedException ();

@@ -1134,6 +1134,12 @@ namespace System.Reflection.Emit {
 			get { return code_len; }
 		}
 
+		internal int MaxStack {
+			get {
+				return max_stack;
+			}
+		}
+
 		void _ILGenerator.GetIDsOfNames ([In] ref Guid riid, IntPtr rgszNames, uint cNames, uint lcid, IntPtr rgDispId)
 		{
 			throw new NotImplementedException ();

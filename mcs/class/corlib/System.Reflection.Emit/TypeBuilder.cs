@@ -947,6 +947,42 @@ namespace System.Reflection.Emit
 			return result;
 		}
 
+		internal FieldBuilder[] GetFieldBuilders () {
+			if (fields == null)
+				return EmptyArray<FieldBuilder>.Value;
+			return fields;
+		}
+
+		internal ConstructorBuilder[] GetCtorBuilders () {
+			if (ctors == null)
+				return EmptyArray<ConstructorBuilder>.Value;
+			return ctors;
+		}
+
+		internal MethodBuilder[] GetMethodBuilders () {
+			if (methods == null)
+				return EmptyArray<MethodBuilder>.Value;
+			return methods;
+		}
+
+		internal PropertyBuilder[] GetPropertyBuilders () {
+			if (properties == null)
+				return EmptyArray<PropertyBuilder>.Value;
+			return properties;
+		}
+
+		internal EventBuilder[] GetEventBuilders () {
+			if (events == null)
+				return EmptyArray<EventBuilder>.Value;
+			return events;
+		}
+
+		internal CustomAttributeBuilder[] GetCustomAttributeBuilders () {
+			if (cattrs == null)
+				return EmptyArray<CustomAttributeBuilder>.Value;
+			return cattrs;
+		}
+
 		public override Type GetElementType ()
 		{
 			throw new NotSupportedException ();

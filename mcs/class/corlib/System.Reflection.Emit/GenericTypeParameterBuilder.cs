@@ -463,6 +463,16 @@ namespace System.Reflection.Emit
 				return false;
 			}
 		}
+
+		internal Type[] GetInterfaceConstraints () {
+			return iface_constraints;
+		}
+
+		internal CustomAttributeBuilder[] GetCustomAttributeBuilders () {
+			if (cattrs == null)
+				return EmptyArray<CustomAttributeBuilder>.Value;
+			return cattrs;
+		}
 	}
 }
 #endif
