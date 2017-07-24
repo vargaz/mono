@@ -5,9 +5,11 @@ include ../../build/rules.make
 LIBRARY = System.Transactions.dll
 ifdef MOBILE_PROFILE
 LIB_REFS = System
+KEYFILE = ../ecma.pub
 LIB_MCS_FLAGS = /define:MOBILE
 else
 LIB_REFS = System System.Configuration
+KEYFILE = ../ecma.pub
 LIB_MCS_FLAGS =
 endif
 

@@ -57,7 +57,6 @@ using System.Runtime.InteropServices;
 	[assembly: CLSCompliant (true)]
 	[assembly: AssemblyDelaySign (true)]
 #if !MOBILE
-	[assembly: AssemblyKeyFile("../msfinal.pub")]
 #endif
 
 [assembly: AssemblyFileVersion (Consts.FxFileVersion)]

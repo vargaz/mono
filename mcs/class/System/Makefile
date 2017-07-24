@@ -194,5 +194,9 @@ ifneq ($(PROFILE),basic)
 csproj-local:
 	$(MAKE) csproj-local intermediate=bare/
 	$(MAKE) csproj-local intermediate=secxml/
+
+ninja-gen-local::
+	$(MAKE) ninja-gen intermediate=bare/ NINJA_FILE_PREFIX=bare_
+	$(MAKE) ninja-gen intermediate=secxml/ NINJA_FILE_PREFIX=secxml_
 endif
 endif

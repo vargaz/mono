@@ -4,7 +4,7 @@ include ../../build/rules.make
 
 LIBRARY = IBM.Data.DB2.dll
 LIB_REFS = System System.Xml System.Data
-LIB_MCS_FLAGS = /unsafe -warn:1
+LIB_MCS_FLAGS = /unsafe -warn:1 /keyfile:ibm.pub
 NO_TEST = yes
 
 EXTRA_DISTFILES = ibm.pub

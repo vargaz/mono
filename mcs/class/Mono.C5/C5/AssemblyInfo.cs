@@ -76,6 +76,10 @@ using System;
 //       documentation for more information on this.
 //
 [assembly: AssemblyDelaySign(true)]
+#if NINJA_BUILD
+[assembly: AssemblyKeyFile("class/Mono.C5/c5.pub")]
+#else
 [assembly: AssemblyKeyFile("c5.pub")]
+#endif
 
 [assembly: CLSCompliant(true)]

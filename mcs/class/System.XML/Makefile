@@ -97,5 +97,8 @@ ifndef intermediate
 ifneq ($(PROFILE),basic)
 csproj-local:
 	$(MAKE) csproj-local intermediate=bare/
+
+ninja-gen-local::
+	$(MAKE) ninja-gen intermediate=bare/ NINJA_FILE_PREFIX=bare_
 endif
 endif

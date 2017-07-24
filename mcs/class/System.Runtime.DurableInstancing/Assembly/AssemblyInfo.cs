@@ -56,9 +56,7 @@ using System.Runtime.InteropServices;
 [assembly: CLSCompliant (true)]
 [assembly: AssemblyDelaySign (true)]
 #if MOBILE
-[assembly: AssemblyKeyFile ("../silverlight.pub")]
 #else
-[assembly: AssemblyKeyFile ("../winfx.pub")]
 [assembly: AllowPartiallyTrustedCallers]
 [assembly: ComCompatibleVersion (1, 0, 3300, 0)]
 #endif

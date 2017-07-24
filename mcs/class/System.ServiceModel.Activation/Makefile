@@ -5,7 +5,7 @@ include ../../build/rules.make
 LIBRARY = System.ServiceModel.Activation.dll
 
 LIB_REFS = System.Core System plainservice/System.ServiceModel
-LIB_MCS_FLAGS =
+LIB_MCS_FLAGS = /keyfile:../winfx.pub
 
 TEST_MCS_FLAGS =
 TEST_LIB_REFS = System System.Core

@@ -91,4 +91,7 @@ CLEAN_FILES = $(the_libdir_base)plainservice/System.ServiceModel.dll
 ifndef intermediate
 csproj-local:
 	$(MAKE) csproj-local intermediate=plainservice/
+
+ninja-gen-local::
+	$(MAKE) ninja-gen intermediate=plainservice/ NINJA_FILE_PREFIX=plainservice_
 endif

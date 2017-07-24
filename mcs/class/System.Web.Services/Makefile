@@ -5,6 +5,7 @@ include ../../build/rules.make
 LIBRARY = System.Web.Services.dll
 ifdef MOBILE_PROFILE
 LIB_REFS = System System.Xml
+KEYFILE = ../msfinal.pub
 LIB_MCS_FLAGS = \
 	-nowarn:649 -nowarn:168		\
 	-resource:System.Web.Services.Description/wsdl-1.1.xsd,wsdl-1.1.xsd \
@@ -12,6 +13,7 @@ LIB_MCS_FLAGS = \
 	-resource:System.Web.Services.Description/web-reference.xsd,web-reference.xsd
 else
 LIB_REFS = System System.EnterpriseServices System.Xml System.Data
+KEYFILE = ../msfinal.pub
 LIB_MCS_FLAGS = -nowarn:168,612,618,649 -d:MONO_BROKEN_CONFIGURATION_DLL
 
 ifndef NO_SYSTEM_WEB_DEPENDENCY

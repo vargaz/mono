@@ -233,6 +233,7 @@ NUNIT_APP_CODE_FILES = $(TEST_APP_CODE_FILES)
 NUNIT_APP_GLOBALRESOURCES_FILES = $(TEST_APP_GLOBALRESOURCES_FILES)
 
 OTHER_RES += $(RESOURCE_FILES_2)
+KEYFILE = ../msfinal.pub
 OTHER_LIB_MCS_FLAGS = -d:INSIDE_SYSTEM_WEB -nowarn:436,618
 
 ifeq (4, $(FRAMEWORK_VERSION_MAJOR))
@@ -243,6 +244,7 @@ TXT_RESOURCE_STRINGS = ../referencesource/System.Web/System.Web.txt
 
 LIB_REFS = System System.Core System.Drawing System.Data System.Xml System.EnterpriseServices System.Runtime.Serialization.Formatters.Soap \
 	System.ComponentModel.DataAnnotations System.Web.ApplicationServices System.Configuration Mono.Data.Sqlite
+KEYFILE = ../msfinal.pub
 LIB_MCS_FLAGS = \
 	-unsafe \
 	-nowarn:612,618	\
@@ -434,5 +436,8 @@ ifndef intermediate
 ifneq ($(PROFILE),basic)
 csproj-local:
 	$(MAKE) csproj-local intermediate=plainweb/
+
+ninja-gen-local::
+	$(MAKE) ninja-gen intermediate=plainweb/ NINJA_FILE_PREFIX=plainweb_
 endif
 endif
