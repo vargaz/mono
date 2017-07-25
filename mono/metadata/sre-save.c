@@ -965,9 +965,10 @@ mono_image_get_generic_param_info (MonoReflectionGenericParam *gparam, guint32 o
 
 	entry = g_new0 (GenericParamTableEntry, 1);
 	entry->owner = owner;
-	/* FIXME: track where gen_params should be freed and remove the GC root as well */
-	MONO_GC_REGISTER_ROOT_IF_MOVING (entry->gparam, MONO_ROOT_SOURCE_REFLECTION, "reflection generic parameter");
-	entry->gparam = gparam;
+	entry->index = gparam->index;
+
+	/* Reuse the generic_def_objects hash to store the generic param objects as well */
+	mono_g_hash_table_insert (assembly->generic_def_objects, entry, gparam);
 	
 	g_ptr_array_add (assembly->gen_params, entry);
 }
@@ -981,6 +982,7 @@ write_generic_param_entry (MonoDynamicImage *assembly, GenericParamTableEntry *e
 	MonoGenericParam *param;
 	guint32 *values;
 	guint32 table_idx;
+	MonoReflectionGenericParam *gparam;
 
 	error_init (error);
 
@@ -988,20 +990,23 @@ write_generic_param_entry (MonoDynamicImage *assembly, GenericParamTableEntry *e
 	table_idx = table->next_idx ++;
 	values = table->values + table_idx * MONO_GENERICPARAM_SIZE;
 
-	MonoType *gparam_type = mono_reflection_type_get_handle ((MonoReflectionType*)entry->gparam, error);
+	gparam = mono_g_hash_table_lookup (assembly->generic_def_objects, entry);
+	g_assert (gparam);
+
+	MonoType *gparam_type = mono_reflection_type_get_handle ((MonoReflectionType*)gparam, error);
 	return_val_if_nok (error, FALSE);
 
 	param = gparam_type->data.generic_param;
 
 	values [MONO_GENERICPARAM_OWNER] = entry->owner;
-	values [MONO_GENERICPARAM_FLAGS] = entry->gparam->attrs;
+	values [MONO_GENERICPARAM_FLAGS] = gparam->attrs;
 	values [MONO_GENERICPARAM_NUMBER] = mono_generic_param_num (param);
 	values [MONO_GENERICPARAM_NAME] = string_heap_insert (&assembly->sheap, mono_generic_param_info (param)->name);
 
-	if (!mono_image_add_cattrs (assembly, table_idx, MONO_CUSTOM_ATTR_GENERICPAR, entry->gparam->cattrs, error))
+	if (!mono_image_add_cattrs (assembly, table_idx, MONO_CUSTOM_ATTR_GENERICPAR, gparam->cattrs, error))
 		return FALSE;
 
-	encode_constraints (entry->gparam, table_idx, assembly, error);
+	encode_constraints (gparam, table_idx, assembly, error);
 	return_val_if_nok (error, FALSE);
 
 	return TRUE;
@@ -1423,19 +1428,12 @@ compare_nested (const void *a, const void *b)
 static int
 compare_genericparam (const void *a, const void *b)
 {
-	MonoError error;
 	const GenericParamTableEntry **a_entry = (const GenericParamTableEntry **) a;
 	const GenericParamTableEntry **b_entry = (const GenericParamTableEntry **) b;
 
-	if ((*b_entry)->owner == (*a_entry)->owner) {
-		MonoType *a_type = mono_reflection_type_get_handle ((MonoReflectionType*)(*a_entry)->gparam, &error);
-		mono_error_assert_ok (&error);
-		MonoType *b_type = mono_reflection_type_get_handle ((MonoReflectionType*)(*b_entry)->gparam, &error);
-		mono_error_assert_ok (&error);
-		return 
-			mono_type_get_generic_param_num (a_type) -
-			mono_type_get_generic_param_num (b_type);
-	} else
+	if ((*b_entry)->owner == (*a_entry)->owner)
+		return (*a_entry)->index - (*b_entry)->index;
+	else
 		return (*a_entry)->owner - (*b_entry)->owner;
 }
 

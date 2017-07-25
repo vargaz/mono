@@ -498,13 +498,8 @@ mono_dynamic_image_free (MonoDynamicImage *image)
 		mono_sre_array_method_free (am);
 	}
 	g_list_free (di->array_methods);
-	if (di->gen_params) {
-		for (i = 0; i < di->gen_params->len; i++) {
-			GenericParamTableEntry *entry = (GenericParamTableEntry *)g_ptr_array_index (di->gen_params, i);
-			mono_sre_generic_param_table_entry_free (entry);
-		}
+	if (di->gen_params)
 	 	g_ptr_array_free (di->gen_params, TRUE);
-	}
 	if (di->token_fixups)
 		mono_g_hash_table_destroy (di->token_fixups);
 	if (di->method_to_table_idx)
