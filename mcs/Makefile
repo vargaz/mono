@@ -171,3 +171,16 @@ mono-api-diff:
 	@mkdir -p apidiff
 	$(Q) sed -e "/@diffdata@/r temp.patch" -e "/@diffdata@/d" -e "s/@title@/Public API Diff/g" -e "s/@description@/If the changes are intentional, run <code>make -C mcs mono-api-diff<\/code> locally and commit changes in external\/api-snapshot./g" diff.html.in > apidiff/index.html
 	$(Q) if [ -s temp.patch ]; then echo "Error: Found public API differences, see mcs/apidiff/index.html. If the changes are intentional, please go to external/api-snapshot and commit them."; rm -f temp.patch; exit 1; else echo "No differences found."; rm -f temp.patch; fi
+
+# Generate ninja build file
+ninja-gen:
+	$(RM) $(depsdir)/$(PROFILE)_*.ninja
+	$(MAKE) ninja-gen-profile
+	build/gen-ninja.py main '$(MCS)' build/deps/$(PROFILE)_*.ninja > $(depsdir)/$(PROFILE)-build.ninja
+
+# Run ninja build
+ninja: $(depsdir)/$(PROFILE)-build.ninja
+	ninja -f $(depsdir)/$(PROFILE)-build.ninja
+
+ninja1: $(depsdir)/$(PROFILE)-build.ninja
+	ninja -f $(depsdir)/$(PROFILE)-build.ninja -j1

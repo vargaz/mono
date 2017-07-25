@@ -197,3 +197,23 @@ doc-update-local:
 # Need to be here so it comes after the definition of DEP_DIRS/DEP_LIBS
 gen-deps:
 	@echo "$(DEPS_TARGET_DIR): $(DEP_DIRS) $(DEP_LIBS)" >> $(DEPS_FILE)
+
+## NINJA
+
+ninja_frag = $(depsdir)/$(PROFILE)_$(base_prog).ninja
+
+ifdef DISABLE_NINJA
+ninja-gen-local::
+	echo > $(ninja_frag)
+else
+ninja-gen-local::
+	@echo "** ninja-gen in $(thisdir) **"
+	$(topdir)/build/gen-ninja.py frag --topdir $(abs_topdir) --target $(abspath $(build_lib)) --csc-args "$(USE_MCS_FLAGS)" --sources-file $(sourcefile) --extra-sources "$(BUILT_SOURCES)" --libs "$(patsubst %,$(abs_topdir)/class/lib/$(PROFILE_DIRECTORY)/%.dll,$(LIB_REFS))" > $(ninja_frag)
+endif
+
+ninja-gen: ninja-gen-profile
+
+executable_CLEAN_FILES += $(ninja_frag)
+
+ninja:
+	ninja -C $(topdir) class/lib/$(PROFILE_DIRECTORY)/$(PROGRAM)

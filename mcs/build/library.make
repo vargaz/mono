@@ -23,8 +23,15 @@ _FILTER_OUT = $(foreach x,$(2),$(if $(findstring $(1),$(x)),,$(x)))
 LIB_REFS_FULL = $(call _FILTER_OUT,=, $(LIB_REFS))
 LIB_REFS_ALIAS = $(filter-out $(LIB_REFS_FULL),$(LIB_REFS))
 
+NINJA_LIB_MCS_FLAGS := $(LIB_MCS_FLAGS)
+
 LIB_MCS_FLAGS += $(patsubst %,-r:$(topdir)/class/lib/$(PROFILE_DIRECTORY)/%.dll,$(LIB_REFS_FULL))
 LIB_MCS_FLAGS += $(patsubst %,-r:%.dll, $(subst =,=$(topdir)/class/lib/$(PROFILE_DIRECTORY)/,$(LIB_REFS_ALIAS)))
+
+ifdef KEYFILE
+LIB_MCS_FLAGS += /keyfile:$(KEYFILE)
+NINJA_LIB_MCS_FLAGS += /keyfile:$(abspath $(KEYFILE))
+endif
 
 ifndef LIBRARY_NAME
 LIBRARY_NAME = $(LIBRARY)
@@ -359,3 +366,27 @@ gen-deps:
 
 update-corefx-sr: $(RESX_RESOURCE_STRING)
 	MONO_PATH="$(topdir)/class/lib/$(BUILD_TOOLS_PROFILE)$(PLATFORM_PATH_SEPARATOR)$$MONO_PATH" $(RUNTIME) $(RUNTIME_FLAGS) $(topdir)/class/lib/$(BUILD_TOOLS_PROFILE)/resx2sr.exe $(RESX_RESOURCE_STRING) >corefx/SR.cs
+
+## NINJA
+
+ifeq ($(LIBRARY_SUBDIR),)
+SUBDIR_PREFIX =
+else
+SUBDIR_PREFIX=$(LIBRARY_SUBDIR)_
+endif
+
+ninja_frag = $(depsdir)/$(PROFILE)_$(SUBDIR_PREFIX)$(NINJA_FILE_PREFIX)$(LIBRARY_NAME).ninja
+ninja_sources = $(depsdir)/$(PROFILE)_$(SUBDIR_PREFIX)$(NINJA_FILE_PREFIX)$(LIBRARY_NAME)-ninja.sources
+
+ifdef DISABLE_NINJA
+ninja-gen-local::
+	echo > $(ninja_frag)
+else
+ninja-gen-local::
+	@echo "** ninja-gen in $(thisdir) **"
+	$(topdir)/build/gen-ninja.py frag --topdir $(abs_topdir) --target $(abspath $(build_lib)) --csc-args "$(USE_MCS_FLAGS) $(LIBRARY_FLAGS) $(NINJA_LIB_MCS_FLAGS) $(GEN_RESOURCE_FLAGS) -d:NINJA_BUILD -target:library" --sources-file $(sourcefile) --extra-sources "$(BUILT_SOURCES)" --libs "$(patsubst %,$(abs_topdir)/class/lib/$(PROFILE_DIRECTORY)/%.dll,$(LIB_REFS_FULL)) $(patsubst %,%.dll, $(subst =,=$(abs_topdir)/class/lib/$(PROFILE_DIRECTORY)/,$(LIB_REFS_ALIAS)))" --gen-sources-file $(ninja_sources) > $(ninja_frag)
+endif
+
+ninja-gen: ninja-gen-profile
+
+library_CLEAN_FILES += $(ninja_frag)

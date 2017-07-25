@@ -18,6 +18,8 @@ space := $(empty) $(empty)
 # topdir = $(call make_path,$(call dotdottify,$(call split_path,$(thisdir))))
 topdir := ./$(subst $(space),/,$(patsubst %,..,$(filter-out .,$(subst /,$(space),$(thisdir)))))
 
+abs_topdir := $(abspath $(topdir))
+
 VERSION = 0.93
 
 Q=$(if $(V),,@)
@@ -33,6 +35,7 @@ USE_MCS_FLAGS = /codepage:$(CODEPAGE) /nologo /noconfig /deterministic $(LOCAL_M
 USE_MBAS_FLAGS = /codepage:$(CODEPAGE) $(LOCAL_MBAS_FLAGS) $(PLATFORM_MBAS_FLAGS) $(PROFILE_MBAS_FLAGS) $(MBAS_FLAGS)
 USE_CFLAGS = $(LOCAL_CFLAGS) $(CFLAGS) $(CPPFLAGS)
 CSCOMPILE = $(Q_MCS) $(MCS) $(USE_MCS_FLAGS)
+CSCOMPILE_COMMAND = $(MCS) $(USE_MCS_FLAGS)
 CSC_RUNTIME_FLAGS = --aot-path=$(abspath $(topdir)/class/lib/$(BUILD_TOOLS_PROFILE)) --gc-params=nursery-size=64m
 BASCOMPILE = $(MBAS) $(USE_MBAS_FLAGS)
 CCOMPILE = $(CC) $(USE_CFLAGS)
@@ -315,3 +318,24 @@ MDOC   =$(Q_MDOC) MONO_PATH="$(topdir)/class/lib/$(DEFAULT_PROFILE)$(PLATFORM_PA
 
 Q_MDOC_UP=$(if $(V),,@echo "MDOC-UP [$(PROFILE_DIRECTORY)] $(notdir $(@))";)
 MDOC_UP  =$(Q_MDOC_UP) MONO_PATH="$(topdir)/class/lib/$(DEFAULT_PROFILE)$(PLATFORM_PATH_SEPARATOR)$$MONO_PATH" $(RUNTIME) $(topdir)/class/lib/$(DEFAULT_PROFILE)/mdoc.exe update --delete -o Documentation/en
+
+## NINJA
+
+ninja-gen-profile: ninja-gen-recursive
+	$(MAKE) ninja-gen-local
+
+ninja-gen-local::
+
+GEN_NINJA_TARGETS=$(patsubst %,ninja-gen-%,$(PROFILE_SUBDIRS) $(PROFILE_PARALLEL_SUBDIRS))
+
+# This is designed to be able to run in parallel
+ninja-gen-recursive:
+	@set . $$MAKEFLAGS; \
+	case $$2 in --unix) shift ;; esac; \
+	case $$2 in *=*) dk="exit 1" ;; *k*) dk=: ;; *) dk="exit 1" ;; esac; \
+	final_exit=:; \
+	if test "x$(GEN_NINJA_TARGETS)" != x; then $(MAKE) $(GEN_NINJA_TARGETS) || { final_exit="exit 1"; $$dk; }; fi; \
+	$$final_exit
+
+$(GEN_NINJA_TARGETS):
+	$(MAKE) -C $(patsubst ninja-gen-%,%,$@) ninja-gen-profile
