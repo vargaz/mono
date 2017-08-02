@@ -937,6 +937,10 @@ mono_gc_clear_domain (MonoDomain * domain)
 	UNLOCK_GC;
 }
 
+
+guint32
+mono_gchandle_new_weak2 (GCObject *obj);
+
 /*
  * Allocation
  */
@@ -948,6 +952,11 @@ mono_gc_alloc_obj (MonoVTable *vtable, size_t size)
 
 	if (G_UNLIKELY (mono_profiler_allocations_enabled ()) && obj)
 		MONO_PROFILER_RAISE (gc_allocation, (obj));
+
+	if (!strcmp (vtable->klass->name, "Tests")) {
+		mono_gchandle_new_weak2 (obj);
+		printf ("BLA!\n");
+	}
 
 	return obj;
 }
@@ -1493,6 +1502,9 @@ mono_gc_get_managed_allocator (MonoClass *klass, gboolean for_box, gboolean know
 #ifdef MANAGED_ALLOCATION
 	ManagedAllocatorVariant variant = mono_profiler_allocations_enabled () ?
 		MANAGED_ALLOCATOR_PROFILER : MANAGED_ALLOCATOR_REGULAR;
+
+	if (!strcmp (klass->name, "Tests"))
+		return NULL;
 
 	if (collect_before_allocs)
 		return NULL;

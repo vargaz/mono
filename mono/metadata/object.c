@@ -1051,7 +1051,17 @@ mono_class_compute_gc_descriptor (MonoClass *klass)
 		if (count++ > 58)
 			return;*/
 		bitmap = compute_class_bitmap (klass, default_bitmap, sizeof (default_bitmap) * 8, 0, &max_set, FALSE);
+
+		if (!strcmp (klass->name, "Tests")) {
+			MonoClassField *f = &klass->fields [0];
+			int offset = (f->offset - (sizeof (MonoObject))) / sizeof (gpointer);
+			printf ("DOH: %s %d\n", f->name, offset);
+			bitmap [0] = 0;
+			printf ("L: %d\n", bitmap [0]);
+		}
+
 		gc_descr = mono_gc_make_descr_for_object (bitmap, max_set + 1, klass->instance_size);
+
 		/*
 		if (class->gc_descr == MONO_GC_DESCRIPTOR_NULL)
 			g_print ("disabling typed alloc (%d) for %s.%s\n", max_set, class->name_space, class->name);
