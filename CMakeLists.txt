@@ -6,6 +6,5 @@ set (WARNING_CFLAGS "-Wall -Wunused -Wmissing-prototypes -Wmissing-declarations 
 
 set (CMAKE_C_FLAGS " -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -DHAVE_CONFIG_H -std=gnu99 -fno-strict-aliasing -fwrapv -DMONO_DLL_EXPORT -g ${WARNING_CFLAGS}")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DPLATFORM_MACOSX")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DHAVE_SGEN_GC")
 
 add_subdirectory (mono)

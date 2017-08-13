@@ -13,237 +13,59 @@ endfunction()
 include_directories(
 	${PROJECT_BINARY_DIR}/../..
 	${PROJECT_SOURCE_DIR}/../
-	${PROJECT_SOURCE_DIR}/../eglib)
+	${PROJECT_SOURCE_DIR}/../eglib
+	${PROJECT_SOURCE_DIR}/../sgen)
 
 #
-# METADATA/
+# EGLIB/
 #
 
-set (metadata_win32_sources
-	console-win32.c
-	console-win32-internals.h
-	cominterop-win32-internals.h
-	w32file-win32.c
-	w32file-win32-internals.h
-	icall-windows.c
-	icall-windows-internals.h
-	marshal-windows.c
-	marshal-windows-internals.h
-	mono-security-windows.c
-	mono-security-windows-internals.h
-	w32mutex-win32.c
-	w32semaphore-win32.c
-	w32event-win32.c
-	w32process-win32.c
-	w32process-win32-internals.h
-	w32socket-win32.c
-	w32error-win32.c)
+set (eglib_win32_sources
+		eglib-config.hw
+		gdate-win32.c gdir-win32.c gfile-win32.c gmisc-win32.c
+		gmodule-win32.c gmodule-win32-internals.h gtimer-win32.c gunicode-win32.c)
 
-set (metadata_unix_sources
-	console-unix.c
-	w32mutex-unix.c
-	w32semaphore-unix.c
-	w32event-unix.c
-	w32process-unix.c
-	w32process-unix-internals.h
-	w32process-unix-osx.c
-	w32process-unix-bsd.c
-	w32process-unix-haiku.c
-	w32process-unix-default.c
-	w32socket-unix.c
-	w32file-unix.c
-	w32file-unix-glob.c
-	w32file-unix-glob.h
-	w32error-unix.c)
+set (eglib_unix_sources
+		gdate-unix.c  gdir-unix.c  gfile-unix.c  gmisc-unix.c
+		gmodule-unix.c gtimer-unix.c)
 
 if (HOST_WIN32)
-set (metadata_platform_sources ${metadata_win32_sources})
+set (eglib_platform_sources ${eglib_win32_sources})
 else()
-set (metadata_platform_sources ${metadata_unix_sources})
+set (eglib_platform_sources ${eglib_unix_sources})
 endif ()
 
-set(metadata_common_sources
-	appdomain.c
-	domain.c
-	appdomain-icalls.h
-	assembly.c	
-	assembly-internals.h
-	attach.h	
-	attach.c	
-	cil-coff.h	
-	class.c		
-	class-internals.h
-	class-inlines.h	
-	class-accessors.c
-	cominterop.c	
-	cominterop.h	
-	console-io.h	
-	coree.c 	
-	coree.h 	
-	coree-internals.h
-	culture-info.h  
-	culture-info-tables.h
-	debug-helpers.c	
-	debug-mono-symfile.h
-	debug-mono-symfile.c
-	debug-mono-ppdb.h
-	debug-mono-ppdb.c
-	decimal-ms.c	
-	decimal-ms.h	
-	domain-internals.h
-	environment.c	
-	environment.h	
-	exception.c	
-	exception.h	
-	exception-internals.h
-	w32file.c	
-	w32file.h	
-	w32file-internals.h
-	filewatcher.c	
-	filewatcher.h	
-	gc-internals.h	
-	icall.c		
-	icall-internals.h
-	icall-def.h	
-	image.c		
-	image-internals.h
-	jit-info.c	
-	loader.c	
-	locales.c	
-	locales.h	
-	lock-tracer.c	
-	lock-tracer.h	
-	marshal.c	
-	marshal.h	
-	marshal-internals.h
-	mempool.c	
-	mempool.h	
-	mempool-internals.h
-	metadata.c	
-	metadata-verify.c
-	metadata-internals.h
-	method-builder.h 
-	method-builder.c 
-	mono-basic-block.c
-	mono-basic-block.h
-	mono-config.c	
-	mono-debug.h	
-	mono-debug.c	
-	debug-internals.h
-	mono-endian.c	
-	mono-endian.h	
-	mono-hash.h	
-	mono-conc-hash.h	
-	mono-mlist.c	
-	mono-mlist.h	
-	mono-perfcounters.c
-	mono-perfcounters.h
-	mono-perfcounters-def.h
-	mono-ptr-array.h
-	mono-route.c	
-	mono-route.h	
-	monitor.h	
-	normalization-tables.h
-	number-formatter.h
-	number-ms.c	
-	number-ms.h	
-	object.c
-	object-internals.h
-	opcodes.c	
-	property-bag.h
-	property-bag.c
-	w32socket.c	
-	w32socket.h	
-	w32socket-internals.h	
-	w32process.c	
-	w32process.h	
-	w32process-internals.h	
-	profiler.c	
-	profiler-private.h
-	rand.h		
-	rand.c		
-	remoting.h	
-	remoting.c	
-	runtime.c	
-	mono-security.c	
-	security.h	
-	security-core-clr.c
-	security-core-clr.h
-	security-manager.c
-	security-manager.h
-	string-icalls.c 
-	string-icalls.h 
-	sysmath.h	
-	sysmath.c	
-	tabledefs.h 	
-	threads.c	
-	threads-types.h	
-	threadpool.c
-	threadpool.h
-	threadpool-worker-default.c
-	threadpool-worker.h
-	threadpool-io.c
-	threadpool-io.h
-	verify.c	
-	verify-internals.h
-	wrapper-types.h
-	dynamic-image-internals.h
-	dynamic-stream.c
-	dynamic-stream-internals.h
-	reflection-cache.h
-	custom-attrs-internals.h
-	sre-internals.h
-	reflection-internals.h
-	file-mmap-posix.c
-	file-mmap-windows.c
-	file-mmap.h
-	object-offsets.h
-	abi-details.h
-	metadata-cross-helpers.c
-	seq-points-data.h
-	seq-points-data.c
-	handle.c
-	handle.h
-	w32mutex.h
-	w32semaphore.h
-	w32event.h
-	w32handle-namespace.h
-	w32handle-namespace.c
-	w32handle.h
-	w32handle.c
-	w32error.h
-	reflection.c
-	dynamic-image.c
-	sre.c
-	sre-encode.c
-	sre-save.c
-	custom-attrs.c
-	fdhandle.h
-	fdhandle.c)
+set (eglib_common_sources
+	eglib-remap.h
+	sort.frag.h
+	glib.h
+	garray.c
+	gbytearray.c
+	gerror.c
+	ghashtable.c
+	giconv.c
+	gmem.c
+	gmodule.h
+	goutput.c
+	gqsort.c
+	gstr.c
+	gslist.c
+	gstring.c
+	gptrarray.c
+	glist.c
+	gqueue.c
+	gpath.c
+	gshell.c
+	gspawn.c
+	gfile.c
+	gfile-posix.c
+	gpattern.c
+	gmarkup.c
+	gutf8.c
+	gunicode.c
+	unicode-data.h)
 
-set (metadata_gc_dependent_sources
-	gc-stats.c
-	gc.c
-	monitor.c
-	mono-hash.c
-	mono-conc-hash.c)
-
-set (metadata_sgen_sources
-	sgen-bridge.c
-	sgen-bridge.h
-	sgen-bridge-internals.h
-	sgen-old-bridge.c
-	sgen-new-bridge.c
-	sgen-tarjan-bridge.c
-	sgen-toggleref.c
-	sgen-toggleref.h
-	sgen-stw.c
-	sgen-mono.c
-	sgen-client-mono.h)
-
-# FIXME: Config
-
-addprefix (metadata_sources ../metadata/ "${metadata_platform_sources};${metadata_common_sources};${metadata_gc_dependent_sources};${metadata_sgen_sources}")
+addprefix (eglib_sources ../eglib/ "${eglib_platform_sources};${eglib_common_sources}")
 
 #
 # UTILS/
@@ -430,11 +252,377 @@ endif()
 addprefix (utils_sources ../utils/ "${utils_platform_sources};${utils_arch_sources};${utils_common_sources}")
 
 #
+# METADATA/
+#
+
+set (metadata_win32_sources
+	console-win32.c
+	console-win32-internals.h
+	cominterop-win32-internals.h
+	w32file-win32.c
+	w32file-win32-internals.h
+	icall-windows.c
+	icall-windows-internals.h
+	marshal-windows.c
+	marshal-windows-internals.h
+	mono-security-windows.c
+	mono-security-windows-internals.h
+	w32mutex-win32.c
+	w32semaphore-win32.c
+	w32event-win32.c
+	w32process-win32.c
+	w32process-win32-internals.h
+	w32socket-win32.c
+	w32error-win32.c)
+
+set (metadata_unix_sources
+	console-unix.c
+	w32mutex-unix.c
+	w32semaphore-unix.c
+	w32event-unix.c
+	w32process-unix.c
+	w32process-unix-internals.h
+	w32process-unix-osx.c
+	w32process-unix-bsd.c
+	w32process-unix-haiku.c
+	w32process-unix-default.c
+	w32socket-unix.c
+	w32file-unix.c
+	w32file-unix-glob.c
+	w32file-unix-glob.h
+	w32error-unix.c)
+
+if (HOST_WIN32)
+set (metadata_platform_sources ${metadata_win32_sources})
+else()
+set (metadata_platform_sources ${metadata_unix_sources})
+endif ()
+
+set(metadata_common_sources
+	appdomain.c
+	domain.c
+	appdomain-icalls.h
+	assembly.c
+	assembly-internals.h
+	attach.h
+	attach.c
+	cil-coff.h
+	class.c
+	class-internals.h
+	class-inlines.h
+	class-accessors.c
+	cominterop.c
+	cominterop.h
+	console-io.h
+	coree.c 
+	coree.h 
+	coree-internals.h
+	culture-info.h
+	culture-info-tables.h
+	debug-helpers.c
+	debug-mono-symfile.h
+	debug-mono-symfile.c
+	debug-mono-ppdb.h
+	debug-mono-ppdb.c
+	decimal-ms.c
+	decimal-ms.h
+	domain-internals.h
+	environment.c
+	environment.h
+	exception.c
+	exception.h
+	exception-internals.h
+	w32file.c
+	w32file.h
+	w32file-internals.h
+	filewatcher.c
+	filewatcher.h
+	gc-internals.h
+	icall.c
+	icall-internals.h
+	icall-def.h
+	image.c
+	image-internals.h
+	jit-info.c
+	loader.c
+	locales.c
+	locales.h
+	lock-tracer.c
+	lock-tracer.h
+	marshal.c
+	marshal.h
+	marshal-internals.h
+	mempool.c
+	mempool.h
+	mempool-internals.h
+	metadata.c
+	metadata-verify.c
+	metadata-internals.h
+	method-builder.h
+	method-builder.c
+	mono-basic-block.c
+	mono-basic-block.h
+	mono-config.c
+	mono-debug.h
+	mono-debug.c
+	debug-internals.h
+	mono-endian.c
+	mono-endian.h
+	mono-hash.h
+	mono-conc-hash.h
+	mono-mlist.c
+	mono-mlist.h
+	mono-perfcounters.c
+	mono-perfcounters.h
+	mono-perfcounters-def.h
+	mono-ptr-array.h
+	mono-route.c
+	mono-route.h
+	monitor.h
+	normalization-tables.h
+	number-formatter.h
+	number-ms.c
+	number-ms.h
+	object.c
+	object-internals.h
+	opcodes.c
+	property-bag.h
+	property-bag.c
+	w32socket.c
+	w32socket.h
+	w32socket-internals.h
+	w32process.c
+	w32process.h
+	w32process-internals.h
+	profiler.c
+	profiler-private.h
+	rand.h
+	rand.c
+	remoting.h
+	remoting.c
+	runtime.c
+	mono-security.c
+	security.h
+	security-core-clr.c
+	security-core-clr.h
+	security-manager.c
+	security-manager.h
+	string-icalls.c
+	string-icalls.h
+	sysmath.h
+	sysmath.c
+	tabledefs.h 
+	threads.c
+	threads-types.h
+	threadpool.c
+	threadpool.h
+	threadpool-worker-default.c
+	threadpool-worker.h
+	threadpool-io.c
+	threadpool-io.h
+	verify.c
+	verify-internals.h
+	wrapper-types.h
+	dynamic-image-internals.h
+	dynamic-stream.c
+	dynamic-stream-internals.h
+	reflection-cache.h
+	custom-attrs-internals.h
+	sre-internals.h
+	reflection-internals.h
+	file-mmap-posix.c
+	file-mmap-windows.c
+	file-mmap.h
+	object-offsets.h
+	abi-details.h
+	metadata-cross-helpers.c
+	seq-points-data.h
+	seq-points-data.c
+	handle.c
+	handle.h
+	w32mutex.h
+	w32semaphore.h
+	w32event.h
+	w32handle-namespace.h
+	w32handle-namespace.c
+	w32handle.h
+	w32handle.c
+	w32error.h
+	reflection.c
+	dynamic-image.c
+	sre.c
+	sre-encode.c
+	sre-save.c
+	custom-attrs.c
+	fdhandle.h
+	fdhandle.c)
+
+set (metadata_gc_dependent_sources
+	gc-stats.c
+	gc.c
+	monitor.c
+	mono-hash.c
+	mono-conc-hash.c)
+
+set (metadata_sgen_sources
+	sgen-bridge.c
+	sgen-bridge.h
+	sgen-bridge-internals.h
+	sgen-old-bridge.c
+	sgen-new-bridge.c
+	sgen-tarjan-bridge.c
+	sgen-toggleref.c
+	sgen-toggleref.h
+	sgen-stw.c
+	sgen-mono.c
+	sgen-client-mono.h)
+
+addprefix (metadata_gc_dependent_real_sources ../metadata "${metadata_gc_dependent_sources}")
+addprefix (metadata_sgen_real_sources ../metadata "${metadata_sgen_sources}")
+set_source_files_properties ("${metadata_sgen_real_sources};${metadata_gc_dependent_real_sources}" PROPERTIES COMPILE_FLAGS "${CMAKE_C_FLAGS} -DHAVE_SGEN_GC")
+
+#message (FATAL_ERROR "${metadata_sgen_real_sources};${metadata_gc_dependent_real_sources}")
+
+# FIXME: Config
+
+addprefix (metadata_sources ../metadata/ "${metadata_platform_sources};${metadata_common_sources};${metadata_gc_dependent_sources};${metadata_sgen_sources}")
+
+#
+# SGEN
+#
+
+set(sgen_sources_base
+	gc-internal-agnostic.h
+	sgen-alloc.c
+	sgen-archdep.h
+	sgen-cardtable.c
+	sgen-cardtable.h
+	sgen-client.h
+	sgen-conf.h
+	sgen-copy-object.h
+	sgen-debug.c
+	sgen-descriptor.c
+	sgen-descriptor.h
+	sgen-fin-weak-hash.c
+	sgen-gc.c
+	sgen-gc.h
+	sgen-gchandles.c
+	sgen-gray.c
+	sgen-gray.h
+	sgen-hash-table.c
+	sgen-hash-table.h
+	sgen-internal.c
+	sgen-layout-stats.c
+	sgen-layout-stats.h
+	sgen-los.c
+	sgen-major-copy-object.h
+	sgen-marksweep-drain-gray-stack.h
+	sgen-marksweep.c
+	sgen-memory-governor.c
+	sgen-memory-governor.h
+	sgen-minor-copy-object.h
+	sgen-minor-scan-object.h
+	sgen-nursery-allocator.c
+	sgen-pinning-stats.c
+	sgen-pinning.c
+	sgen-pinning.h
+	sgen-pointer-queue.c
+	sgen-pointer-queue.h
+	sgen-array-list.h
+	sgen-array-list.c
+	sgen-protocol-def.h
+	sgen-protocol.c
+	sgen-protocol.h
+	sgen-qsort.c
+	sgen-qsort.h
+	sgen-scan-object.h
+	sgen-simple-nursery.c
+	sgen-split-nursery.c
+	sgen-tagged-pointer.h
+	sgen-thread-pool.c
+	sgen-thread-pool.h
+	sgen-workers.c
+	sgen-workers.h)
+
+addprefix (sgen_sources ../sgen/ "${sgen_sources_base}")
+
+#
 # MINI/
 #
 
-add_library (monosgen "${metadata_sources};${utils_sources}")
-#add_library(monosgen "main-sgen.c" "${CMAKE_CURRENT_BINARY_DIR}/buildver-sgen.h")
+set (mini_common_sources
+	mini.c
+	mini-runtime.c
+	seq-points.c
+	seq-points.h
+	ir-emit.h
+	method-to-ir.c
+	cfgdump.h
+	cfgdump.c
+	decompose.c
+	mini.h
+	version.h
+	optflags-def.h
+	jit-icalls.h 
+	jit-icalls.c 
+	trace.c
+	trace.h
+	patch-info.h
+	mini-ops.h
+	mini-arch.h
+	dominators.c
+	cfold.c
+	regalloc.h
+	helpers.c
+	liveness.c
+	ssa.c
+	abcremoval.c
+	abcremoval.h
+	local-propagation.c
+	driver.c
+	debug-mini.c
+	linear-scan.c
+	aot-compiler.h
+	aot-compiler.c
+	aot-runtime.c
+	graph.c
+	mini-codegen.c
+	mini-exceptions.c
+	mini-trampolines.c
+	branch-opts.c
+	mini-generic-sharing.c
+	simd-methods.h
+	tasklets.c
+	tasklets.h
+	simd-intrinsics.c
+	mini-native-types.c
+	mini-unwind.h
+	unwind.c
+	image-writer.h
+	image-writer.c
+	dwarfwriter.h
+	dwarfwriter.c
+	mini-gc.h
+	mini-gc.c
+	debugger-agent.h
+	debugger-agent.c
+	xdebug.c
+	mini-llvm.h
+	mini-llvm-cpp.h
+	llvm-jit.h
+	alias-analysis.c
+	mini-cross-helpers.c
+	arch-stubs.c
+	llvm-runtime.h
+	type-checking.c
+	lldb.h
+	lldb.c
+	memory-access.c
+	mini-profiler.c)
+
+set (mini_sources "${mini_common_sources}")
+
+add_library (monosgen "${eglib_sources};${metadata_sources};${utils_sources};${sgen_sources};${mini_sources}")
 
 # FIXME: Use the previous format
 string(TIMESTAMP BUILD_DATE)
@@ -444,3 +632,13 @@ add_custom_command (
   COMMAND echo "const char *build_date = \"${BUILD_DATE}\";" > ${CMAKE_CURRENT_BINARY_DIR}/buildver-sgen.h
   VERBATIM
 )
+
+add_custom_command (
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/version.h
+  COMMAND make -C ${CMAKE_CURRENT_BINARY_DIR} version.h
+  VERBATIM
+)
+
+add_executable (mono-sgen "main-sgen.c")
+target_link_libraries (mono-sgen monosgen "-framework CoreFoundation" "-framework Foundation")
+
