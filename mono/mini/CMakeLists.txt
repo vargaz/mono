@@ -479,9 +479,7 @@ set (metadata_sgen_sources
 
 addprefix (metadata_gc_dependent_real_sources ../metadata "${metadata_gc_dependent_sources}")
 addprefix (metadata_sgen_real_sources ../metadata "${metadata_sgen_sources}")
-set_source_files_properties ("${metadata_sgen_real_sources};${metadata_gc_dependent_real_sources}" PROPERTIES COMPILE_FLAGS "${CMAKE_C_FLAGS} -DHAVE_SGEN_GC")
-
-#message (FATAL_ERROR "${metadata_sgen_real_sources};${metadata_gc_dependent_real_sources}")
+set_source_files_properties (${metadata_sgen_real_sources};${metadata_gc_dependent_real_sources} PROPERTIES COMPILE_DEFINITIONS "HAVE_SGEN_GC")
 
 # FIXME: Config
 
@@ -545,6 +543,7 @@ set(sgen_sources_base
 	sgen-workers.h)
 
 addprefix (sgen_sources ../sgen/ "${sgen_sources_base}")
+set_source_files_properties (${sgen_sources} PROPERTIES COMPILE_DEFINITIONS "HAVE_SGEN_GC")
 
 #
 # MINI/
@@ -640,5 +639,5 @@ add_custom_command (
 )
 
 add_executable (mono-sgen "main-sgen.c")
-target_link_libraries (mono-sgen monosgen "-framework CoreFoundation" "-framework Foundation")
+target_link_libraries (mono-sgen monosgen "-framework CoreFoundation" "-framework Foundation" "iconv")
 
