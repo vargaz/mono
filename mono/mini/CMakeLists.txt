@@ -2,6 +2,7 @@ project (mini)
 
 # FIXME:
 set (AMD64 ON)
+set(PLATFORM_DARWIN ON)
 
 function (addprefix var prefix list)
     foreach (i ${list})
@@ -455,7 +456,9 @@ set(metadata_common_sources
 	sre-save.c
 	custom-attrs.c
 	fdhandle.h
-	fdhandle.c)
+	fdhandle.c
+	mono-config-dirs.h
+	mono-config-dirs.c)
 
 set (metadata_gc_dependent_sources
 	gc-stats.c
@@ -482,6 +485,13 @@ addprefix (metadata_sgen_real_sources ../metadata "${metadata_sgen_sources}")
 set_source_files_properties (${metadata_sgen_real_sources};${metadata_gc_dependent_real_sources} PROPERTIES COMPILE_DEFINITIONS "HAVE_SGEN_GC")
 
 # FIXME: Config
+
+#
+# We localize the usage of MONO_BINDIR etc. to just one source file, thus enabling
+# ccache to work even if the value of these defines change.
+#
+# FIXME:
+set_source_files_properties (../metadata/mono-config-dirs.c PROPERTIES COMPILE_DEFINITIONS "MONO_BINDIR=\"x\";MONO_ASSEMBLIES=\"y\";MONO_CFG_DIR=\"z\";MONO_RELOC_LIBDIZ=\"z\"")
 
 addprefix (metadata_sources ../metadata/ "${metadata_platform_sources};${metadata_common_sources};${metadata_gc_dependent_sources};${metadata_sgen_sources}")
 
@@ -619,7 +629,51 @@ set (mini_common_sources
 	memory-access.c
 	mini-profiler.c)
 
-set (mini_sources "${mini_common_sources}")
+set (amd64_sources
+	mini-amd64.c
+	mini-amd64.h
+	exceptions-amd64.c
+	tramp-amd64.c
+	mini-amd64-gsharedvt.c
+	mini-amd64-gsharedvt.h
+	tramp-amd64-gsharedvt.c)
+
+if (AMD64)
+set (arch_sources ${amd64_sources})
+endif ()
+
+set (darwin_sources
+	mini-darwin.c)
+
+set (windows_sources
+	mini-windows.c
+	mini-windows.h
+	mini-windows-dllmain.c
+	mini-windows-dlldac.c)
+
+set (posix_sources
+	mini-posix.c)
+
+if (PLATFORM_DARWIN)
+set (os_sources "${darwin_sources};${posix_sources}")
+endif ()
+
+if (ENABLE_INTERPRETER)
+set (interp_sources
+	interp/hacks.h
+	interp/interp.h
+	interp/interp-internals.h
+	interp/interp.c
+	interp/mintops.h
+	interp/mintops.def
+	interp/mintops.c
+	interp/transform.c)
+else ()
+set (interp_sources
+	interp/interp-stubs.c)
+endif ()
+
+set (mini_sources "${mini_common_sources};${arch_sources};${os_sources};${interp_sources}")
 
 add_library (monosgen "${eglib_sources};${metadata_sources};${utils_sources};${sgen_sources};${mini_sources}")
 
