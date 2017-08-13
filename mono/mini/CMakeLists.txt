@@ -636,7 +636,8 @@ set (amd64_sources
 	tramp-amd64.c
 	mini-amd64-gsharedvt.c
 	mini-amd64-gsharedvt.h
-	tramp-amd64-gsharedvt.c)
+	tramp-amd64-gsharedvt.c
+	cpu-amd64.h)
 
 if (AMD64)
 set (arch_sources ${amd64_sources})
@@ -689,6 +690,12 @@ add_custom_command (
 add_custom_command (
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/version.h
   COMMAND make -C ${CMAKE_CURRENT_BINARY_DIR} version.h
+  VERBATIM
+)
+
+add_custom_command (
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cpu-amd64.h
+  COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/genmdesc.py TARGET_AMD64 ${CMAKE_CURRENT_SOURCE_DIR} cpu-amd64.h amd64_desc cpu-amd64.md
   VERBATIM
 )
 
