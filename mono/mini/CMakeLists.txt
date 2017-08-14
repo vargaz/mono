@@ -689,7 +689,7 @@ add_custom_command (
 
 add_custom_command (
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/version.h
-  COMMAND make -C ${CMAKE_CURRENT_BINARY_DIR} version.h
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/gen-version-h.sh ${CMAKE_CURRENT_SOURCE_DIR}/../..
   VERBATIM
 )
 
