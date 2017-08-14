@@ -1,9 +1,5 @@
 project (mini)
 
-# FIXME:
-set (AMD64 ON)
-set(PLATFORM_DARWIN ON)
-
 function (addprefix var prefix list)
     foreach (i ${list})
         set (f ${f} ${prefix}/${i})
@@ -484,14 +480,16 @@ addprefix (metadata_gc_dependent_real_sources ../metadata "${metadata_gc_depende
 addprefix (metadata_sgen_real_sources ../metadata "${metadata_sgen_sources}")
 set_source_files_properties (${metadata_sgen_real_sources};${metadata_gc_dependent_real_sources} PROPERTIES COMPILE_DEFINITIONS "HAVE_SGEN_GC")
 
-# FIXME: Config
-
 #
 # We localize the usage of MONO_BINDIR etc. to just one source file, thus enabling
 # ccache to work even if the value of these defines change.
 #
-# FIXME:
-set_source_files_properties (../metadata/mono-config-dirs.c PROPERTIES COMPILE_DEFINITIONS "MONO_BINDIR=\"x\";MONO_ASSEMBLIES=\"y\";MONO_CFG_DIR=\"z\";MONO_RELOC_LIBDIZ=\"z\"")
+set (bindir "${CMAKE_INSTALL_FULL_BINDIR}")
+set (assembliesdir "${CMAKE_INSTALL_FULL_LIBDIR}")
+set (confdir "${CMAKE_INSTALL_FULL_SYSCONFDIR}")
+set (reloc_libdir "${CMAKE_INSTALL_LIBDIR}")
+
+set_source_files_properties (../metadata/mono-config-dirs.c PROPERTIES COMPILE_DEFINITIONS "MONO_BINDIR=\"${bindir}\";MONO_ASSEMBLIES=\"${assembliesdir}\";MONO_CFG_DIR=\"${confdir}\";MONO_RELOC_LIBDIR=\"../${reloc_libdir}\"")
 
 addprefix (metadata_sources ../metadata/ "${metadata_platform_sources};${metadata_common_sources};${metadata_gc_dependent_sources};${metadata_sgen_sources}")
 
@@ -655,7 +653,7 @@ set (windows_sources
 set (posix_sources
 	mini-posix.c)
 
-if (PLATFORM_DARWIN)
+if (HOST_DARWIN)
 set (os_sources "${darwin_sources};${posix_sources}")
 endif ()
 

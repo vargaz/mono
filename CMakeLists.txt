@@ -2,6 +2,8 @@ cmake_minimum_required (VERSION 3.6)
 
 project (mono)
 
+include(GNUInstallDirs)
+
 find_program(CCACHE_PROGRAM ccache)
 if(CCACHE_PROGRAM)
     set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
@@ -11,5 +13,16 @@ set (WARNING_CFLAGS "-Wall -Wunused -Wmissing-prototypes -Wmissing-declarations 
 
 set (CMAKE_C_FLAGS " -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -DHAVE_CONFIG_H -std=gnu99 -fno-strict-aliasing -fwrapv -DMONO_DLL_EXPORT -g ${WARNING_CFLAGS}")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DPLATFORM_MACOSX")
+
+# FIXME:
+set (AMD64 ON)
+set(HOST_DARWIN ON)
+
+# Get rid of the annoying 'has no symbols' messages from ar/ranlib on osx
+if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+SET(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> Scr <TARGET> <OBJECTS>")
+SET(CMAKE_C_ARCHIVE_FINISH   "<CMAKE_RANLIB> -no_warning_for_no_symbols -c <TARGET>")
+SET(CMAKE_CXX_ARCHIVE_FINISH "<CMAKE_RANLIB> -no_warning_for_no_symbols -c <TARGET>")
+endif ()
 
 add_subdirectory (mono)
