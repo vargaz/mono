@@ -205,10 +205,7 @@ case "$host" in
 		AC_DEFINE(PLATFORM_ANDROID,1,[Targeting the Android platform])
 		AC_DEFINE(TARGET_ANDROID,1,[Targeting the Android platform])
 
-		CPPFLAGS="$CPPFLAGS -DGC_LINUX_THREADS -D_GNU_SOURCE -D_REENTRANT -DUSE_MMAP"
-		if test "x$disable_munmap" != "xyes"; then
-			CPPFLAGS="$CPPFLAGS -DUSE_MUNMAP"
-		fi
+		CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE -D_REENTRANT"
 		libmono_cflags="-D_REENTRANT"
 		libdl="-ldl"
 		libgc_threads=pthreads
@@ -236,9 +233,10 @@ case "$host" in
 		mono_cv_clang=no
 		;;
 	*-*-linux*)
-		CPPFLAGS="$CPPFLAGS -DGC_LINUX_THREADS -D_GNU_SOURCE -D_REENTRANT -DUSE_MMAP"
+		CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE -D_REENTRANT"
+		HOST_BOEHM_CPPFLAGS="-DGC_LINUX_THREADS -DUSE_MMAP"
 		if test "x$disable_munmap" != "xyes"; then
-			CPPFLAGS="$CPPFLAGS -DUSE_MUNMAP"
+			HOST_BOEHM_CPPFLAGS="$CPPFLAGS -DUSE_MUNMAP"
 		fi
 		libmono_cflags="-D_REENTRANT"
 		libdl="-ldl"
@@ -296,7 +294,8 @@ case "$host" in
 		parallel_mark="Disabled_Currently_Hangs_On_MacOSX"
 		host_darwin=yes
 		target_mach=yes
-		CPPFLAGS="$CPPFLAGS -D_THREAD_SAFE -DGC_MACOSX_THREADS -DPLATFORM_MACOSX -DUSE_MMAP -DUSE_MUNMAP"
+		CPPFLAGS="$CPPFLAGS -D_THREAD_SAFE -DPLATFORM_MACOSX"
+		HOST_BOEHM_CPPFLAGS="-DGC_MACOSX_THREADS -DUSE_MMAP -DUSE_MUNMAP"
 		libmono_cflags="-D_THREAD_SAFE"
 		need_link_unlink=yes
 		AC_DEFINE(PTHREAD_POINTER_ID)
@@ -1309,6 +1308,8 @@ if test "x$support_boehm" = "xyes"; then
 			LIBGC_STATIC_LIBS='$(top_builddir)/libgc/libmonogc-static.la'
 
 			BOEHM_DEFINES="-DHAVE_BOEHM_GC"
+
+			CPPFLAGS="$CPPFLAGS $HOST_BOEHM_CPPFLAGS"
 
 			if test x$target_win32 = xyes; then
 				BOEHM_DEFINES="$BOEHM_DEFINES -DGC_NOT_DLL"
