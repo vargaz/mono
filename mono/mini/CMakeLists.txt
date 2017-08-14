@@ -30,7 +30,7 @@ if (HOST_WIN32)
 set (eglib_platform_sources ${eglib_win32_sources})
 else()
 set (eglib_platform_sources ${eglib_unix_sources})
-endif ()
+endif()
 
 set (eglib_common_sources
 	eglib-remap.h
@@ -76,7 +76,7 @@ if (HOST_WIN32)
 set (utils_platform_sources ${utils_win32_sources})
 else()
 set (utils_platform_sources ${utils_unix_sources})
-endif ()
+endif()
 
 set (utils_common_sources
 	mono-md5.c
@@ -293,7 +293,7 @@ if (HOST_WIN32)
 set (metadata_platform_sources ${metadata_win32_sources})
 else()
 set (metadata_platform_sources ${metadata_unix_sources})
-endif ()
+endif()
 
 set(metadata_common_sources
 	appdomain.c
@@ -639,7 +639,7 @@ set (amd64_sources
 
 if (AMD64)
 set (arch_sources ${amd64_sources})
-endif ()
+endif()
 
 set (darwin_sources
 	mini-darwin.c)
@@ -655,7 +655,7 @@ set (posix_sources
 
 if (HOST_DARWIN)
 set (os_sources "${darwin_sources};${posix_sources}")
-endif ()
+endif()
 
 if (ENABLE_INTERPRETER)
 set (interp_sources
@@ -670,9 +670,30 @@ set (interp_sources
 else ()
 set (interp_sources
 	interp/interp-stubs.c)
-endif ()
+endif()
 
-set (mini_sources "${mini_common_sources};${arch_sources};${os_sources};${interp_sources}")
+if (ENABLE_LLVM)
+if (LOADED_LLVM)
+set (llvm_sources
+	mini-llvm-loaded.c)
+else ()
+set (llvm_sources
+	mini-llvm.c
+	mini-llvm-loaded.c
+	mini-llvm-cpp.cpp
+	llvm-jit.cpp)
+endif()
+endif()
+
+if (ENABLE_LLVM)
+set (llvm_runtime_sources
+	llvm-runtime.cpp)
+elseif (ENABLE_LLVM_RUNTIME)
+set (llvm_runtime_sources
+	llvm-runtime.cpp)
+endif()
+
+set (mini_sources "${mini_common_sources};${arch_sources};${os_sources};${interp_sources};${llvm_sources};${llvm_runtime_sources}")
 
 add_library (monosgen "${eglib_sources};${metadata_sources};${utils_sources};${sgen_sources};${mini_sources}")
 
@@ -698,5 +719,4 @@ add_custom_command (
 )
 
 add_executable (mono-sgen "main-sgen.c")
-target_link_libraries (mono-sgen monosgen "-framework CoreFoundation" "-framework Foundation" "iconv")
-
+target_link_libraries (mono-sgen monosgen "-framework CoreFoundation" "-framework Foundation" "iconv" ${LLVM_LIBS})
