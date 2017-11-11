@@ -20,13 +20,14 @@ include bcl.mk
 endif
 
 ## Android targets
-ifndef DISABLE_ANDROID
+ifdef ENABLE_ANDROID
 include android.mk
 endif
 
 ## iOS targets
-ifndef DISABLE_IOS
+ifdef ENABLE_IOS
 include ios.mk
+else
 endif
 
 ## WASM targets
