@@ -31,7 +31,7 @@ else
 endif
 
 ## WASM targets
-ifndef DISABLE_WASM
+ifdef ENABLE_WASM
 include wasm.mk
 endif
 

@@ -6,6 +6,7 @@ Usage: configure [options]
     -h, --help              Displays this help
     --enable-ios            Enable IOS build (disabled by default)
     --enable-android        Enable Android build (disabled by default)
+    --enable-wasm           Enable WebAssembly build (disabled by default)
 EOL
 }
 
@@ -23,6 +24,10 @@ while test x$1 != x; do
 		;;
 	--enable-android)
 		echo "ENABLE_ANDROID=1" >> $CONFIGURED_FILE
+		shift
+		;;
+	--enable-wasm)
+		echo "ENABLE_WASM=1" >> $CONFIGURED_FILE
 		shift
 		;;
 	--help|-h)
