@@ -145,8 +145,8 @@ mono_ios_runtime_init (void)
 	assert ([args count] > 1);
     char *executable = strdup ([((NSString*)[args objectAtIndex: 1]) UTF8String]);
 
-	setenv ("MONO_LOG_LEVEL", "debug", TRUE);
-	setenv ("MONO_DEBUG", "suspend-on-sigsegv", TRUE);
+	//setenv ("MONO_LOG_LEVEL", "debug", TRUE);
+	//setenv ("MONO_DEBUG", "suspend-on-sigsegv", TRUE);
 
 	mono_debug_init (MONO_DEBUG_FORMAT_MONO);
 	mono_install_assembly_preload_hook (assembly_preload_hook, NULL);

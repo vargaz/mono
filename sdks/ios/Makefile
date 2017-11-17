@@ -15,8 +15,7 @@ build-ios-sim-%:
 	rm -f tmp.app/{1,2,3}
 	plutil -convert binary1 tmp.app/Info.plist 
 	cp -r test-runner/Base.lproj tmp.app
-	cp ../../mcs/class/lib/monotouch/{mscorlib.dll,System.dll,System.Xml.dll,System.Core.dll,Mono.Simd.dll,System.Numerics.dll,System.Numerics.Vectors.dll,nunitlite.dll,nunit-lite-console.exe} tmp.app
-	cp $($*_ASSEMBLIES) tmp.app
+	cp ../../mcs/class/lib/monotouch/{mscorlib.dll,System.dll,System.Xml.dll,System.Core.dll,Mono.Simd.dll,System.Numerics.dll,System.Numerics.Vectors.dll,nunitlite.dll,nunit-lite-console.exe} $($*_ASSEMBLIES) tmp.app
 	/usr/bin/codesign --force --sign - --timestamp=none tmp.app
 	mkdir -p bin/ios-sim
 	rm -rf bin/ios-sim/test-$*.app
@@ -45,6 +44,13 @@ start-sim:
 stop-sim:
 	xcrun simctl shutdown booted
 
+NUNIT = nunit-lite-console.exe -exclude:NotWorkingInterpreter
+TESTDIR = ../../mcs/class/lib/monotouch/tests
+
 # Options for each test
-Mono.Runtime.Tests_ASSEMBLIES = ../../mcs/class/lib/monotouch/tests/monotouch_Mono.Runtime.Tests_test.dll
-Mono.Runtime.Tests_ARGS = nunit-lite-console.exe monotouch_Mono.Runtime.Tests_test.dll
+Mono.Runtime.Tests_ASSEMBLIES = $(TESTDIR)/monotouch_Mono.Runtime.Tests_test.dll
+Mono.Runtime.Tests_ARGS = $(NUNIT) monotouch_Mono.Runtime.Tests_test.dll
+corlib_ASSEMBLIES = $(TESTDIR)/monotouch_corlib_test.dll
+corlib_ARGS = $(NUNIT) monotouch_corlib_test.dll
+System.Core_ASSEMBLIES = $(TESTDIR)/monotouch_System.Core_test.dll
+System.Core_ARGS = $(NUNIT) monotouch_System.Core_test.dll
