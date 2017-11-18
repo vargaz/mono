@@ -746,6 +746,7 @@ namespace MonoTests.System.Threading
 			}
 		}
 		
+#if FALSE
 		[Test]
 		public void IPrincipal_CopyOnNewThread () 
 		{
@@ -763,6 +764,7 @@ namespace MonoTests.System.Threading
 #endif
 			}
 		}
+#endif
 
 		int counter = 0;
 
