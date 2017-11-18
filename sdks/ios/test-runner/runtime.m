@@ -44,14 +44,17 @@ get_bundle_path (void)
 }
 
 static MonoAssembly*
-load_assembly (const char *name)
+load_assembly (const char *name, const char *culture)
 {
 	const char *bundle = get_bundle_path ();
 	char path [1024];
 	int res;
 
-	NSLog (@"assembly_preload_hook: %s %s\n", name, bundle);
-	res = snprintf (path, sizeof (path) - 1, "%s/%s", bundle, name);
+	NSLog (@"assembly_preload_hook: %s %s %s\n", name, culture, bundle);
+	if (culture && strcmp (culture, ""))
+		res = snprintf (path, sizeof (path) - 1, "%s/%s/%s", bundle, culture, name);
+	else
+		res = snprintf (path, sizeof (path) - 1, "%s/%s", bundle, name);
 	assert (res > 0);
 
 	if (file_exists (path)) {
@@ -68,7 +71,7 @@ assembly_preload_hook (MonoAssemblyName *aname, char **assemblies_path, void* us
 	const char *name = mono_assembly_name_get_name (aname);
 	const char *culture = mono_assembly_name_get_culture (aname);
 
-	return load_assembly (name);
+	return load_assembly (name, culture);
 }
 
 char *
@@ -156,7 +159,7 @@ mono_ios_runtime_init (void)
 
 	mono_jit_init_version ("Mono.ios", "mobile");
 
-	MonoAssembly *assembly = load_assembly (executable);
+	MonoAssembly *assembly = load_assembly (executable, NULL);
 	assert (assembly);
 
 	NSLog (@"Executable: %s", executable);
@@ -174,7 +177,7 @@ mono_ios_runtime_init (void)
 	managed_argc = aindex;
 
 	res = mono_jit_exec (mono_domain_get (), assembly, managed_argc, managed_argv);
-	exit (0);
+	exit (res);
 }
 
 //
@@ -195,6 +198,20 @@ xamarin_timezone_get_data (const char *name, int *size)
 	*size = [data length];
 	void* result = malloc (*size);
 	memcpy (result, data.bytes, *size);
+	return result;
+}
+
+char**
+xamarin_timezone_get_names (int *count)
+{
+	// COOP: no managed memory access: any mode.
+	NSArray *array = [NSTimeZone knownTimeZoneNames];
+	*count = array.count;
+	char** result = (char**) malloc (sizeof (char*) * (*count));
+	for (int i = 0; i < *count; i++) {
+		NSString *s = [array objectAtIndex: i];
+		result [i] = strdup (s.UTF8String);
+	}
 	return result;
 }
 
