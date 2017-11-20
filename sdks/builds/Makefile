@@ -15,7 +15,7 @@ $(TOP)/configure: $(TOP)/configure.ac $(TOP)/autogen.sh
 TARGETS=
 
 ## BCL targets
-ifndef DISABLE_BCL
+ifdef ENABLE_BCL
 include bcl.mk
 endif
 
