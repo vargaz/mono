@@ -143,13 +143,37 @@ mono_ios_runtime_init (void)
 {
 	int res;
 
-	id args = [[NSProcessInfo processInfo] arguments];
+	id args_array = [[NSProcessInfo processInfo] arguments];
+	int nargs = [args_array count];
+	char **args;
 
-	assert ([args count] > 1);
-    char *executable = strdup ([((NSString*)[args objectAtIndex: 1]) UTF8String]);
+	args = malloc (nargs * sizeof (char*));
+	for (int i = 0; i < nargs; ++i)
+		args [i] = strdup ([((NSString*)[args_array objectAtIndex: i]) UTF8String]);
 
-	//setenv ("MONO_LOG_LEVEL", "debug", TRUE);
-	//setenv ("MONO_DEBUG", "suspend-on-sigsegv", TRUE);
+	int aindex = 1;
+	while (aindex < nargs) {
+		char *arg = args [aindex];
+		if (!(arg [0] == '-' && arg [1] == '-'))
+			break;
+		if (strstr (arg, "--setenv=") == arg) {
+			char *p = arg + strlen ("--setenv=");
+			char *eq = strstr (p, "=");
+			assert (eq);
+			*eq = '\0';
+			char *name = strdup (p);
+			char *val = strdup (eq + 1);
+			NSLog (@"%s=%s.", name, val);
+			setenv (name, val, TRUE);
+		}
+		aindex ++;
+	}
+	assert (aindex < nargs);
+    char *executable = args [aindex];
+	aindex ++;
+
+	const char *bundle = get_bundle_path ();
+	chdir (bundle);
 
 	mono_debug_init (MONO_DEBUG_FORMAT_MONO);
 	mono_install_assembly_preload_hook (assembly_preload_hook, NULL);
@@ -163,18 +187,19 @@ mono_ios_runtime_init (void)
 	assert (assembly);
 
 	NSLog (@"Executable: %s", executable);
-	int managed_argc = [args count] - 2;
+	int managed_argc = nargs - aindex;
 	char *managed_argv [128];
 	assert (managed_argc < 128 - 2);
-	int aindex = 0;
-	managed_argv [aindex ++] = "test-runner";
+	int managed_aindex = 0;
+	managed_argv [managed_aindex ++] = "test-runner";
 	for (int i = 0; i < managed_argc; ++i) {
-		managed_argv [aindex] = strdup ([((NSString*)[args objectAtIndex: (i + 2)]) UTF8String]);
-		NSLog (@"Arg: %s", managed_argv [aindex]);
+		managed_argv [managed_aindex] = args [aindex];
+		NSLog (@"Arg: %s", managed_argv [managed_aindex]);
+		managed_aindex ++;
 		aindex ++;
 	}
-	managed_argv [aindex] = NULL;
-	managed_argc = aindex;
+	managed_argv [managed_aindex] = NULL;
+	managed_argc = managed_aindex;
 
 	res = mono_jit_exec (mono_domain_get (), assembly, managed_argc, managed_argv);
 	exit (res);
