@@ -151,7 +151,7 @@ System/UIntPtr.cs
 System/ValueType.cs
 System/Variant.cs
 System/Void.cs
-System/WeakAttribute.cs
+System/WeakReferenceAttribute.cs
 System/WeakReference.cs
 System/WeakReference_T.cs
 System/WindowsConsoleDriver.cs
