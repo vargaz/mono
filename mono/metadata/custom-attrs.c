@@ -2168,7 +2168,7 @@ init_weak_fields_inner (MonoImage *image, GHashTable *indexes)
 
 	if (image == mono_get_corlib ()) {
 		/* Typedef */
-		klass = mono_class_from_name_checked (image, "System", "WeakAttribute", &error);
+		klass = mono_class_from_name_checked (image, "System", "WeakReferenceAttribute", &error);
 		if (!is_ok (&error)) {
 			mono_error_cleanup (&error);
 			return;
@@ -2199,13 +2199,13 @@ init_weak_fields_inner (MonoImage *image, GHashTable *indexes)
 		/* Memberref pointing to a typeref */
 		tdef = &image->tables [MONO_TABLE_MEMBERREF];
 
-		/* Check whenever the assembly references the WeakAttribute type */
+		/* Check whenever the assembly references the WeakReferenceAttribute type */
 		gboolean found = FALSE;
 		tdef = &image->tables [MONO_TABLE_TYPEREF];
 		for (int i = 0; i < tdef->rows; ++i) {
 			guint32 string_offset = mono_metadata_decode_row_col (tdef, i, MONO_TYPEREF_NAME);
 			const char *name = mono_metadata_string_heap (image, string_offset);
-			if (!strcmp (name, "WeakAttribute")) {
+			if (!strcmp (name, "WeakReferenceAttribute")) {
 				found = TRUE;
 				break;
 			}
@@ -2237,10 +2237,10 @@ init_weak_fields_inner (MonoImage *image, GHashTable *indexes)
 				const char *name = mono_metadata_string_heap (image, cols [MONO_TYPEREF_NAME]);
 				const char *nspace = mono_metadata_string_heap (image, cols [MONO_TYPEREF_NAMESPACE]);
 
-				if (!strcmp (nspace, "System") && !strcmp (name, "WeakAttribute")) {
+				if (!strcmp (nspace, "System") && !strcmp (name, "WeakReferenceAttribute")) {
 					MonoClass *klass = mono_class_from_typeref (image, MONO_TOKEN_TYPE_REF | nindex);
-					g_assert (!strcmp (klass->name, "WeakAttribute"));
-					/* Allow a testing dll as well since some profiles don't have WeakAttribute */
+					g_assert (!strcmp (klass->name, "WeakReferenceAttribute"));
+					/* Allow a testing dll as well since some profiles don't have WeakReferenceAttribute */
 					if (klass && (klass->image == mono_get_corlib () || strstr (klass->image->name, "Mono.Runtime.Testing"))) {
 						/* Sanity check that it only has 1 ctor */
 						gpointer iter = NULL;
@@ -2299,7 +2299,7 @@ mono_assembly_init_weak_fields (MonoImage *image)
 
 		/*
 		 * To avoid lookups for every field, we scan the customattr table for entries whose
-		 * parent is a field and whose type is WeakAttribute.
+		 * parent is a field and whose type is WeakReferenceAttribute.
 		 */
 		init_weak_fields_inner (image, indexes);
 	}
