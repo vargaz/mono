@@ -442,6 +442,9 @@ typedef struct {
 	GHashTable *ginst_cache, *gmethod_cache, *gsignature_cache;
 	MonoConcurrentHashTable *gclass_cache;
 
+	/* mirror caches of ones already on MonoImage. These ones contain generics */
+	GHashTable *szarray_cache, *array_cache, *ptr_cache;
+
 	MonoWrapperCaches wrapper_caches;
 
 	mono_mutex_t    lock;
@@ -957,6 +960,9 @@ mono_loader_set_strict_strong_names (gboolean enabled);
 
 gboolean
 mono_loader_get_strict_strong_names (void);
+
+char*
+mono_signature_get_managed_fmt_string (MonoMethodSignature *sig);
 
 #endif /* __MONO_METADATA_INTERNALS_H__ */
 

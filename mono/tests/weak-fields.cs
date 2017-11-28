@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 
 [AttributeUsage(AttributeTargets.Field)]
-public sealed class Weak2Attribute : Attribute
+public sealed class WeakReference2Attribute : Attribute
 {
 }
 
@@ -21,13 +21,13 @@ public class Tests
 {
 	static Finalizable retain;
 
-	[Weak]
+	[WeakReference]
 	public object Obj;
 	[Weak2]
 	public object Obj3;
-	[Weak]
+	[WeakReference]
 	public object Obj2;
-	[Weak]
+	[WeakReference]
 	public Finalizable Obj4;
 
 	public static int Main (String[] args) {
