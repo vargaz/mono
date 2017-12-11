@@ -11,14 +11,18 @@ TEST_SUITES = \
 
 SIM_NAME = xamarin.ios-sdk.sim
 
-harness.exe: harness/harness.cs harness/Options.cs
-	csc /out:$@ -r:System.Json.dll $^
+harness.exe: harness/harness.cs harness/Options.cs Amqp.Net.dll
+	csc /out:$@ -r:System.Json.dll -r:Amqp.Net.dll harness/harness.cs harness/Options.cs
 
 appbuilder.exe: appbuilder/appbuilder.cs appbuilder/Options.cs
 	csc /out:$@ $^
 
-test-runner.exe: test-runner/runner.cs
-	csc /out:$@ -r:$(BCL_DIR)/nunitlite.dll test-runner/runner.cs
+test-runner.exe: test-runner/runner.cs Amqp.Net.dll
+	csc /out:$@ -r:$(BCL_DIR)/nunitlite.dll -r:Amqp.Net.dll test-runner/runner.cs
+
+Amqp.Net.dll:
+	nuget install AMQPNetLite -Version 2.1.1
+	cp AMQPNetLite.2.1.1/lib/net45/Amqp.Net.dll .
 
 runtime/runtime:
 	make -C runtime
@@ -40,18 +44,20 @@ TEST_ASSEMBLIES = $(BCL_DIR)/mscorlib.dll \
 	$(BCL_DIR)/System.Numerics.dll \
 	$(BCL_DIR)/System.Numerics.Vectors.dll \
 	$(BCL_DIR)/nunitlite.dll \
+	$(BCL_DIR)/System.Transactions.dll \
+	Amqp.Net.dll \
 	test-runner.exe
 
 build-ios-sim-%: appbuilder.exe test-runner.exe runtime/runtime $($*_ASSEMBLIES)
 	mono appbuilder.exe --target ios-sim64 --mono-sdkdir $(PWD)/../out --appdir $(PWD)/bin/ios-sim/test-$*.app --runtimedir $(PWD)/runtime --builddir obj/ios-sim/test-$*.app --bundle-executable test-$* --bundle-identifier com.xamarin.mono.ios.test-$* --bundle-name test-$* $(patsubst %,-r %,$(TEST_ASSEMBLIES) $($*_ASSEMBLIES))
 	mkdir -p $(PWD)/bin/ios-sim/test-$*.app
-	if test "x$($*_EXTRA_FILES)" != "x"; then cp -r $($*_EXTRA_FILES) $(PWD)/bin/ios-sim/test-$*.app/; fi
+	cp -r eventhub-send-key.txt $($*_EXTRA_FILES) $(PWD)/bin/ios-sim/test-$*.app/
 	ninja -C obj/ios-sim/test-$*.app -v
 
 build-ios-dev-%: appbuilder.exe test-runner.exe runtime/libmonoios.a $($*_ASSEMBLIES)
 	mono appbuilder.exe --target ios-dev64 --mono-sdkdir $(PWD)/../out --appdir $(PWD)/bin/ios-dev/test-$*.app --runtimedir $(PWD)/runtime --builddir obj/ios-dev/test-$*.app --bundle-executable test-$* --bundle-identifier com.xamarin.mono.ios.test-$* --bundle-name test-$* --exe test-runner.exe $(patsubst %,-r %,$(TEST_ASSEMBLIES) $($*_ASSEMBLIES))
 	mkdir -p $(PWD)/bin/ios-dev/test-$*.app
-	if test "x$($_EXTRA_FILES)" != "x"; then cp -r $($*_EXTRA_FILES) $(PWD)/bin/ios-dev/test-$*.app/; fi
+	cp -r eventhub-send-key.txt $($*_EXTRA_FILES) $(PWD)/bin/ios-dev/test-$*.app/
 	ninja -C obj/ios-dev/test-$*.app -v
 
 # Install % on the simulator
@@ -66,7 +72,11 @@ clean-ios-sim-%:
 run-ios-sim-%: harness.exe
 	mono harness.exe --start-sim
 	xcrun simctl install $(SIM_NAME) bin/ios-sim/test-$*.app
-	mono harness.exe --run-sim --logfile ios-sim-$*.log --bundle-id com.xamarin.mono.ios.test-$* --bundle-dir bin/ios-sim/test-$*.app $(ARGS) $($*_ARGS)
+	mono harness.exe --run-sim --logfile ios-sim-$*.log --eventhub-addr `cat eventhub-rcv-key.txt` --bundle-id com.xamarin.mono.ios.test-$* --bundle-dir bin/ios-sim/test-$*.app $(ARGS) $($*_ARGS)
+
+run-ios-dev-%: harness.exe
+	mono harness.exe --start-sim
+	mono harness.exe --run-dev --logfile ios-dev-$*.log --eventhub-addr `cat eventhub-rcv-key.txt` --bundle-id com.xamarin.mono.ios.test-$* --bundle-dir bin/ios-dev/test-$*.app $(ARGS) $($*_ARGS)
 
 clean:
 	$(MAKE) -C runtime clean
