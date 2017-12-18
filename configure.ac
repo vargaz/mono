@@ -3537,6 +3537,13 @@ if test "x$host" != "x$target"; then
 	aarch64-*)
 		TARGET=ARM64
 		;;
+   i*86*-apple-darwin*)
+		TARGET=X86;
+		arch_target=x86;
+		AC_DEFINE(TARGET_X86, 1, [...])
+		with_tls=pthread
+		target_mach=yes
+		;;
 	*)
 		AC_MSG_ERROR([Cross compiling is not supported for target $target])
 	esac

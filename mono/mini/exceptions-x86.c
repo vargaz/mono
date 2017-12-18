@@ -885,7 +885,9 @@ mono_arch_unwind_frame (MonoDomain *domain, MonoJitTlsData *jit_tls,
 gpointer
 mono_arch_ip_from_context (void *sigctx)
 {
-#if defined(HOST_WATCHOS)
+#if defined(MONO_CROSS_COMPILE)
+	g_assert_not_reached ();
+#elif defined(HOST_WATCHOS)
 	printf("WARNING: mono_arch_ip_from_context() called!\n");
 	return (NULL);
 #elif defined(MONO_ARCH_USE_SIGACTION)
@@ -1076,7 +1078,9 @@ altstack_handle_and_restore (MonoContext *ctx, gpointer obj, gboolean stack_ovf)
 void
 mono_arch_handle_altstack_exception (void *sigctx, MONO_SIG_HANDLER_INFO_TYPE *siginfo, gpointer fault_addr, gboolean stack_ovf)
 {
-#ifdef MONO_ARCH_USE_SIGACTION
+#if defined(MONO_CROSS_COMPILE)
+	g_assert_not_reached ();
+#elif defined(MONO_ARCH_USE_SIGACTION)
 	MonoException *exc = NULL;
 	ucontext_t *ctx = (ucontext_t*)sigctx;
 	MonoJitInfo *ji = mini_jit_info_table_find (mono_domain_get (), (gpointer)UCONTEXT_REG_EIP (ctx), NULL);
