@@ -13,7 +13,6 @@ public class JitTests {
 
 	[Test]
 	public void Basic () {
-		Console.WriteLine ("AAA");
 		int res = TestDriver.RunTests (typeof (BasicTests), args);
 		Assert.AreEqual (0, res);
 	}

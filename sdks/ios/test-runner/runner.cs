@@ -61,7 +61,10 @@ public class TestRunner
 			args = args.Skip (1).ToArray ();
 
 			Console.WriteLine ($"Connecting to harness at {host}:{port}.");
-			runner = new TextUI (new TcpWriter (host, Int32.Parse (port)));
+
+			var writer = new TcpWriter (host, Int32.Parse (port));
+			Console.SetOut (writer);
+			runner = new TextUI (writer);
 		} else {
 			runner = new TextUI ();
 		}
