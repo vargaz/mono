@@ -133,7 +133,7 @@ managed/main.exe: .stamp-bcl-test-deps $(TEST_DEPS) $(APP_SOURCES) | managed/
 	$(CSC) $(CSC_FLAGS) /unsafe -out:$@ $(TEST_MCS_DEPS) /r:managed/nunitlite.dll $(APP_SOURCES)
 
 managed/mini_tests.dll: .stamp-bcl-test-deps $(TEST_DEPS) $(MINI_TEST_SOURCES) mini-test-runner.cs | managed/
-	$(CSC) $(CSC_FLAGS) /unsafe -target:library -out:$@ -define:__MOBILE__,ARCH_32 $(TEST_MCS_DEPS) /r:managed/nunitlite.dll $(MINI_TEST_SOURCES) mini-test-runner.cs
+	$(CSC) $(CSC_FLAGS) /langversion:7.2 /unsafe -target:library -out:$@ -define:__MOBILE__,ARCH_32 $(TEST_MCS_DEPS) /r:managed/nunitlite.dll $(MINI_TEST_SOURCES) mini-test-runner.cs
 
 managed/binding_tests.dll: .stamp-bcl-test-deps $(TEST_DEPS) $(BINDING_TEST_SOURCES) | managed/
 	$(CSC) $(CSC_FLAGS) /unsafe -target:library -out:$@ $(TEST_MCS_DEPS) /r:managed/nunitlite.dll $(BINDING_TEST_SOURCES)
@@ -166,7 +166,7 @@ run-all-%:
 	make -C . run-sm-$*
 
 clean:
-	
+
 package: build
 	rm -rf tmp
 	mkdir tmp
