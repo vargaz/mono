@@ -322,6 +322,11 @@ mini_emit_inst_for_method (MonoCompile *cfg, MonoMethod *cmethod, MonoMethodSign
 			return emit_array_generic_access (cfg, fsig, args, FALSE);
 		else if (strcmp (cmethod->name, "SetGenericValueImpl") == 0 && fsig->param_count + fsig->hasthis == 3 && !cfg->gsharedvt)
 			return emit_array_generic_access (cfg, fsig, args, TRUE);
+		else if (!strcmp (cmethod->name, "GetRawSzArrayData")) {
+			int dreg = alloc_preg (cfg);
+			EMIT_NEW_BIALU_IMM (cfg, ins, OP_PADD_IMM, dreg, args [0]->sreg1, MONO_STRUCT_OFFSET (MonoArray, vector));
+			return ins;
+		}
 
 #ifndef MONO_BIG_ARRAYS
 		/*
@@ -1192,14 +1197,6 @@ mini_emit_inst_for_method (MonoCompile *cfg, MonoMethod *cmethod, MonoMethodSign
 		NULLIFY_INS (args [0]);
 		return ins;
 	} else if (in_corlib &&
-			   !strcmp (cmethod_klass_name_space, "System.Runtime.CompilerServices") &&
-			   // FIXME:
-			   !strcmp (cmethod_klass_name, "JitHelpers2") &&
-			   !strcmp (cmethod->name, "GetRawSzArrayData")) {
-		int dreg = alloc_preg (cfg);
-		EMIT_NEW_BIALU_IMM (cfg, ins, OP_PADD_IMM, dreg, args [0]->sreg1, MONO_STRUCT_OFFSET (MonoArray, vector));
-		return ins;
-	} else if (in_corlib &&
 			   !strcmp (cmethod_klass_name_space, "System") &&
 			   !strcmp (cmethod_klass_name, "ByReference`1") &&
 			   !strcmp (cmethod->name, "get_Value")) {
@@ -1209,7 +1206,7 @@ mini_emit_inst_for_method (MonoCompile *cfg, MonoMethod *cmethod, MonoMethodSign
 		return ins;
 	} else if (in_corlib &&
 			   !strcmp (cmethod_klass_name_space, "System") &&
-			   !strcmp (cmethod_klass_name, "SpanFast`1")) {
+			   (!strcmp (cmethod_klass_name, "Span`1") || !strcmp (cmethod_klass_name, "ReadOnlySpan`1"))) {
 		return emit_span_intrinsics (cfg, cmethod, fsig, args);
 	}
 
