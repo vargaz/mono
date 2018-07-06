@@ -362,8 +362,19 @@ handle_enum:
 			type = mono_class_enum_basetype (type->data.klass);
 			goto handle_enum;
 		}
-		if (MONO_CLASS_IS_SIMD (cfg, mono_class_from_mono_type (type)))
-			return OP_STOREX_MEMBASE;
+		if (MONO_CLASS_IS_SIMD (cfg, mono_class_from_mono_type (type))) {
+			switch (mono_class_value_size (mono_class_from_mono_type (type), NULL)) {
+			case 8:
+				return OP_STOREX8_MEMBASE;
+			case 12:
+				return OP_STOREX12_MEMBASE;
+			case 16:
+				return OP_STOREX_MEMBASE;
+			default:
+				g_assert_not_reached ();
+				break;
+			}
+		}
 		return OP_STOREV_MEMBASE;
 	case MONO_TYPE_TYPEDBYREF:
 		return OP_STOREV_MEMBASE;
@@ -419,8 +430,19 @@ mono_type_to_load_membase (MonoCompile *cfg, MonoType *type)
 	case MONO_TYPE_R8:
 		return OP_LOADR8_MEMBASE;
 	case MONO_TYPE_VALUETYPE:
-		if (MONO_CLASS_IS_SIMD (cfg, mono_class_from_mono_type (type)))
-			return OP_LOADX_MEMBASE;
+		if (MONO_CLASS_IS_SIMD (cfg, mono_class_from_mono_type (type))) {
+			switch (mono_class_value_size (mono_class_from_mono_type (type), NULL)) {
+			case 8:
+				return OP_LOADX8_MEMBASE;
+			case 12:
+				return OP_LOADX12_MEMBASE;
+			case 16:
+				return OP_LOADX_MEMBASE;
+			default:
+				g_assert_not_reached ();
+				break;
+			}
+		}
 	case MONO_TYPE_TYPEDBYREF:
 		return OP_LOADV_MEMBASE;
 	case MONO_TYPE_GENERICINST:

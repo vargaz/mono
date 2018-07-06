@@ -127,7 +127,9 @@ MINI_OP(OP_STOREI1_MEMBASE_IMM, "storei1_membase_imm", IREG, NONE, NONE)
 MINI_OP(OP_STOREI2_MEMBASE_IMM, "storei2_membase_imm", IREG, NONE, NONE)
 MINI_OP(OP_STOREI4_MEMBASE_IMM, "storei4_membase_imm", IREG, NONE, NONE)
 MINI_OP(OP_STOREI8_MEMBASE_IMM, "storei8_membase_imm", IREG, NONE, NONE)
-MINI_OP(OP_STOREX_MEMBASE,      	"storex_membase", IREG, XREG, NONE)
+MINI_OP(OP_STOREX_MEMBASE,      "storex_membase", IREG, XREG, NONE)
+MINI_OP(OP_STOREX8_MEMBASE,     "storex8_membase", IREG, XREG, NONE)
+MINI_OP(OP_STOREX12_MEMBASE,    "storex12_membase", IREG, XREG, NONE)
 MINI_OP(OP_STOREV_MEMBASE,      "storev_membase", IREG, VREG, NONE)
 
 /* MONO_IS_LOAD_MEMBASE depends on the order here */
@@ -143,6 +145,8 @@ MINI_OP(OP_LOADR4_MEMBASE,"loadr4_membase", FREG, IREG, NONE)
 MINI_OP(OP_LOADR8_MEMBASE,"loadr8_membase", FREG, IREG, NONE)
 
 MINI_OP(OP_LOADX_MEMBASE, 			"loadx_membase", XREG, IREG, NONE)
+MINI_OP(OP_LOADX8_MEMBASE, 			"loadx8_membase", XREG, IREG, NONE)
+MINI_OP(OP_LOADX12_MEMBASE, 		"loadx12_membase", XREG, IREG, NONE)
 
 #if defined(TARGET_X86) || defined(TARGET_AMD64)
 MINI_OP(OP_LOADX_ALIGNED_MEMBASE,  "loadx_aligned_membase", XREG, IREG, NONE)

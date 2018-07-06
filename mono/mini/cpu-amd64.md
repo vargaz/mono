@@ -795,7 +795,11 @@ insertx_r4_slow: dest:x src1:x src2:f len:24
 insertx_r8_slow: dest:x src1:x src2:f len:24
 
 loadx_membase: dest:x src1:b len:9
+loadx8_membase: dest:x src1:b len:9
+loadx12_membase: dest:x src1:b len:32
 storex_membase: dest:b src1:x len:9
+storex8_membase: dest:b src1:x len:9
+storex12_membase: dest:b src1:x len:9
 storex_membase_reg: dest:b src1:x len:9
 
 loadx_aligned_membase: dest:x src1:b len:7

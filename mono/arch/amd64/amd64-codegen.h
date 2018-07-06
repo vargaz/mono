@@ -577,6 +577,16 @@ typedef union {
 		amd64_codegen_post(inst); \
 	} while (0)
 
+#define amd64_movlps_reg_membase(inst,reg,basereg,disp)	\
+	do {	\
+		amd64_codegen_pre(inst); \
+		amd64_emit_rex(inst, 0, (reg), 0, (basereg)); \
+		*(inst)++ = (unsigned char)0x0f;	\
+		*(inst)++ = (unsigned char)0x12;	\
+		x86_membase_emit ((inst), (reg) & 0x7, (basereg) & 0x7, (disp));	\
+		amd64_codegen_post(inst); \
+	} while (0)
+
 #define amd64_movdqu_membase_reg(inst,basereg,disp,reg)	\
 	do {	\
 		amd64_codegen_pre(inst); \

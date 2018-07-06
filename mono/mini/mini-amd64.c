@@ -6564,8 +6564,27 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 		case OP_STOREX_MEMBASE:
 			amd64_sse_movups_membase_reg (code, ins->dreg, ins->inst_offset, ins->sreg1);
 			break;
+		case OP_STOREX8_MEMBASE:
+			amd64_sse_movsd_membase_reg (code, ins->dreg, ins->inst_offset, ins->sreg1);
+			break;
+		case OP_STOREX12_MEMBASE:
+			// FIXME:
+			amd64_sse_movups_membase_reg (code, ins->dreg, ins->inst_offset, ins->sreg1);
+			break;
 		case OP_LOADX_MEMBASE:
 			amd64_sse_movups_reg_membase (code, ins->dreg, ins->sreg1, ins->inst_offset);
+			break;
+		case OP_LOADX8_MEMBASE:
+			amd64_movsd_reg_membase (code, ins->dreg, ins->sreg1, ins->inst_offset);
+			break;
+		case OP_LOADX12_MEMBASE:
+			/*
+			 * Load the 3rd word into the lower part, move it to the upper part, load the first 2 words
+			 * into the lower part.
+			 */
+			amd64_movss_reg_membase (code, ins->dreg, ins->sreg1, ins->inst_offset + 8);
+			amd64_movlhps_reg_reg (code, ins->dreg, ins->dreg);
+			amd64_movlps_reg_membase (code, ins->dreg, ins->sreg1, ins->inst_offset);
 			break;
 		case OP_LOADX_ALIGNED_MEMBASE:
 			amd64_sse_movaps_reg_membase (code, ins->dreg, ins->sreg1, ins->inst_offset);
