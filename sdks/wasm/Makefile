@@ -118,12 +118,10 @@ Simple.Dependency.dll: dependency.cs
 sample.dll: Simple.Dependency.dll sample.cs
 	$(CSC) /debug:portable /noconfig /nostdlib /target:library -out:$@ /r:Simple.Dependency.dll /r:$(WASM_BCL_DIR)/mscorlib.dll /r:$(WASM_BCL_DIR)/System.Core.dll sample.cs
 
-Mono.Cecil.dll: $(TOP)/sdks/out/bcl/net_4_x/Mono.Cecil.dll
-	cp $< $@
-
-# We use system csc as this is a desktop program
-packager.exe: packager.cs Mono.Cecil.dll
-	csc /debug:portable -r:Mono.Cecil.dll packager.cs
+packager.exe: packager/packager.cs packager/packager.csproj
+	msbuild /restore /target:Build packager/packager.csproj
+	cp packager/bin/Debug/packager.exe .
+	cp packager/bin/Debug/Mono.Cecil.dll .
 
 .stamp-build-debug-sample: $(DRIVER_CONF)/.stamp-build packager.exe bindings.dll sample.dll debug.html runtime.g.js
 	mono packager.exe -debug -out=debug_sample sample.dll
@@ -236,7 +234,7 @@ package: build build-dbg-proxy
 	cp Mono.WebAssembly.DebuggerProxy/bin/Debug/netstandard2.0/Mono.WebAssembly.DebuggerProxy.dll tmp/
 	cp Mono.WebAssembly.DebuggerProxy/bin/Debug/netstandard2.0/Mono.WebAssembly.DebuggerProxy.pdb tmp/
 	mkdir tmp/dbg-proxy
-	cp ProxyDriver/bin/Debug/netcoreapp2.1/* tmp/dbg-proxy/
+	cp -r ProxyDriver/bin/Debug/netcoreapp2.1/ tmp/dbg-proxy/
 	(cd tmp;  zip -r9 ../mono-wasm-$(shell git rev-parse --short HEAD).zip .)
 	rm -rf tmp
 
