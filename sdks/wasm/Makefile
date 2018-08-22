@@ -71,9 +71,7 @@ toolchain: .stamp-jsvu
 driver.o: driver.c
 	$(EMCC) -g -Os -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s BINARYEN=1 -s "BINARYEN_TRAP_MODE='clamp'" -s TOTAL_MEMORY=134217728 -s ALIASING_FUNCTION_POINTERS=0 driver.c -c -o driver.o
 
-debug/:
-	mkdir -p $@
-release/:
+debug/ release/ aot-release/:
 	mkdir -p $@
 
 debug/.stamp-build: driver.o library_mono.js binding_support.js dotnet_support.js $(TOP)/sdks/out/wasm-interp/lib/libmonosgen-2.0.a | debug/
@@ -85,17 +83,25 @@ release/.stamp-build: driver.o library_mono.js binding_support.js dotnet_support
 	$(EMCC) -Oz --llvm-opts 2 --llvm-lto 1 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s BINARYEN=1 -s "BINARYEN_TRAP_MODE='clamp'" -s TOTAL_MEMORY=134217728 -s ALIASING_FUNCTION_POINTERS=0 --js-library library_mono.js --js-library binding_support.js --js-library dotnet_support.js driver.o $(TOP)/sdks/out/wasm-interp/lib/libmonosgen-2.0.a -o release/mono.js -s NO_EXIT_RUNTIME=1 -s "EXTRA_EXPORTED_RUNTIME_METHODS=['ccall', 'FS_createPath', 'FS_createDataFile', 'cwrap', 'setValue', 'getValue', 'UTF8ToString']"
 	touch $@
 
+aot-release/.stamp-build: driver.o library_mono.js binding_support.js dotnet_support.js $(TOP)/sdks/out/wasm-aot-runtime/lib/libmonosgen-2.0.a debug/.stamp-build | aot-release/
+	$(EMCC) -Oz --llvm-opts 2 --llvm-lto 1 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s BINARYEN=1 -s "BINARYEN_TRAP_MODE='clamp'" -s TOTAL_MEMORY=134217728 -s ALIASING_FUNCTION_POINTERS=0 --js-library library_mono.js --js-library binding_support.js --js-library dotnet_support.js driver.o $(TOP)/sdks/out/wasm-aot-runtime/lib/libmonosgen-2.0.a -o aot-release/mono.js -s NO_EXIT_RUNTIME=1 -s "EXTRA_EXPORTED_RUNTIME_METHODS=['ccall', 'FS_createPath', 'FS_createDataFile', 'cwrap', 'setValue', 'getValue', 'UTF8ToString']"
+	touch $@
+
 mono.js: $(DRIVER_CONF)/.stamp-build
 	cp $(DRIVER_CONF)/mono.js $@
 
 mono.wasm: $(DRIVER_CONF)/.stamp-build
 	cp $(DRIVER_CONF)/mono.wasm $@
 
-build-native: mono.js mono.wasm debug/.stamp-build release/.stamp-build
+build-native: mono.js mono.wasm debug/.stamp-build release/.stamp-build aot-release/.stamp-build
 
 do-runtime:
-	make -j4 -C ../builds package-wasm-interp
+	make -j4 -C ../builds package-wasm-interp package-wasm-aot-runtime
 	make -j4 -C ../builds package-bcl
+	make build-native
+
+do-aot-runtime:
+	make -j4 -C ../builds package-wasm-aot-runtime
 	make build-native
 
 BCL_DEPS=/r:$(WASM_BCL_DIR)/mscorlib.dll /r:$(WASM_BCL_DIR)/System.Core.dll /r:$(WASM_BCL_DIR)/System.dll
@@ -125,11 +131,16 @@ Mono.Cecil.dll: $(TOP)/sdks/out/bcl/net_4_x/Mono.Cecil.dll
 packager.exe: packager.cs Mono.Cecil.dll
 	csc /debug:portable -r:Mono.Cecil.dll packager.cs
 
+OPTIONS_CS = ../../mcs/class/Mono.Options/Mono.Options/Options.cs
+
+appbuilder.exe: appbuilder/appbuilder.cs $(OPTIONS_CS)
+	csc /out:$@ $^
+
 .stamp-build-debug-sample: $(DRIVER_CONF)/.stamp-build packager.exe bindings.dll sample.dll debug.html runtime.g.js
 	mono packager.exe -debug -out=debug_sample sample.dll
 	cp debug.html debug_sample
-	touch $@	
-	
+	touch $@
+
 TEST_ASSEMBLIES = $(WASM_BCL_DIR)/nunitlite.dll $(WASM_BCL_DIR)/tests/wasm_corlib_test.dll $(WASM_BCL_DIR)/tests/wasm_System_test.dll $(WASM_BCL_DIR)/tests/wasm_System.Core_test.dll
 
 .stamp-build-test-suite: $(DRIVER_CONF)/.stamp-build packager.exe bindings.dll binding_tests.dll mini_tests.dll main.exe runtime.g.js
@@ -150,8 +161,9 @@ MINI_BASIC_TEST_SOURCES= $(patsubst %,$(MINI_PATH)/%,$(MINI_BASIC_TEST_FILES))
 mini_tests_basic.dll: $(MINI_BASIC_TEST_SOURCES)
 	$(CSC) $(CSC_FLAGS) /unsafe -target:library -out:$@ -define:__MOBILE__,ARCH_32,NO_BITCODE /r:$(WASM_BCL_DIR)/mscorlib.dll $(MINI_BASIC_TEST_SOURCES)
 
-.stamp-build-aot-test: $(DRIVER_CONF)/.stamp-build packager.exe mini_tests_basic.dll runtime.g.js
-	mono packager.exe -out=aot -nobinding mini_tests_basic.dll
+.stamp-build-aot-test: $(DRIVER_CONF)/.stamp-build packager.exe mini_tests.dll runtime.g.js
+	mono packager.exe -out=aot -nobinding binding_tests.dll mini_tests.dll main.exe
+	cp aot-test.js aot/
 	touch $@
 
 AOT_COMPILER=$(TOP)/sdks/out/wasm-aot/bin/wasm32-mono-sgen
@@ -176,7 +188,22 @@ build-managed: build-debug-sample build-test-suite
 build-dbg-proxy:
 	dotnet build ProxyDriver
 
-build: build-native build-managed
+build: appbuilder.exe build-native build-managed
+
+TEST_ASSEMBLIES = \
+	$(WASM_BCL_DIR)/mscorlib.dll \
+	$(WASM_BCL_DIR)/System.dll \
+	$(WASM_BCL_DIR)/System.Core.dll \
+	$(WASM_BCL_DIR)/System.Xml.dll \
+	$(WASM_BCL_DIR)/Mono.Security.dll \
+	$(WASM_BCL_DIR)/nunitlite.dll
+
+build-aot-mini: appbuilder.exe main.exe
+	mono appbuilder.exe --mono-sdkdir $(PWD)/../out --appdir $(PWD)/bin/aot-mini --builddir obj/aot-mini --exe main.exe -r main.exe $(patsubst %,-r %,$(TEST_ASSEMBLIES))
+	ninja -C obj/aot-mini -v
+
+#	for f in aot/managed/*.dll; do	\
+#		MONO_PATH=aot/managed $(AOT_COMPILER) --aot=llvmonly,asmonly,no-opt,dedup-skip,static,llvm-outfile=$$f.bc $$f;	\
 
 CHAKRA=~/.jsvu/ch
 D8=~/.jsvu/v8
@@ -195,6 +222,9 @@ run-jsc-%: toolchain build-test-suite
 run-sm-%: toolchain build-test-suite
 	(cd test-suite && $(SM) test.js $*)
 
+run-aot-v8-%: toolchain build-aot-test
+	(cd aot && $(D8) --expose_wasm aot-test.js -- $*)
+
 # Leaving JSC for now cuz it aborts when it encounters wasm
 run-all-%:
 	make -C . run-ch-$*
@@ -203,7 +233,7 @@ run-all-%:
 	make -C . run-jsc-$*
 
 clean:
-	
+
 package: build build-dbg-proxy
 	rm -rf tmp
 	mkdir tmp
