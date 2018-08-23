@@ -71,6 +71,9 @@ toolchain: .stamp-jsvu
 driver.o: driver.c
 	$(EMCC) -g -Os -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s BINARYEN=1 -s "BINARYEN_TRAP_MODE='clamp'" -s TOTAL_MEMORY=134217728 -s ALIASING_FUNCTION_POINTERS=0 driver.c -c -o driver.o
 
+driver-aot-sample.o: driver.c
+	$(EMCC) -g -Os -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s BINARYEN=1 -s "BINARYEN_TRAP_MODE='clamp'" -s TOTAL_MEMORY=134217728 -s ALIASING_FUNCTION_POINTERS=0 driver.c -c -DEXPERIMENTAL_AOT_DRIVER -o driver-aot-sample.o
+
 debug/:
 	mkdir -p $@
 release/:
@@ -158,8 +161,8 @@ aot-sample: .stamp-build-aot-test
 		MONO_PATH=aot/managed $(AOT_COMPILER) --aot=llvmonly,asmonly,no-opt,static,llvm-outfile=$$f.bc $$f;	\
 	done	\
 
-link-sample: driver.o library_mono.js binding_support.js dotnet_support.js
-	$(EMCC) -Os -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s BINARYEN=1 -s "BINARYEN_TRAP_MODE='clamp'" -s TOTAL_MEMORY=134217728 -s ALIASING_FUNCTION_POINTERS=0 --js-library library_mono.js --js-library binding_support.js --js-library dotnet_support.js -o aot/mono-aot.js -s NO_EXIT_RUNTIME=1 -s "EXTRA_EXPORTED_RUNTIME_METHODS=['ccall', 'FS_createPath', 'FS_createDataFile', 'cwrap', 'setValue', 'getValue', 'UTF8ToString']" driver.o $(TOP)/sdks/out/wasm-aot-runtime/lib/libmonosgen-2.0.a aot/managed/*.bc
+link-sample: driver-aot-sample.o library_mono.js binding_support.js dotnet_support.js
+	$(EMCC) -Os -g -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s ASSERTIONS=2 -s BINARYEN=1 -s "BINARYEN_TRAP_MODE='clamp'" -s TOTAL_MEMORY=134217728 -s ALIASING_FUNCTION_POINTERS=0 --js-library library_mono.js --js-library binding_support.js --js-library dotnet_support.js -o aot/mono.js -s NO_EXIT_RUNTIME=1 -s "EXTRA_EXPORTED_RUNTIME_METHODS=['ccall', 'FS_createPath', 'FS_createDataFile', 'cwrap', 'setValue', 'getValue', 'UTF8ToString']" driver-aot-sample.o $(TOP)/sdks/out/wasm-aot-runtime/lib/libmonosgen-2.0.a aot/managed/*.bc
 
 
 
