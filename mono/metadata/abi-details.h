@@ -48,7 +48,7 @@ int mono_abi_alignment (CoreTypeAlign type);
 // #define DECL_ALIGN2(type,size) MONO_ALIGN_ ##type = size,
 #define DECL_ALIGN2(type,size)
 #define DECL_SIZE(type) MONO_SIZEOF_ ##type = -1,
-#define DECL_SIZE2(type,size) MONO_SIZEOF_ ##type = -1,
+#define DECL_SIZE2(type,size) MONO_SIZEOF_ ##type = size,
 
 
 enum {
@@ -67,7 +67,5 @@ enum {
 #define MONO_STRUCT_SIZE(struct) ((int)sizeof(struct))
 #endif
 #endif
-
-#define MONO_SIZEOF_MonoObject (2 * MONO_SIZEOF_gpointer)
 
 #endif
