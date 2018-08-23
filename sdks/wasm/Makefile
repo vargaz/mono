@@ -103,6 +103,10 @@ do-runtime:
 
 BCL_DEPS=/r:$(WASM_BCL_DIR)/mscorlib.dll /r:$(WASM_BCL_DIR)/System.Core.dll /r:$(WASM_BCL_DIR)/System.dll
 
+Mono.Cecil.dll:
+	nuget install -Version 0.10.0 Mono.Cecil
+	cp Mono.Cecil.0.10.0/lib/net40/Mono.Cecil.dll .
+
 main.exe: $(APP_SOURCES)
 	$(CSC) $(CSC_FLAGS) /unsafe -out:$@ $(BCL_DEPS) /r:$(WASM_BCL_DIR)/nunitlite.dll  $(APP_SOURCES)
 
@@ -121,16 +125,14 @@ Simple.Dependency.dll: dependency.cs
 sample.dll: Simple.Dependency.dll sample.cs
 	$(CSC) /debug:portable /noconfig /nostdlib /target:library -out:$@ /r:Simple.Dependency.dll /r:$(WASM_BCL_DIR)/mscorlib.dll /r:$(WASM_BCL_DIR)/System.Core.dll sample.cs
 
-packager.exe: packager/packager.cs packager/packager.csproj
-	msbuild /restore /target:Build packager/packager.csproj
-	cp packager/bin/Debug/packager.exe .
-	cp packager/bin/Debug/Mono.Cecil.dll .
+packager.exe: packager/packager.cs Mono.Cecil.dll
+	csc /debug:portable /out:$@ /r:Mono.Cecil.dll packager/packager.cs
 
 .stamp-build-debug-sample: $(DRIVER_CONF)/.stamp-build packager.exe bindings.dll sample.dll debug.html runtime.g.js
 	mono packager.exe -debug -out=debug_sample sample.dll
 	cp debug.html debug_sample
 	touch $@	
-	
+
 TEST_ASSEMBLIES = $(WASM_BCL_DIR)/nunitlite.dll $(WASM_BCL_DIR)/tests/wasm_corlib_test.dll $(WASM_BCL_DIR)/tests/wasm_System_test.dll $(WASM_BCL_DIR)/tests/wasm_System.Core_test.dll
 
 .stamp-build-test-suite: $(DRIVER_CONF)/.stamp-build packager.exe bindings.dll binding_tests.dll mini_tests.dll main.exe runtime.g.js
@@ -204,7 +206,7 @@ run-all-%:
 	make -C . run-jsc-$*
 
 clean:
-	
+
 package: build build-dbg-proxy
 	rm -rf tmp
 	mkdir tmp
