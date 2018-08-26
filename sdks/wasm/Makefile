@@ -104,6 +104,7 @@ do-runtime:
 	make build-native
 
 BCL_DEPS=/r:$(WASM_BCL_DIR)/mscorlib.dll /r:$(WASM_BCL_DIR)/System.Core.dll /r:$(WASM_BCL_DIR)/System.dll
+OPTIONS_CS = ../../mcs/class/Mono.Options//Mono.Options/Options.cs
 
 Mono.Cecil.dll:
 	nuget install -Version 0.10.0 Mono.Cecil
@@ -127,8 +128,8 @@ Simple.Dependency.dll: dependency.cs
 sample.dll: Simple.Dependency.dll sample.cs
 	$(CSC) /debug:portable /noconfig /nostdlib /target:library -out:$@ /r:Simple.Dependency.dll /r:$(WASM_BCL_DIR)/mscorlib.dll /r:$(WASM_BCL_DIR)/System.Core.dll sample.cs
 
-packager.exe: packager/packager.cs Mono.Cecil.dll
-	csc /debug:portable /out:$@ /r:Mono.Cecil.dll packager/packager.cs
+packager.exe: packager/packager.cs Mono.Cecil.dll $(OPTIONS_CS)
+	csc /debug:portable /out:$@ /r:Mono.Cecil.dll packager/packager.cs $(OPTIONS_CS)
 
 .stamp-build-debug-sample: $(DRIVER_CONF)/.stamp-build packager.exe bindings.dll sample.dll debug.html runtime.g.js
 	mono packager.exe -debug -out=debug_sample sample.dll
