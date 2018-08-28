@@ -44,7 +44,6 @@ typedef struct {
 	char spec [MONO_INST_MAX];
 } OpDesc;
 
-static int nacl = 0;
 static GHashTable *table;
 static GHashTable *template_table;
 
@@ -75,7 +74,7 @@ load_file (const char *name) {
 	 * The format of the lines are:
 	 * # comment
 	 * opcode: [dest:format] [src1:format] [src2:format] [flags:format] [clob:format] 
-	 * 	[cost:num] [res:format] [delay:num] [len:num] [nacl:num]
+	 * 	[cost:num] [res:format] [delay:num] [len:num]
 	 * format is a single letter that depends on the field
 	 * NOTE: no space between the field name and the ':'
 	 *
@@ -84,7 +83,6 @@ load_file (const char *name) {
 	line = 0;
 	while ((str = fgets (buf, sizeof (buf), f))) {
 		gboolean is_template = FALSE;
-		gboolean nacl_length_set = FALSE;
 
 		++line;
 		eat_whitespace (str);
@@ -153,17 +151,7 @@ load_file (const char *name) {
 				if (size == 0 && p == endptr)
 					g_error ("Invalid length '%s' at line %d in %s\n", p, line, name);
 				p = endptr;
-				if (!nacl_length_set) {
-					desc->spec [MONO_INST_LEN] = size;
-				}
-			} else if (strncmp (p, "nacl:", 5) == 0) {
-				unsigned long size;
-				p += 5;
-				size = strtoul (p, &p, 10);
-				if (nacl) {
-					desc->spec [MONO_INST_LEN] = size;
-					nacl_length_set = TRUE;
-				}
+				desc->spec [MONO_INST_LEN] = size;
 			} else if (strncmp (p, "template:", 9) == 0) {
 				char *tname;
 				int i;
@@ -317,21 +305,16 @@ main (int argc, char* argv [])
 	} else if (argc < 4) {
 		g_print ("Usage: genmdesc arguments\n");
 		g_print ("\tgenmdesc desc     Output to stdout the description file.\n");
-		g_print ("\tgenmdesc [--nacl] output name desc [desc1...]\n"
-			"                     Write to output the description in a table named 'name',\n"
-			"                     use --nacl to generate Google NativeClient code\n");
+		g_print ("\tgenmdesc output name desc [desc1...]\n"
+				 "                     Write to output the description in a table named 'name'\n");
 		return 1;
 	} else {
 		int i = 3;
-		if (strcmp (argv [1], "--nacl") == 0) {
-			nacl = 1;
-			i++;
-		}
 		
 		for (; i < argc; ++i)
 			load_file (argv [i]);
 		
-		build_table (argv [1 + nacl], argv [2 + nacl]);
+		build_table (argv [1], argv [2]);
 	}
 	return 0;
 }

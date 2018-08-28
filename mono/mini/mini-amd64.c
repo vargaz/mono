@@ -3861,8 +3861,6 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 		case OP_STOREI2_MEMBASE_REG:
 			amd64_mov_membase_reg (code, ins->inst_destbasereg, ins->inst_offset, ins->sreg1, 2);
 			break;
-		/* In AMD64 NaCl, pointers are 4 bytes, */
-		/*  so STORE_* != STOREI8_*. Likewise below. */
 		case OP_STORE_MEMBASE_REG:
 			amd64_mov_membase_reg (code, ins->inst_destbasereg, ins->inst_offset, ins->sreg1, sizeof(gpointer));
 			break;
@@ -3873,11 +3871,6 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			amd64_mov_membase_reg (code, ins->inst_destbasereg, ins->inst_offset, ins->sreg1, 4);
 			break;
 		case OP_STORE_MEMBASE_IMM:
-			/* In NaCl, this could be a PCONST type, which could */
-			/* mean a pointer type was copied directly into the  */
-			/* lower 32-bits of inst_imm, so for InvalidPtr==-1  */
-			/* the value would be 0x00000000FFFFFFFF which is    */
-			/* not proper for an imm32 unless you cast it.       */
 			g_assert (amd64_is_imm32 (ins->inst_imm));
 			amd64_mov_membase_imm (code, ins->inst_destbasereg, ins->inst_offset, (gint32)ins->inst_imm, sizeof(gpointer));
 			break;
@@ -3920,8 +3913,6 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			amd64_widen_membase (code, ins->dreg, ins->dreg, 0, FALSE, FALSE);
 			break;
 		case OP_LOADU2_MEM:
-			/* For NaCl, pointers are 4 bytes, so separate these */
-			/* cases, use literal 8 below where we really want 8 */
 			amd64_mov_reg_imm (code, ins->dreg, ins->inst_imm);
 			amd64_widen_membase (code, ins->dreg, ins->dreg, 0, FALSE, TRUE);
 			break;
