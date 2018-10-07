@@ -1106,7 +1106,7 @@ mono_type_get_full_name (MonoClass *klass);
 char *
 mono_method_get_name_full (MonoMethod *method, gboolean signature, gboolean ret, MonoTypeNameFormat format);
 
-char *
+MONO_PROFILER_API char *
 mono_method_get_full_name (MonoMethod *method);
 
 MonoArrayType *mono_dup_array_type (MonoImage *image, MonoArrayType *a);
