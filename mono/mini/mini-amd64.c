@@ -41,7 +41,6 @@
 
 #include "interp/interp.h"
 
-#include "trace.h"
 #include "ir-emit.h"
 #include "mini-amd64.h"
 #include "cpu-amd64.h"
@@ -1474,8 +1473,6 @@ mono_arch_compute_omit_fp (MonoCompile *cfg)
 	if (cfg->param_area)
 		cfg->arch.omit_fp = FALSE;
 	if (!sig->pinvoke && (sig->call_convention == MONO_CALL_VARARG))
-		cfg->arch.omit_fp = FALSE;
-	if ((mono_jit_trace_calls != NULL && mono_trace_eval (cfg->method)))
 		cfg->arch.omit_fp = FALSE;
 	for (i = 0; i < sig->param_count + sig->hasthis; ++i) {
 		ArgInfo *ainfo = &cinfo->args [i];
@@ -6743,9 +6740,6 @@ get_max_epilog_size (MonoCompile *cfg)
 	
 	if (cfg->method->save_lmf)
 		max_epilog_size += 256;
-	
-	if (mono_jit_trace_calls != NULL)
-		max_epilog_size += 50;
 
 	max_epilog_size += (AMD64_NREG * 2);
 
@@ -6813,14 +6807,10 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 	CallInfo *cinfo;
 	MonoInst *lmf_var = cfg->lmf_var;
 	gboolean args_clobbered = FALSE;
-	gboolean trace = FALSE;
 
 	cfg->code_size = MAX (cfg->header->code_size * 4, 1024);
 
 	code = cfg->native_code = (unsigned char *)g_malloc (cfg->code_size);
-
-	if (mono_jit_trace_calls != NULL && mono_trace_eval (method))
-		trace = TRUE;
 
 	/* Amount of stack space allocated by register saving code */
 	pos = 0;
@@ -7082,7 +7072,7 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 
 		ins = cfg->args [i];
 
-		if ((ins->flags & MONO_INST_IS_DEAD) && !trace)
+		if (ins->flags & MONO_INST_IS_DEAD && !MONO_CFG_PROFILE (cfg, ENTER_CONTEXT))
 			/* Unused arguments */
 			continue;
 
@@ -7175,11 +7165,6 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 
 	if (cfg->method->save_lmf)
 		args_clobbered = TRUE;
-
-	if (trace) {
-		args_clobbered = TRUE;
-		code = (guint8 *)mono_arch_instrument_prolog (cfg, (gpointer)mono_trace_enter_method, code, TRUE);
-	}
 
 	/*
 	 * Optimize the common case of the first bblock making a call with the same
@@ -7314,9 +7299,6 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 
 	/* Save the uwind state which is needed by the out-of-line code */
 	mono_emit_unwind_op_remember_state (cfg, code);
-
-	if (mono_jit_trace_calls != NULL && mono_trace_eval (method))
-		code = (guint8 *)mono_arch_instrument_epilog (cfg, (gpointer)mono_trace_leave_method, code, TRUE);
 
 	/* the code restoring the registers must be kept in sync with OP_TAILCALL */
 	
