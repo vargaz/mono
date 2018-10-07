@@ -33,7 +33,6 @@
 #include <mono/utils/unlocked.h>
 
 #include "mini-sparc.h"
-#include "trace.h"
 #include "cpu-sparc.h"
 #include "jit-icalls.h"
 #include "ir-emit.h"
@@ -3702,171 +3701,6 @@ mono_arch_patch_code (MonoCompile *cfg, MonoMethod *method, MonoDomain *domain, 
 	}
 }
 
-void*
-mono_arch_instrument_prolog (MonoCompile *cfg, void *func, void *p, gboolean enable_arguments)
-{
-	int i;
-	guint32 *code = (guint32*)p;
-	MonoMethodSignature *sig = mono_method_signature (cfg->method);
-	CallInfo *cinfo;
-
-	/* Save registers to stack */
-	for (i = 0; i < 6; ++i)
-		sparc_sti_imm (code, sparc_i0 + i, sparc_fp, ARGS_OFFSET + (i * sizeof (gpointer)));
-
-	cinfo = get_call_info (cfg, sig, FALSE);
-
-	/* Save float regs on V9, since they are caller saved */
-	for (i = 0; i < sig->param_count + sig->hasthis; ++i) {
-		ArgInfo *ainfo = cinfo->args + i;
-		gint32 stack_offset;
-
-		stack_offset = ainfo->offset + ARGS_OFFSET;
-
-		if (ainfo->storage == ArgInFloatReg) {
-			if (!sparc_is_imm13 (stack_offset))
-				NOT_IMPLEMENTED;
-			sparc_stf_imm (code, ainfo->reg, sparc_fp, stack_offset);
-		}
-		else if (ainfo->storage == ArgInDoubleReg) {
-			/* The offset is guaranteed to be aligned by the ABI rules */
-			sparc_stdf_imm (code, ainfo->reg, sparc_fp, stack_offset);
-		}
-	}
-
-	sparc_set (code, cfg->method, sparc_o0);
-	sparc_add_imm (code, FALSE, sparc_fp, MONO_SPARC_STACK_BIAS, sparc_o1);
-
-	mono_add_patch_info (cfg, (guint8*)code-cfg->native_code, MONO_PATCH_INFO_ABS, func);
-	EMIT_CALL ();
-
-	/* Restore float regs on V9 */
-	for (i = 0; i < sig->param_count + sig->hasthis; ++i) {
-		ArgInfo *ainfo = cinfo->args + i;
-		gint32 stack_offset;
-
-		stack_offset = ainfo->offset + ARGS_OFFSET;
-
-		if (ainfo->storage == ArgInFloatReg) {
-			if (!sparc_is_imm13 (stack_offset))
-				NOT_IMPLEMENTED;
-			sparc_ldf_imm (code, sparc_fp, stack_offset, ainfo->reg);
-		}
-		else if (ainfo->storage == ArgInDoubleReg) {
-			/* The offset is guaranteed to be aligned by the ABI rules */
-			sparc_lddf_imm (code, sparc_fp, stack_offset, ainfo->reg);
-		}
-	}
-
-	g_free (cinfo);
-
-	return code;
-}
-
-enum {
-	SAVE_NONE,
-	SAVE_STRUCT,
-	SAVE_ONE,
-	SAVE_TWO,
-	SAVE_FP
-};
-
-void*
-mono_arch_instrument_epilog (MonoCompile *cfg, void *func, void *p, gboolean enable_arguments)
-{
-	guint32 *code = (guint32*)p;
-	int save_mode = SAVE_NONE;
-	MonoMethod *method = cfg->method;
-
-	switch (mini_get_underlying_type (mono_method_signature (method)->ret)->type) {
-	case MONO_TYPE_VOID:
-		/* special case string .ctor icall */
-		if (strcmp (".ctor", method->name) && method->klass == mono_defaults.string_class)
-			save_mode = SAVE_ONE;
-		else
-			save_mode = SAVE_NONE;
-		break;
-	case MONO_TYPE_I8:
-	case MONO_TYPE_U8:
-#ifdef SPARCV9
-		save_mode = SAVE_ONE;
-#else
-		save_mode = SAVE_TWO;
-#endif
-		break;
-	case MONO_TYPE_R4:
-	case MONO_TYPE_R8:
-		save_mode = SAVE_FP;
-		break;
-	case MONO_TYPE_VALUETYPE:
-		save_mode = SAVE_STRUCT;
-		break;
-	default:
-		save_mode = SAVE_ONE;
-		break;
-	}
-
-	/* Save the result to the stack and also put it into the output registers */
-
-	switch (save_mode) {
-	case SAVE_TWO:
-		/* V8 only */
-		sparc_st_imm (code, sparc_i0, sparc_fp, 68);
-		sparc_st_imm (code, sparc_i0, sparc_fp, 72);
-		sparc_mov_reg_reg (code, sparc_i0, sparc_o1);
-		sparc_mov_reg_reg (code, sparc_i1, sparc_o2);
-		break;
-	case SAVE_ONE:
-		sparc_sti_imm (code, sparc_i0, sparc_fp, ARGS_OFFSET);
-		sparc_mov_reg_reg (code, sparc_i0, sparc_o1);
-		break;
-	case SAVE_FP:
-#ifdef SPARCV9
-		sparc_stdf_imm (code, sparc_f0, sparc_fp, ARGS_OFFSET);
-#else
-		sparc_stdf_imm (code, sparc_f0, sparc_fp, 72);
-		sparc_ld_imm (code, sparc_fp, 72, sparc_o1);
-		sparc_ld_imm (code, sparc_fp, 72 + 4, sparc_o2);
-#endif
-		break;
-	case SAVE_STRUCT:
-#ifdef SPARCV9
-		sparc_mov_reg_reg (code, sparc_i0, sparc_o1);
-#else
-		sparc_ld_imm (code, sparc_fp, 64, sparc_o1);
-#endif
-		break;
-	case SAVE_NONE:
-	default:
-		break;
-	}
-
-	sparc_set (code, cfg->method, sparc_o0);
-
-	mono_add_patch_info (cfg, (guint8*)code - cfg->native_code, MONO_PATCH_INFO_ABS, func);
-	EMIT_CALL ();
-
-	/* Restore result */
-
-	switch (save_mode) {
-	case SAVE_TWO:
-		sparc_ld_imm (code, sparc_fp, 68, sparc_i0);
-		sparc_ld_imm (code, sparc_fp, 72, sparc_i0);
-		break;
-	case SAVE_ONE:
-		sparc_ldi_imm (code, sparc_fp, ARGS_OFFSET, sparc_i0);
-		break;
-	case SAVE_FP:
-		sparc_lddf_imm (code, sparc_fp, ARGS_OFFSET, sparc_f0);
-		break;
-	case SAVE_NONE:
-	default:
-		break;
-	}
-
-	return code;
-}
-
 guint8 *
 mono_arch_emit_prolog (MonoCompile *cfg)
 {
@@ -4074,9 +3908,6 @@ mono_arch_emit_prolog (MonoCompile *cfg)
 		code = (guint32*)mono_sparc_emit_save_lmf (code, lmf_offset);
 	}
 
-	if (mono_jit_trace_calls != NULL && mono_trace_eval (method))
-		code = (guint32*)mono_arch_instrument_prolog (cfg, mono_trace_enter_method, code, TRUE);
-
 	set_code_cursor (cfg, code);
 
 	return (guint8*)code;
@@ -4092,14 +3923,8 @@ mono_arch_emit_epilog (MonoCompile *cfg)
 	
 	if (cfg->method->save_lmf)
 		max_epilog_size += 128;
-	
-	if (mono_jit_trace_calls != NULL)
-		max_epilog_size += 50;
 
 	code = (guint32 *)realloc_code (cfg, max_epilog_size);
-
-	if (mono_jit_trace_calls != NULL && mono_trace_eval (method))
-		code = (guint32*)mono_arch_instrument_epilog (cfg, mono_trace_leave_method, code, TRUE);
 
 	if (cfg->method->save_lmf) {
 		gint32 lmf_offset = STACK_BIAS - cfg->arch.lmf_offset;
