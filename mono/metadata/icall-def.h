@@ -843,6 +843,7 @@ HANDLES(ICALL(RTH_14, "IsGenericVariable", ves_icall_RuntimeTypeHandle_IsGeneric
 HANDLES(ICALL(RTH_15, "IsInstanceOfType", ves_icall_RuntimeTypeHandle_IsInstanceOfType))
 HANDLES(ICALL(RTH_16, "IsPointer", ves_icall_RuntimeTypeHandle_IsPointer))
 HANDLES(ICALL(RTH_17, "IsPrimitive", ves_icall_RuntimeTypeHandle_IsPrimitive))
+HANDLES(ICALL(RTH_21, "internal_from_name", ves_icall_System_Type_internal_from_name))
 NOHANDLES(ICALL(RTH_17a, "is_subclass_of", ves_icall_RuntimeTypeHandle_is_subclass_of))
 HANDLES(ICALL(RTH_18, "type_is_assignable_from", ves_icall_RuntimeTypeHandle_type_is_assignable_from))
 

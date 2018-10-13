@@ -188,7 +188,7 @@ ICALL_EXPORT MonoReflectionTypeHandle ves_icall_System_Object_GetType (MonoObjec
 ICALL_EXPORT MonoReflectionTypeHandle ves_icall_System_Reflection_Assembly_InternalGetType (MonoReflectionAssemblyHandle, MonoReflectionModuleHandle, MonoStringHandle, MonoBoolean, MonoBoolean, MonoError*);
 ICALL_EXPORT MonoReflectionTypeHandle ves_icall_System_Reflection_Module_GetGlobalType (MonoReflectionModuleHandle, MonoError*);
 ICALL_EXPORT MonoReflectionTypeHandle ves_icall_System_Type_internal_from_handle (MonoType*, MonoError*);
-ICALL_EXPORT MonoReflectionTypeHandle ves_icall_System_Type_internal_from_name (MonoStringHandle, MonoBoolean, MonoBoolean, MonoError*);
+ICALL_EXPORT MonoReflectionTypeHandle ves_icall_System_Type_internal_from_name (MonoStringHandle, gpointer stack_mark, MonoBoolean, MonoBoolean, MonoError*);
 ICALL_EXPORT MonoString* ves_icall_System_IO_DriveInfo_GetDriveFormat (MonoString*);
 ICALL_EXPORT MonoStringHandle ves_icall_MonoMethod_get_name (MonoReflectionMethodHandle, MonoError*);
 ICALL_EXPORT MonoStringHandle ves_icall_Mono_Runtime_ExceptionToState (MonoExceptionHandle, guint64*, guint64*, MonoError*);

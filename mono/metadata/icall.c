@@ -1513,6 +1513,7 @@ fail:
 
 ICALL_EXPORT MonoReflectionTypeHandle
 ves_icall_System_Type_internal_from_name (MonoStringHandle name,
+					  gpointer stack_mark,
 					  MonoBoolean throwOnError,
 					  MonoBoolean ignoreCase,
 					  MonoError *error)

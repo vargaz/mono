@@ -258,5 +258,41 @@ namespace System
 		[MethodImplAttribute(MethodImplOptions.InternalCall)]
 		internal extern static bool is_subclass_of (IntPtr childType, IntPtr baseType);
 
+		[MethodImplAttribute(MethodImplOptions.InternalCall)]
+		static extern RuntimeType internal_from_name (string name, ref StackCrawlMark stackMark, bool throwOnError, bool ignoreCase);
+
+        internal static RuntimeType GetTypeByName(string typeName, bool throwOnError, bool ignoreCase, bool reflectionOnly, ref StackCrawlMark stackMark,
+												  bool loadTypeFromPartialName)
+		{
+			if (typeName == null)
+				throw new ArgumentNullException ("typeName");
+
+			if (typeName == String.Empty)
+				if (throwOnError)
+					throw new TypeLoadException ("A null or zero length string does not represent a valid Type.");
+				else
+					return null;
+
+			if (reflectionOnly) {
+				int idx = typeName.IndexOf (',');
+				if (idx < 0 || idx == 0 || idx == typeName.Length - 1)
+					throw new ArgumentException ("Assembly qualifed type name is required", "typeName");
+				string an = typeName.Substring (idx + 1);
+				Assembly a;
+				try {
+					a = Assembly.ReflectionOnlyLoad (an);
+				} catch {
+					if (throwOnError)
+						throw;
+					return null;
+				}
+				return (RuntimeType)a.GetType (typeName.Substring (0, idx), throwOnError, ignoreCase);
+			}
+
+			var t = internal_from_name (typeName, ref stackMark, throwOnError, ignoreCase);
+			if (throwOnError && t == null)
+				throw new TypeLoadException ("Error loading '" + typeName + "'");
+			return t;
+		}
 	}
 }
