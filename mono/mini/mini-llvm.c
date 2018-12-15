@@ -1705,43 +1705,73 @@ typedef struct {
 } CallSite;
 
 static LLVMValueRef
+get_callee_for_external_sym (EmitContext *ctx, const char *name, LLVMTypeRef sig)
+{
+	LLVMValueRef callee;
+
+	// FIXME: Locking
+	callee = (LLVMValueRef)g_hash_table_lookup (ctx->module->direct_callables, name);
+	if (!callee) {
+		callee = LLVMAddFunction (ctx->lmodule, name, sig);
+
+		LLVMSetVisibility (callee, LLVMHiddenVisibility);
+
+		g_hash_table_insert (ctx->module->direct_callables, g_strdup (name), callee);
+	} else {
+		/* LLVMTypeRef's are uniqued */
+		if (LLVMGetElementType (LLVMTypeOf (callee)) != sig)
+			return LLVMConstBitCast (callee, LLVMPointerType (sig, 0));
+	}
+	return callee;
+}
+
+static LLVMValueRef
 get_callee_llvmonly (EmitContext *ctx, LLVMTypeRef llvm_sig, MonoJumpInfoType type, gconstpointer data)
 {
 	LLVMValueRef callee;
-	char *callee_name;
+	char *name;
 
-	callee_name = mono_aot_get_direct_call_symbol (type, data);
-	if (callee_name) {
+	name = mono_aot_get_direct_call_symbol (type, data);
+	if (name) {
 		/* Directly callable */
-		// FIXME: Locking
-		callee = (LLVMValueRef)g_hash_table_lookup (ctx->module->direct_callables, callee_name);
-		if (!callee) {
-			callee = LLVMAddFunction (ctx->lmodule, callee_name, llvm_sig);
-
-			LLVMSetVisibility (callee, LLVMHiddenVisibility);
-
-			g_hash_table_insert (ctx->module->direct_callables, (char*)callee_name, callee);
-		} else {
-			/* LLVMTypeRef's are uniqued */
-			if (LLVMGetElementType (LLVMTypeOf (callee)) != llvm_sig)
-				return LLVMConstBitCast (callee, LLVMPointerType (llvm_sig, 0));
-
-			g_free (callee_name);
-		}
+		callee = get_callee_for_external_sym (ctx, name, llvm_sig);
+		g_free (name);
 		return callee;
 	}
 
+#ifdef TARGET_WASM
 	/*
-	 * Change references to jit icalls to the icall wrappers when in corlib, so
-	 * they can be called directly.
+	 * Change references to jit icalls to the icall wrappers so they can be called directly.
 	 */
-	if (ctx->module->assembly->image == mono_get_corlib () && type == MONO_PATCH_INFO_JIT_ICALL) {
+	if (type == MONO_PATCH_INFO_JIT_ICALL) {
 		MonoJitICallInfo *info = mono_find_jit_icall_by_name ((const char*)data);
 		g_assert (info);
 
 		if (info->func != info->wrapper) {
-			type = MONO_PATCH_INFO_METHOD;
-			data = mono_icall_get_wrapper_method (info);
+			if (ctx->module->assembly->image == mono_get_corlib ()) {
+				/* Handled by the code below */
+				type = MONO_PATCH_INFO_METHOD;
+				data = mono_icall_get_wrapper_method (info);
+			} else {
+				MonoMethod *wrapper = mono_icall_get_wrapper_method (info);
+
+				name = mono_aot_get_mangled_method_name (wrapper);
+
+				callee = get_callee_for_external_sym (ctx, name, llvm_sig);
+				g_free (name);
+				return callee;
+			}
+		}
+	}
+
+	if (type == MONO_PATCH_INFO_METHOD && ctx->module->assembly->image != mono_get_corlib ()) {
+		MonoMethod *method = (MonoMethod*)data;
+		if (method->wrapper_type == MONO_WRAPPER_ALLOC) {
+			name = mono_aot_get_mangled_method_name (method);
+
+			callee = get_callee_for_external_sym (ctx, name, llvm_sig);
+			g_free (name);
+			return callee;
 		}
 	}
 
@@ -1752,6 +1782,7 @@ get_callee_llvmonly (EmitContext *ctx, LLVMTypeRef llvm_sig, MonoJumpInfoType ty
 	 */
 	if (type == MONO_PATCH_INFO_METHOD) {
 		MonoMethod *method = (MonoMethod*)data;
+
 		if (m_class_get_image (method->klass)->assembly == ctx->module->assembly) {
 			MonoJumpInfo tmp_ji;
 			tmp_ji.type = type;
@@ -1791,6 +1822,7 @@ get_callee_llvmonly (EmitContext *ctx, LLVMTypeRef llvm_sig, MonoJumpInfoType ty
 			return load;
 		}
 	}
+#endif
 
 	/*
 	 * Calls are made through the GOT.
@@ -7287,6 +7319,27 @@ mono_llvm_emit_method (MonoCompile *cfg)
 	mono_loader_unlock ();
 }
 
+/* Return whenever METHOD should be exported */
+static gboolean
+should_export_method (EmitContext *ctx, MonoMethod *method)
+{
+	if (!(ctx->module->llvm_only && ctx->module->static_link))
+		return FALSE;
+
+#ifdef TARGET_WASM
+	/* JIT icall wrappers are called directly see get_callee_llvmonly () */
+	if (method->wrapper_type == MONO_WRAPPER_MANAGED_TO_NATIVE) {
+		WrapperInfo *info = mono_marshal_get_wrapper_info (method);
+
+		if (info->subtype == WRAPPER_SUBTYPE_ICALL_WRAPPER)
+			return TRUE;
+	}
+	if (method->wrapper_type == MONO_WRAPPER_ALLOC)
+		return TRUE;
+#endif
+	return FALSE;
+}
+
 static void
 emit_method_inner (EmitContext *ctx)
 {
@@ -7305,6 +7358,7 @@ emit_method_inner (EmitContext *ctx)
 	MonoMethodHeader *header;
 	MonoExceptionClause *clause;
 	char **names;
+	gboolean exported = FALSE;
 
 	if (cfg->gsharedvt && !cfg->llvm_only) {
 		set_failure (ctx, "gsharedvt");
@@ -7349,6 +7403,10 @@ emit_method_inner (EmitContext *ctx)
 	if (!ctx_ok (ctx))
 		return;
 
+	exported = should_export_method (ctx, cfg->method);
+	if (exported)
+		ctx->method_name = mono_aot_get_mangled_method_name (cfg->method);
+
 	method = LLVMAddFunction (lmodule, ctx->method_name, method_type);
 	ctx->lmethod = method;
 
@@ -7375,6 +7433,11 @@ emit_method_inner (EmitContext *ctx)
 #else
 		LLVMSetLinkage (method, LLVMPrivateLinkage);
 #endif
+	}
+
+	if (exported) {
+		LLVMSetLinkage (method, LLVMExternalLinkage);
+		LLVMSetVisibility (method, LLVMHiddenVisibility);
 	}
 
 	if (cfg->method->save_lmf && !cfg->llvm_only) {
