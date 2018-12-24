@@ -485,6 +485,7 @@ AM_PROG_AS
 AC_PROG_INSTALL
 AC_PROG_AWK
 AM_PROG_CC_C_O
+AM_PATH_PYTHON([2.7])
 dnl We should use AM_PROG_AS, but it's not available on automake/aclocal 1.4
 : ${CCAS='$(CC)'}
 # Set ASFLAGS if not already set.
@@ -5342,6 +5343,17 @@ AC_ARG_ENABLE(checked_build, [  --enable-checked-build=LIST      To enable check
 
 dnl End of checked builds
 
+dnl Tablegen
+
+AC_ARG_ENABLE(tablegen,[  --enable-tablegen    Enable tablegen support (defaults to no)], enable_tablegen=$enableval, enable_tablegen=no)
+AM_CONDITIONAL(ENABLE_TABLEGEN, test x$enable_tablegen = xyes)
+
+if test x$enable_tablegen != x ; then
+	AC_DEFINE(ENABLE_TABLEGEN,1,[Enable tablegen])
+fi
+
+dnl End of tablegen
+
 AC_CHECK_HEADER([malloc.h], 
 		[AC_DEFINE([HAVE_USR_INCLUDE_MALLOC_H], [1], 
 			[Define to 1 if you have /usr/include/malloc.h.])],,)
@@ -6298,6 +6310,7 @@ echo "
 	LLVM Back End: $enable_llvm (dynamically loaded: $enable_loadedllvm, built in-tree: $internal_llvm, assertions: $enable_llvm_asserts, msvc only: $enable_llvm_msvc_only)
 	Spectre:       $spectre_mitigation_status
 	Mono.Native:   $mono_native_text
+	TableGen       $enable_tablegen
 
    Libraries:
 	.NET 4.x:        $with_profile4_x
