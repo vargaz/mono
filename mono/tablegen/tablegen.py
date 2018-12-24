@@ -1,9 +1,16 @@
 #
 # tablegen.py: Python port of tlbgen
 #
+from __future__ import print_function
 
 import sys
+import io
 import argparse
+
+# Random python2/3 hack
+import sys
+if sys.version_info.major == 3:
+    unicode = str
 
 class TokenKind:
     EOF = 0
@@ -188,11 +195,11 @@ class Lexer:
             if tok == TokenKind.EOF:
                 break
             if tok == TokenKind.ID:
-                print "ID (" + lexer.id_val + ")"
+                print ("ID (" + lexer.id_val + ")")
             elif tok == TokenKind.STRING:
-                print "STRING (\"" + lexer.id_val + "\")"
+                print ("STRING (\"" + lexer.id_val + "\")")
             elif tok == TokenKind.ERROR:
-                print "ERROR (" + lexer.id_val + ")"
+                print ("ERROR (" + lexer.id_val + ")")
                 break
             else:
                 print (TokenKind.to_str [tok])
@@ -321,7 +328,7 @@ class DefValue(Value):
 current_lexer = None
 
 def error(msg):
-    print "Error at line " + str (current_lexer.line) + " column " +  str (current_lexer.column) + ": " + msg
+    print ("Error at line " + str (current_lexer.line) + " column " +  str (current_lexer.column) + ": " + msg)
     raise Exception(msg)
     sys.exit (1)
 
@@ -598,6 +605,9 @@ class Parser:
 class Table:
     def __init__(self, defines):
         self.defines = defines
+        self.by_name = {}
+        for define in self.defines:
+            self.by_name [define.name] = define
 
 class Backend:
     def __init__(self):
@@ -664,3 +674,17 @@ class TableGen:
         backend.generate (table, output)
         if output != sys.stdout:
             output.close ()
+
+    # For testing
+    def parse(self, input_str):
+        f = io.StringIO (unicode (input_str))
+
+        lexer = Lexer(f)
+        global current_lexer
+        current_lexer = lexer
+
+        parser = Parser(lexer)
+        parser.run ()
+
+        table = Table (parser.defines)
+        return table
