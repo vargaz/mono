@@ -55,7 +55,7 @@ class TokenKind:
         INCLUDE : "INCLUDE", SEMI : "SEMI", PERIOD : "PERIOD", COMMA : "COMMA", LESS : "LESS",
         GREATER : "GREATER", RSQUARE : "RSQUARE", LBRACE : "LBRACE",
         RBRACE : "RBRACE", LPAREN : "LPAREN", RPAREN : "RPAREN",
-        EQUAL : "EQUAL", QUESTION : "QUESTION", PASTE : "PASTE",
+        EQUAL : "EQUAL", QUESTION : "QUESTION", PASTE : "#",
         COLON : "COLON", LSQUARE : "LSQUARE",
         KW_INT: "KW_INT", KW_BIT: "KW_BIT", KW_BITS: "KW_BITS", KW_STRING: "KW_STRING",
         KW_LIST: "KW_LIST", KW_CODE: "KW_CODE", KW_DAG: "KW_DAG", KW_CLASS: "KW_CLASS",
@@ -83,6 +83,7 @@ class Lexer:
     def __init__(self, input_file):
         self.input = input_file
         self.cur_c = None
+        self.id_val = ""
         self.line = 1
         self.column = 0
         self.put_back_token = None
@@ -328,12 +329,11 @@ class DefValue(Value):
 current_lexer = None
 
 def error(msg):
-    print ("Error at line " + str (current_lexer.line) + " column " +  str (current_lexer.column) + ": " + msg)
-    raise Exception(msg)
+    raise Exception("Error at line " + str (current_lexer.line) + " column " +  str (current_lexer.column) + ": " + msg)
     sys.exit (1)
 
 def unexpected(lexer):
-    error ("Unexpected token: " + str(lexer.cur_token) + " " + lexer.id_val)
+    error ("Unexpected token: " + TokenKind.to_str [lexer.cur_token] + " " + lexer.id_val)
 
 class Parser:
     def __init__(self, lexer):
@@ -620,7 +620,7 @@ class DefaultBackend(Backend):
     def __init__(self):
         pass
 
-    def generate(self, table, output):
+    def generate(self, table, props, output):
         output.write ("------------- Defs -----------------\n")
         for define in table.defines:
             output.write (str (define))
@@ -640,9 +640,17 @@ class TableGen:
         parser = argparse.ArgumentParser()
         parser.add_argument ('--out', dest='outfile', help='path to output file')
         parser.add_argument ('infile', help='path to input file')
+        parser.add_argument ('-p', dest='props_list', action='append', help='NAME=VALUE property passed to the code generator')
         for g in self.backends.keys ():
             parser.add_argument (g, dest='backend', action='store_const', const=g, help=self.backends_help [g])
         self.args = parser.parse_args ()
+        self.props = {}
+        for prop in self.args.props_list:
+            parts = prop.split ('=')
+            if len (parts) != 2:
+                print ("Usage: -p VARIABLE=VALUE")
+                sys.exit (1)
+            self.props [parts [0]] = parts [1]
 
     def run(self):
         self.parse_args ()
@@ -654,11 +662,6 @@ class TableGen:
 
         parser = Parser(lexer)
         parser.run ()
-        #try:
-         #   parser.run ()
-        #except Exception as ex:
-        #    print (ex)
-        #    error (str (ex))
 
         table = Table (parser.defines)
         table.filename = self.args.infile
@@ -671,7 +674,7 @@ class TableGen:
             output = open (self.args.outfile, "w")
         else:
             output = sys.stdout
-        backend.generate (table, output)
+        backend.generate (table, self.props, output)
         if output != sys.stdout:
             output.close ()
 

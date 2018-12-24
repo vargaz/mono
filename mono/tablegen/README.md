@@ -59,10 +59,11 @@ Run:
 		def __init__(self):
 			pass
 		
-		def generate(self, table, output):
+		def generate(self, table, props, output):
 			...
 
-Here `table` is a `Table` object whose `defines` property returns a list of `Define` objects in the order that they appear in the input file.
+Here `table` is a `Table` object whose `defines` property returns a list of `Define` objects in the order that they appear in the input file. `props` is
+a hash of name-value pairs given by the -p arguments on the command line.
 
 `Define` has the following properties/methods:
 
