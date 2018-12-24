@@ -266,7 +266,7 @@ class Define:
         return s
 
 class Value:
-    def __init__(self):
+    def __init__(self, type):
         pass
     # Evaluate the receiver in a given scope, returning a new Value
     def eval_in_scope(self, scope):
@@ -277,6 +277,7 @@ class Value:
         
 class IntValue(Value):
     def __init__(self, value):
+        self.type = "int"
         self.value = value
     def eval_in_scope(self, scope):
         return self
@@ -287,6 +288,7 @@ class IntValue(Value):
 
 class StringValue(Value):
     def __init__(self, value):
+        self.type = "string"
         self.value = value
     def eval_in_scope(self, scope):
         return self
@@ -297,6 +299,7 @@ class StringValue(Value):
 
 class IdValue(Value):
     def __init__(self, value):
+        self.type = "id"
         self.value = value
     def eval_in_scope(self, scope):
         return scope [self.value]
@@ -318,6 +321,7 @@ class ConstValue(Value):
 # A def
 class DefValue(Value):
     def __init__(self, value):
+        self.type = "def"
         self.value = value
     def eval_in_scope(self, scope):
         return self
@@ -399,6 +403,10 @@ class Parser:
         else:
             unexpected (lexer)
 
+    def typecheck (self, name, member_type, value):
+        if (value.type == "string" or value.type == "int") and member_type != value.type:
+            error ("Cannot assign value '" + str (value) + "' to member '" + name + "' of type '" + member_type + ".")
+
     def instantiate_class(self, klass, args, let_bindings):
         if len(klass.params) < len(args):
             error ("Invalid parameter count for class " + klass.name)
@@ -410,6 +418,7 @@ class Parser:
                     error ("Parameter '" + p.name + "' for class '" + klass.name + "' has no default value.")
                 scope [p.name] = p.value
             else:
+                self.typecheck (p.name, p.type, args [index])
                 scope [p.name] = args [index]
             index += 1
         members = []
@@ -417,6 +426,7 @@ class Parser:
             new_val = m.value.eval_in_scope (scope)
             if m.name in let_bindings:
                 new_val = let_bindings [m.name]
+            self.typecheck (m.name, m.type, new_val)
             members.append (Declaration (m.name, m.type, new_val))
         return members
 
@@ -515,10 +525,9 @@ class Parser:
 
     def parse_class(self):
         lexer = self.lexer
-        tok = lexer.lex ()
-        if tok != TokenKind.ID:
-            error("id expected")
-        name = lexer.id_val
+        name = self.parse_id ()
+        if name in self.defines_by_name or name in self.classes:
+            error ("Duplicate def/class name '" + name + "'.")
         params = []
         parent_members = []
         parent = None
@@ -551,6 +560,8 @@ class Parser:
     def parse_define(self):
         lexer = self.lexer
         name = self.parse_id ()
+        if name in self.defines_by_name or name in self.classes:
+            error ("Duplicate def/class name '" + name + "'.")
         self.parse_expected (TokenKind.COLON, ":")
         [parent, members] = self.parse_base ()
         tok = lexer.lex ()

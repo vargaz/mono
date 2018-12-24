@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import sys
 import unittest
 import tablegen
 
@@ -56,6 +57,73 @@ def Def4 : Class3<"ARG3">;
         # Let outside def
         d = table.by_name ["Def4"]
         self.assertEqual ("ARG3", d.arg3)
+
+    def assertParseError(self, src):
+        fail = False
+        try:
+            tblgen = tablegen.TableGen ()
+            table = tblgen.parse (src)
+            fail = True
+        except:
+            pass
+        if fail:
+            self.fail ("Should have failed on: \n\"\"\"" + src + "\"\"\"")
+
+    def testErrorDuplicateClassName(self):
+        src = """
+class Class1 {}
+class Class1 {}
+"""
+        self.assertParseError (src)
+
+    def testErrorDuplicateDefName(self):
+        src = """
+class Class1 {}
+def Def1 : Class1;
+def Def1 : Class1;
+"""
+        self.assertParseError (src)
+
+    def testErrorDuplicateDefClassName(self):
+        src = """
+class Class1 {}
+def Class1 : Class1;
+"""
+        self.assertParseError (src)
+
+    def testMissingBase(self):
+        src = """
+class Class1 : ClassMissing {}
+"""
+        self.assertParseError (src)
+
+    def testInvalidArgCount(self):
+        src = """
+class Class1<string arg> {}
+class Class2 : Class1 {}
+"""
+        self.assertParseError (src)
+
+    def testInvalidArgCount2(self):
+        src = """
+class Class1<string arg> {}
+class Class2 : Class1<"A", "B"> {}
+"""
+        self.assertParseError (src)
+
+    def testTypeCheckingArg(self):
+        src = """
+class Class1<string arg> {}
+class Class2 : Class1<1> {}
+"""
+        self.assertParseError (src)
+
+    def testTypeCheckingMember(self):
+        src = """
+class Class1<string _arg> { int arg = _arg; }
+def Def1: Class1<"A">;
+"""
+        self.assertParseError (src)
 
 def suite():
     suite = unittest.TestSuite()
