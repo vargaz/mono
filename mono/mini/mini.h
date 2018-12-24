@@ -262,6 +262,15 @@ enum {
         NULLIFY_INS ((ins)); \
     } while (0)
 
+#ifdef ENABLE_TABLEGEN
+#define MONO_IS_MOVE(ins) (mini_ins_flags [(ins)->opcode - OP_START - 1] & MINI_OPFLAG_IS_MOVE)
+#define MONO_IS_PHI(ins) (mini_ins_flags [(ins)->opcode - OP_START - 1] & MINI_OPFLAG_IS_PHI)
+#define MONO_IS_CALL(ins) (mini_ins_flags [(ins)->opcode - OP_START - 1] & MINI_OPFLAG_IS_CALL)
+#define MONO_IS_SETCC(ins) (mini_ins_flags [(ins)->opcode - OP_START - 1] & MINI_OPFLAG_IS_SETCC)
+/* FIXME: Add more instructions */
+#define MONO_INS_HAS_NO_SIDE_EFFECT(ins) (mini_ins_flags [(ins)->opcode - OP_START - 1] & MINI_OPFLAG_NOSIDEFFECT)
+#endif
+
 /* 
  * this is used to determine when some branch optimizations are possible: we exclude FP compares
  * because they have weird semantics with NaNs.
@@ -273,7 +282,9 @@ enum {
 
 #define MONO_IS_COND_EXC(ins) ((((ins)->opcode >= OP_COND_EXC_EQ) && ((ins)->opcode <= OP_COND_EXC_LT_UN)) || (((ins)->opcode >= OP_COND_EXC_IEQ) && ((ins)->opcode <= OP_COND_EXC_ILT_UN)))
 
+#ifndef ENABLE_TABLEGEN
 #define MONO_IS_SETCC(ins) ((((ins)->opcode >= OP_CEQ) && ((ins)->opcode <= OP_CLT_UN)) || (((ins)->opcode >= OP_ICEQ) && ((ins)->opcode <= OP_ICLE_UN)) || (((ins)->opcode >= OP_LCEQ) && ((ins)->opcode <= OP_LCLT_UN)) || (((ins)->opcode >= OP_FCEQ) && ((ins)->opcode <= OP_FCLT_UN)))
+#endif
 
 #define MONO_HAS_CUSTOM_EMULATION(ins) (((ins)->opcode >= OP_FBEQ && (ins)->opcode <= OP_FBLT_UN) || ((ins)->opcode >= OP_FCEQ && (ins)->opcode <= OP_FCLT_UN))
 
@@ -286,47 +297,44 @@ enum {
 
 #define MONO_IS_TAILCALL_OPCODE(call) (MONO_IS_TAILCALL_OPCODE_INTERNAL (call->inst.opcode))
 
+#ifndef ENABLE_TABLEGEN
 // OP_DYN_CALL is not a MonoCallInst
 #define MONO_IS_CALL(ins) (((ins)->opcode >= OP_VOIDCALL && (ins)->opcode <= OP_VCALL2_MEMBASE) || \
 	MONO_IS_TAILCALL_OPCODE_INTERNAL ((ins)->opcode))
+#endif
 
 #define MONO_IS_JUMP_TABLE(ins) (((ins)->opcode == OP_JUMP_TABLE) ? TRUE : ((((ins)->opcode == OP_AOTCONST) && (ins->inst_i1 == (gpointer)MONO_PATCH_INFO_SWITCH)) ? TRUE : ((ins)->opcode == OP_SWITCH) ? TRUE : ((((ins)->opcode == OP_GOT_ENTRY) && ((ins)->inst_right->inst_i1 == (gpointer)MONO_PATCH_INFO_SWITCH)) ? TRUE : FALSE)))
 
 #define MONO_JUMP_TABLE_FROM_INS(ins) (((ins)->opcode == OP_JUMP_TABLE) ? (ins)->inst_p0 : (((ins)->opcode == OP_AOTCONST) && (ins->inst_i1 == (gpointer)MONO_PATCH_INFO_SWITCH) ? (ins)->inst_p0 : (((ins)->opcode == OP_SWITCH) ? (ins)->inst_p0 : ((((ins)->opcode == OP_GOT_ENTRY) && ((ins)->inst_right->inst_i1 == (gpointer)MONO_PATCH_INFO_SWITCH)) ? (ins)->inst_right->inst_p0 : NULL))))
 
 /* FIXME: Add more instructions */
+#ifndef ENABLE_TABLEGEN
 /* INEG sets the condition codes, and the OP_LNEG decomposition depends on this on x86 */
 #define MONO_INS_HAS_NO_SIDE_EFFECT(ins) (MONO_IS_MOVE (ins) || (ins->opcode == OP_ICONST) || (ins->opcode == OP_I8CONST) || MONO_IS_ZERO (ins) || (ins->opcode == OP_ADD_IMM) || (ins->opcode == OP_R8CONST) || (ins->opcode == OP_LADD_IMM) || (ins->opcode == OP_ISUB_IMM) || (ins->opcode == OP_IADD_IMM) || (ins->opcode == OP_LNEG) || (ins->opcode == OP_ISUB) || (ins->opcode == OP_CMOV_IGE) || (ins->opcode == OP_ISHL_IMM) || (ins->opcode == OP_ISHR_IMM) || (ins->opcode == OP_ISHR_UN_IMM) || (ins->opcode == OP_IAND_IMM) || (ins->opcode == OP_ICONV_TO_U1) || (ins->opcode == OP_ICONV_TO_I1) || (ins->opcode == OP_SEXT_I4) || (ins->opcode == OP_LCONV_TO_U1) || (ins->opcode == OP_ICONV_TO_U2) || (ins->opcode == OP_ICONV_TO_I2) || (ins->opcode == OP_LCONV_TO_I2) || (ins->opcode == OP_LDADDR) || (ins->opcode == OP_PHI) || (ins->opcode == OP_NOP) || (ins->opcode == OP_ZEXT_I4) || (ins->opcode == OP_NOT_NULL) || (ins->opcode == OP_IL_SEQ_POINT) || (ins->opcode == OP_XZERO))
+#endif
 
 #define MONO_INS_IS_PCONST_NULL(ins) ((ins)->opcode == OP_PCONST && (ins)->inst_p0 == 0)
-
-#define MONO_METHOD_IS_FINAL(m) (((m)->flags & METHOD_ATTRIBUTE_FINAL) || ((m)->klass && (mono_class_get_flags ((m)->klass) & TYPE_ATTRIBUTE_SEALED)))
 
 /* Determine whenever 'ins' represents a load of the 'this' argument */
 #define MONO_CHECK_THIS(ins) (mono_method_signature_internal (cfg->method)->hasthis && ((ins)->opcode == OP_MOVE) && ((ins)->sreg1 == cfg->args [0]->dreg))
 
-#ifdef MONO_ARCH_SIMD_INTRINSICS
-
+#ifndef ENABLE_TABLEGEN
 #define MONO_IS_PHI(ins) (((ins)->opcode == OP_PHI) || ((ins)->opcode == OP_FPHI) || ((ins)->opcode == OP_VPHI)  || ((ins)->opcode == OP_XPHI))
 #define MONO_IS_MOVE(ins) (((ins)->opcode == OP_MOVE) || ((ins)->opcode == OP_FMOVE) || ((ins)->opcode == OP_VMOVE) || ((ins)->opcode == OP_XMOVE) || ((ins)->opcode == OP_RMOVE))
+#endif
+
 #define MONO_IS_NON_FP_MOVE(ins) (((ins)->opcode == OP_MOVE) || ((ins)->opcode == OP_VMOVE) || ((ins)->opcode == OP_XMOVE))
+/*A real MOVE is one that isn't decomposed such as a VMOVE or LMOVE*/
 #define MONO_IS_REAL_MOVE(ins) (((ins)->opcode == OP_MOVE) || ((ins)->opcode == OP_FMOVE) || ((ins)->opcode == OP_XMOVE) || ((ins)->opcode == OP_RMOVE))
 #define MONO_IS_ZERO(ins) (((ins)->opcode == OP_VZERO) || ((ins)->opcode == OP_XZERO))
 
+#ifdef MONO_ARCH_SIMD_INTRINSICS
 #define MONO_CLASS_IS_SIMD(cfg, klass) (((cfg)->opt & MONO_OPT_SIMD) && m_class_is_simd_type (klass))
-
 #else
-
-#define MONO_IS_PHI(ins) (((ins)->opcode == OP_PHI) || ((ins)->opcode == OP_FPHI) || ((ins)->opcode == OP_VPHI))
-#define MONO_IS_MOVE(ins) (((ins)->opcode == OP_MOVE) || ((ins)->opcode == OP_FMOVE) || ((ins)->opcode == OP_VMOVE) || ((ins)->opcode == OP_RMOVE))
-#define MONO_IS_NON_FP_MOVE(ins) (((ins)->opcode == OP_MOVE) || ((ins)->opcode == OP_VMOVE))
-/*A real MOVE is one that isn't decomposed such as a VMOVE or LMOVE*/
-#define MONO_IS_REAL_MOVE(ins) (((ins)->opcode == OP_MOVE) || ((ins)->opcode == OP_FMOVE) || ((ins)->opcode == OP_RMOVE))
-#define MONO_IS_ZERO(ins) ((ins)->opcode == OP_VZERO)
-
 #define MONO_CLASS_IS_SIMD(cfg, klass) (0)
-
 #endif
+
+#define MONO_METHOD_IS_FINAL(m) (((m)->flags & METHOD_ATTRIBUTE_FINAL) || ((m)->klass && (mono_class_get_flags ((m)->klass) & TYPE_ATTRIBUTE_SEALED)))
 
 #if defined(TARGET_X86) || defined(TARGET_AMD64)
 #define EMIT_NEW_X86_LEA(cfg,dest,sr1,sr2,shift,imm) do { \
@@ -362,6 +370,7 @@ extern MonoMethodSignature *helper_sig_llvmonly_imt_trampoline;
 
 extern const char mini_ins_info[];
 extern const gint8 mini_ins_sreg_counts [];
+extern const guint8 mini_ins_flags[];
 
 #ifndef DISABLE_JIT
 #define mono_inst_get_num_src_registers(ins) (mini_ins_sreg_counts [(ins)->opcode - OP_START - 1])
@@ -884,6 +893,7 @@ mono_inst_set_src_registers (MonoInst *ins, int *regs)
 }
 
 /* instruction description for use in regalloc/scheduling */
+/* KEEP IN SYNC WITH GENMDESC.PY and GEN.PY */
 enum {
 	MONO_INST_DEST,
 	MONO_INST_SRC1,		/* we depend on the SRCs to be consecutive */
@@ -891,12 +901,6 @@ enum {
 	MONO_INST_SRC3,
 	MONO_INST_LEN,
 	MONO_INST_CLOB,
-	/* Unused, commented out to reduce the size of the mdesc tables
-	MONO_INST_FLAGS,
-	MONO_INST_COST,
-	MONO_INST_DELAY,
-	MONO_INST_RES,
-	*/
 	MONO_INST_MAX
 };
 

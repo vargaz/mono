@@ -812,10 +812,10 @@ TABLEGEN=PYTHONPATH=$(top_srcdir)/mono/tablegen python gen.py -p ARCH=$(tablegen
 tablegen_arch=$(subst TARGET_,,$(target_define))
 
 mini-ops.h: mini-ops-gen.h
-mini-ops-gen.h: ops.td
+mini-ops-gen.h: ops.td gen.py
 	PYTHONPATH=$(top_srcdir)/mono/tablegen python gen.py -p ARCH=$(tablegen_arch) --gen-mini-ops --out $@ ops.td
 
-cpu-amd64.h: cpu-amd64.td ops.td cpu-desc.td
+cpu-amd64.h: cpu-amd64.td ops.td cpu-desc.td gen.py
 	PYTHONPATH=$(top_srcdir)/mono/tablegen python gen.py -p ARCH=$(tablegen_arch) --gen-cpu-desc --out $@ cpu-amd64.td
 
 endif

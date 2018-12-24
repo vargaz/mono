@@ -23,6 +23,11 @@ class OpcodeGeneral<string label, RegType dreg = NONE, RegType sreg1 = NONE, Reg
   RegType sreg3 = sreg3;
   // Empty, or a comma-separated list of arches i.e. "X86,AMD64"
   string arch = "";
+  bit noSideEffect = 0;
+  bit isMove = 0;
+  bit isPhi = 0;
+  bit isCall = 0;
+  bit isSetCC = 0;
 }
 
 // For opcodes with auto-generated labels
@@ -35,15 +40,19 @@ class Opcode3<RegType dreg = NONE, RegType sreg1 = NONE, RegType sreg2 = NONE, R
 
 // Have to come first
 def OP_LOAD : Opcode<NONE, NONE, NONE>;
-def OP_LDADDR : Opcode<IREG, NONE, NONE>;
+def OP_LDADDR : Opcode<IREG, NONE, NONE> { let noSideEffect = 1; };
 // Unused
 def OP_STORE :	Opcode<NONE, NONE, NONE>;
-def OP_NOP :  	Opcode<NONE, NONE, NONE>;
-def OP_HARD_NOP : Opcode<NONE, NONE, NONE>;
-def OP_RELAXED_NOP : Opcode<NONE, NONE, NONE>;
-def OP_PHI : 	   Opcode<IREG, NONE, NONE>;
-def OP_FPHI : 	   Opcode<FREG, NONE, NONE>;
-def OP_VPHI : 	   Opcode<VREG, NONE, NONE>;
+let noSideEffect = 1 in {
+    def OP_NOP :  	Opcode<NONE, NONE, NONE>;
+    def OP_HARD_NOP : Opcode<NONE, NONE, NONE>;
+    def OP_RELAXED_NOP : Opcode<NONE, NONE, NONE>;
+}
+let noSideEffect = 1, isPhi = 1 in {
+    def OP_PHI : 	   Opcode<IREG, NONE, NONE>;
+    def OP_FPHI : 	   Opcode<FREG, NONE, NONE>;
+    def OP_VPHI : 	   Opcode<VREG, NONE, NONE>;
+}
 def OP_COMPARE :   Opcode<NONE, IREG, IREG>;
 def OP_COMPARE_IMM : Opcode<NONE, IREG, NONE>;
 def OP_FCOMPARE :  Opcode<NONE, FREG, FREG>;
@@ -69,7 +78,7 @@ def OP_LOCALLOC : Opcode<IREG, IREG, NONE>;
 def OP_LOCALLOC_IMM : Opcode<IREG, NONE, NONE>;
 def OP_CHECK_THIS : OpcodeGeneral<"checkthis", NONE, BREG, NONE>;
 def OP_SEQ_POINT : Opcode<NONE, NONE, NONE>;
-def OP_IL_SEQ_POINT : Opcode<NONE, NONE, NONE>;
+def OP_IL_SEQ_POINT : Opcode<NONE, NONE, NONE> { let noSideEffect = 1; };
 def OP_IMPLICIT_EXCEPTION : Opcode<NONE, NONE, NONE>;
 
 /* write barrier */
@@ -78,7 +87,7 @@ def OP_CARD_TABLE_WBARRIER : Opcode<NONE, IREG, IREG>;
 def OP_LOAD_GOTADDR : Opcode<IREG, NONE, NONE>;
 def OP_DUMMY_USE : Opcode<NONE, IREG, NONE>;
 def OP_NOT_REACHED : Opcode<NONE, NONE, NONE>;
-def OP_NOT_NULL : Opcode<NONE, IREG, NONE>;
+def OP_NOT_NULL : Opcode<NONE, IREG, NONE> { let noSideEffect = 1; };
 /* Same as OUTARG_VT, but has a dreg */
 def OP_LLVM_OUTARG_VT : Opcode<IREG, VREG, NONE>;
 
@@ -124,39 +133,42 @@ def OP_RESTORE_LMF : Opcode<NONE, NONE, NONE>;
 def OP_LOCAL : 		Opcode<NONE, NONE, NONE>;
 def OP_ARG : 		Opcode<NONE, NONE, NONE>;
 
-/* CALL opcodes need to stay together, see MONO_IS_CALL macro */
-def OP_VOIDCALL : Opcode<NONE, NONE, NONE>;
-def OP_VOIDCALL_REG : Opcode<NONE, IREG, NONE>;
-def OP_VOIDCALL_MEMBASE : Opcode<NONE, BREG, NONE>;
-def OP_CALL        : Opcode<IREG, NONE, NONE>;
-def OP_CALL_REG : Opcode<IREG, IREG, NONE>;
-def OP_CALL_MEMBASE : Opcode<IREG, BREG, NONE>;
-def OP_FCALL : Opcode<FREG, NONE, NONE>;
-def OP_FCALL_REG : Opcode<FREG, IREG, NONE>;
-def OP_FCALL_MEMBASE : Opcode<FREG, BREG, NONE>;
-def OP_RCALL : Opcode<FREG, NONE, NONE>;
-def OP_RCALL_REG : Opcode<FREG, IREG, NONE>;
-def OP_RCALL_MEMBASE : Opcode<FREG, BREG, NONE>;
-def OP_LCALL : Opcode<LREG, NONE, NONE>;
-def OP_LCALL_REG : Opcode<LREG, IREG, NONE>;
-def OP_LCALL_MEMBASE : Opcode<LREG, BREG, NONE>;
-def OP_VCALL  : Opcode<VREG, NONE, NONE>;
-def OP_VCALL_REG : Opcode<VREG, IREG, NONE>;
-def OP_VCALL_MEMBASE : Opcode<VREG, BREG, NONE>;
-/* Represents the decomposed vcall which doesn't return a vtype no more */
-def OP_VCALL2  : Opcode<NONE, NONE, NONE>;
-def OP_VCALL2_REG : Opcode<NONE, IREG, NONE>;
-def OP_VCALL2_MEMBASE : Opcode<NONE, BREG, NONE>;
-def OP_DYN_CALL : Opcode<NONE, IREG, IREG>;
-def OP_TAILCALL   : Opcode<NONE, NONE, NONE>;
-def OP_TAILCALL_REG : Opcode<NONE, BREG, NONE>;
-def OP_TAILCALL_MEMBASE : Opcode<NONE, BREG, NONE>;
+let isCall = 1 in {
+    def OP_VOIDCALL : Opcode<NONE, NONE, NONE>;
+    def OP_VOIDCALL_REG : Opcode<NONE, IREG, NONE>;
+    def OP_VOIDCALL_MEMBASE : Opcode<NONE, BREG, NONE>;
+    def OP_CALL        : Opcode<IREG, NONE, NONE>;
+    def OP_CALL_REG : Opcode<IREG, IREG, NONE>;
+    def OP_CALL_MEMBASE : Opcode<IREG, BREG, NONE>;
+    def OP_FCALL : Opcode<FREG, NONE, NONE>;
+    def OP_FCALL_REG : Opcode<FREG, IREG, NONE>;
+    def OP_FCALL_MEMBASE : Opcode<FREG, BREG, NONE>;
+    def OP_RCALL : Opcode<FREG, NONE, NONE>;
+    def OP_RCALL_REG : Opcode<FREG, IREG, NONE>;
+    def OP_RCALL_MEMBASE : Opcode<FREG, BREG, NONE>;
+    def OP_LCALL : Opcode<LREG, NONE, NONE>;
+    def OP_LCALL_REG : Opcode<LREG, IREG, NONE>;
+    def OP_LCALL_MEMBASE : Opcode<LREG, BREG, NONE>;
+    def OP_VCALL  : Opcode<VREG, NONE, NONE>;
+    def OP_VCALL_REG : Opcode<VREG, IREG, NONE>;
+    def OP_VCALL_MEMBASE : Opcode<VREG, BREG, NONE>;
+    /* Represents the decomposed vcall which doesn't return a vtype no more */
+    def OP_VCALL2  : Opcode<NONE, NONE, NONE>;
+    def OP_VCALL2_REG : Opcode<NONE, IREG, NONE>;
+    def OP_VCALL2_MEMBASE : Opcode<NONE, BREG, NONE>;
+    def OP_DYN_CALL : Opcode<NONE, IREG, IREG>;
+    def OP_TAILCALL   : Opcode<NONE, NONE, NONE>;
+    def OP_TAILCALL_REG : Opcode<NONE, BREG, NONE>;
+    def OP_TAILCALL_MEMBASE : Opcode<NONE, BREG, NONE>;
+}
 
-def OP_ICONST : Opcode<IREG, NONE, NONE>;
-def OP_I8CONST : Opcode<LREG, NONE, NONE>;
-def OP_R4CONST : Opcode<FREG, NONE, NONE>;
-def OP_R8CONST : Opcode<FREG, NONE, NONE>;
-def OP_VZERO   : Opcode<VREG, NONE, NONE>;
+let noSideEffect = 1 in {
+    def OP_ICONST : Opcode<IREG, NONE, NONE>;
+    def OP_I8CONST : Opcode<LREG, NONE, NONE>;
+    def OP_R4CONST : Opcode<FREG, NONE, NONE>;
+    def OP_R8CONST : Opcode<FREG, NONE, NONE>;
+    def OP_VZERO   : Opcode<VREG, NONE, NONE>;
+}
 def OP_DUMMY_ICONST : Opcode<IREG, NONE, NONE>;
 def OP_DUMMY_I8CONST : Opcode<LREG, NONE, NONE>;
 def OP_DUMMY_R8CONST : Opcode<FREG, NONE, NONE>;
@@ -270,11 +282,13 @@ def OP_LOADU4_MEM : Opcode<IREG, NONE, NONE>;
 def OP_LOADI8_MEM : Opcode<IREG, NONE, NONE>;
 def OP_STORE_MEM_IMM : Opcode<NONE, NONE, NONE>;
 
-def OP_MOVE : Opcode<IREG, IREG, NONE>;
-def OP_LMOVE : Opcode<LREG, LREG, NONE>;
-def OP_FMOVE : Opcode<FREG, FREG, NONE>;
-def OP_VMOVE   : Opcode<VREG, VREG, NONE>;
-def OP_RMOVE : Opcode<FREG, FREG, NONE>;
+let noSideEffect = 1, isMove = 1 in {
+    def OP_MOVE : Opcode<IREG, IREG, NONE>;
+    def OP_LMOVE : Opcode<LREG, LREG, NONE>;
+    def OP_FMOVE : Opcode<FREG, FREG, NONE>;
+    def OP_VMOVE   : Opcode<VREG, VREG, NONE>;
+    def OP_RMOVE : Opcode<FREG, FREG, NONE>;
+}
 
 /*
  * All 4 of these are only available when soft float isn't active. They
@@ -286,29 +300,34 @@ def OP_MOVE_I4_TO_F : Opcode<FREG, IREG, NONE>;
 def OP_MOVE_F_TO_I8 : Opcode<IREG, FREG, NONE>;
 def OP_MOVE_I8_TO_F : Opcode<FREG, IREG, NONE>;
 
-def OP_ADD_IMM    : Opcode<IREG, IREG, NONE>;
-def OP_SUB_IMM    : Opcode<IREG, IREG, NONE>;
-def OP_MUL_IMM    : Opcode<IREG, IREG, NONE>;
+let noSideEffect = 1 in {
+    def OP_ADD_IMM    : Opcode<IREG, IREG, NONE>;
+    def OP_SUB_IMM    : Opcode<IREG, IREG, NONE>;
+    def OP_MUL_IMM    : Opcode<IREG, IREG, NONE>;
+    def OP_AND_IMM    : Opcode<IREG, IREG, NONE>;
+    def OP_OR_IMM     : Opcode<IREG, IREG, NONE>;
+    def OP_XOR_IMM    : Opcode<IREG, IREG, NONE>;
+    def OP_SHL_IMM    : Opcode<IREG, IREG, NONE>;
+    def OP_SHR_IMM    : Opcode<IREG, IREG, NONE>;
+    def OP_SHR_UN_IMM : Opcode<IREG, IREG, NONE>;
+}
 def OP_DIV_IMM    : Opcode<IREG, IREG, NONE>;
 def OP_DIV_UN_IMM : Opcode<IREG, IREG, NONE>;
 def OP_REM_IMM    : Opcode<IREG, IREG, NONE>;
 def OP_REM_UN_IMM : Opcode<IREG, IREG, NONE>;
-def OP_AND_IMM    : Opcode<IREG, IREG, NONE>;
-def OP_OR_IMM     : Opcode<IREG, IREG, NONE>;
-def OP_XOR_IMM    : Opcode<IREG, IREG, NONE>;
-def OP_SHL_IMM    : Opcode<IREG, IREG, NONE>;
-def OP_SHR_IMM    : Opcode<IREG, IREG, NONE>;
-def OP_SHR_UN_IMM : Opcode<IREG, IREG, NONE>;
 
 def OP_BR         : Opcode<NONE, NONE, NONE>;
+def OP_BR_REG     : Opcode<NONE, IREG, NONE>;
 def OP_TAILCALL_PARAMETER : Opcode<NONE, NONE, NONE>; // no code, just size
 def OP_BREAK      : Opcode<NONE, NONE, NONE>;
 
-def OP_CEQ   : Opcode<IREG, NONE, NONE>;
-def OP_CGT   : Opcode<IREG, NONE, NONE>;
-def OP_CGT_UN : OpcodeGeneral<"cgt.un", IREG, NONE, NONE>;
-def OP_CLT   : Opcode<IREG, NONE, NONE>;
-def OP_CLT_UN : OpcodeGeneral<"clt.un", IREG, NONE, NONE>;
+let isSetCC = 1 in {
+    def OP_CEQ   : Opcode<IREG, NONE, NONE>;
+    def OP_CGT   : Opcode<IREG, NONE, NONE>;
+    def OP_CGT_UN : OpcodeGeneral<"cgt.un", IREG, NONE, NONE>;
+    def OP_CLT   : Opcode<IREG, NONE, NONE>;
+    def OP_CLT_UN : OpcodeGeneral<"clt.un", IREG, NONE, NONE>;
+}
 
 /* exceptions: must be in the same order as the matching CEE_ branch opcodes */
 def OP_COND_EXC_EQ : Opcode<NONE, NONE, NONE>;
@@ -359,20 +378,22 @@ def OP_LSHR    : OpcodeGeneral<"long_shr", LREG, LREG, IREG>;
 def OP_LSHR_UN : OpcodeGeneral<"long_shr_un", LREG, LREG, IREG>;
 
 /* 64 bit opcodes: must be in the same order as the matching CEE_ opcodes: unops_op_map */
-def OP_LNEG       : OpcodeGeneral<"long_neg", LREG, LREG, NONE>;
-def OP_LNOT       : OpcodeGeneral<"long_not", LREG, LREG, NONE>;
-def OP_LCONV_TO_I1 : OpcodeGeneral<"long_conv_to_i1", IREG, LREG, NONE>;
-def OP_LCONV_TO_I2 : OpcodeGeneral<"long_conv_to_i2", IREG, LREG, NONE>;
-def OP_LCONV_TO_I4 : OpcodeGeneral<"long_conv_to_i4", IREG, LREG, NONE>;
-def OP_LCONV_TO_I8 : OpcodeGeneral<"long_conv_to_i8", LREG, LREG, NONE>;
-def OP_LCONV_TO_R4 : OpcodeGeneral<"long_conv_to_r4", FREG, LREG, NONE>;
-def OP_LCONV_TO_R8 : OpcodeGeneral<"long_conv_to_r8", FREG, LREG, NONE>;
-def OP_LCONV_TO_U4 : OpcodeGeneral<"long_conv_to_u4", IREG, LREG, NONE>;
-def OP_LCONV_TO_U8 : OpcodeGeneral<"long_conv_to_u8", LREG, LREG, NONE>;
+let noSideEffect = 1 in {
+    def OP_LNEG       : OpcodeGeneral<"long_neg", LREG, LREG, NONE>;
+    def OP_LNOT       : OpcodeGeneral<"long_not", LREG, LREG, NONE>;
+    def OP_LCONV_TO_I1 : OpcodeGeneral<"long_conv_to_i1", IREG, LREG, NONE>;
+    def OP_LCONV_TO_I2 : OpcodeGeneral<"long_conv_to_i2", IREG, LREG, NONE>;
+    def OP_LCONV_TO_I4 : OpcodeGeneral<"long_conv_to_i4", IREG, LREG, NONE>;
+    def OP_LCONV_TO_I8 : OpcodeGeneral<"long_conv_to_i8", LREG, LREG, NONE>;
+    def OP_LCONV_TO_R4 : OpcodeGeneral<"long_conv_to_r4", FREG, LREG, NONE>;
+    def OP_LCONV_TO_R8 : OpcodeGeneral<"long_conv_to_r8", FREG, LREG, NONE>;
+    def OP_LCONV_TO_U4 : OpcodeGeneral<"long_conv_to_u4", IREG, LREG, NONE>;
+    def OP_LCONV_TO_U8 : OpcodeGeneral<"long_conv_to_u8", LREG, LREG, NONE>;
 
-def OP_LCONV_TO_U2   : OpcodeGeneral<"long_conv_to_u2", IREG, LREG, NONE>;
-def OP_LCONV_TO_U1   : OpcodeGeneral<"long_conv_to_u1", IREG, LREG, NONE>;
-def OP_LCONV_TO_I    : OpcodeGeneral<"long_conv_to_i", LREG, LREG, NONE>;
+    def OP_LCONV_TO_U2   : OpcodeGeneral<"long_conv_to_u2", IREG, LREG, NONE>;
+    def OP_LCONV_TO_U1   : OpcodeGeneral<"long_conv_to_u1", IREG, LREG, NONE>;
+    def OP_LCONV_TO_I    : OpcodeGeneral<"long_conv_to_i", LREG, LREG, NONE>;
+}
 def OP_LCONV_TO_OVF_I : OpcodeGeneral<"long_conv_to_ovf_i", LREG, LREG, NONE>;
 def OP_LCONV_TO_OVF_U : OpcodeGeneral<"long_conv_to_ovf_u", LREG, LREG, NONE>;
 
@@ -404,24 +425,28 @@ def OP_LCONV_TO_OVF_I8 : OpcodeGeneral<"long_conv_to_ovf_i8", LREG, LREG, NONE>;
 def OP_LCONV_TO_OVF_U8 : OpcodeGeneral<"long_conv_to_ovf_u8", LREG, LREG, NONE>;
 
 /* mono_decompose_long_opts (>; depends on the order here */
-def OP_LCEQ   : OpcodeGeneral<"long_ceq", IREG, NONE, NONE>;
-def OP_LCGT   : OpcodeGeneral<"long_cgt", IREG, NONE, NONE>;
-def OP_LCGT_UN : OpcodeGeneral<"long_cgt_un", IREG, NONE, NONE>;
-def OP_LCLT   : OpcodeGeneral<"long_clt", IREG, NONE, NONE>;
-def OP_LCLT_UN : OpcodeGeneral<"long_clt_un", IREG, NONE, NONE>;
+let isSetCC = 1 in {
+    def OP_LCEQ   : OpcodeGeneral<"long_ceq", IREG, NONE, NONE>;
+    def OP_LCGT   : OpcodeGeneral<"long_cgt", IREG, NONE, NONE>;
+    def OP_LCGT_UN : OpcodeGeneral<"long_cgt_un", IREG, NONE, NONE>;
+    def OP_LCLT   : OpcodeGeneral<"long_clt", IREG, NONE, NONE>;
+    def OP_LCLT_UN : OpcodeGeneral<"long_clt_un", IREG, NONE, NONE>;
+}
 
 def OP_LCONV_TO_R_UN : OpcodeGeneral<"long_conv_to_r_un", FREG, LREG, NONE>;
 def OP_LCONV_TO_U   : OpcodeGeneral<"long_conv_to_u", IREG, LREG, NONE>;
 
-def OP_LADD_IMM    : OpcodeGeneral<"long_add_imm", LREG, LREG, NONE>;
-def OP_LSUB_IMM    : OpcodeGeneral<"long_sub_imm", LREG, LREG, NONE>;
-def OP_LMUL_IMM    : OpcodeGeneral<"long_mul_imm", LREG, LREG, NONE>;
-def OP_LAND_IMM    : OpcodeGeneral<"long_and_imm", LREG, LREG, NONE>;
-def OP_LOR_IMM     : OpcodeGeneral<"long_or_imm", LREG, LREG, NONE>;
-def OP_LXOR_IMM    : OpcodeGeneral<"long_xor_imm", LREG, LREG, NONE>;
-def OP_LSHL_IMM    : OpcodeGeneral<"long_shl_imm", LREG, LREG, NONE>;
-def OP_LSHR_IMM    : OpcodeGeneral<"long_shr_imm", LREG, LREG, NONE>;
-def OP_LSHR_UN_IMM : OpcodeGeneral<"long_shr_un_imm", LREG, LREG, NONE>;
+let noSideEffect = 1 in {
+    def OP_LADD_IMM    : OpcodeGeneral<"long_add_imm", LREG, LREG, NONE>;
+    def OP_LSUB_IMM    : OpcodeGeneral<"long_sub_imm", LREG, LREG, NONE>;
+    def OP_LMUL_IMM    : OpcodeGeneral<"long_mul_imm", LREG, LREG, NONE>;
+    def OP_LAND_IMM    : OpcodeGeneral<"long_and_imm", LREG, LREG, NONE>;
+    def OP_LOR_IMM     : OpcodeGeneral<"long_or_imm", LREG, LREG, NONE>;
+    def OP_LXOR_IMM    : OpcodeGeneral<"long_xor_imm", LREG, LREG, NONE>;
+    def OP_LSHL_IMM    : OpcodeGeneral<"long_shl_imm", LREG, LREG, NONE>;
+    def OP_LSHR_IMM    : OpcodeGeneral<"long_shr_imm", LREG, LREG, NONE>;
+    def OP_LSHR_UN_IMM : OpcodeGeneral<"long_shr_un_imm", LREG, LREG, NONE>;
+}
 def OP_LDIV_IMM    : OpcodeGeneral<"long_div_imm", LREG, LREG, NONE>;
 def OP_LDIV_UN_IMM : OpcodeGeneral<"long_div_un_imm", LREG, LREG, NONE>;
 def OP_LREM_IMM    : OpcodeGeneral<"long_rem_imm", LREG, LREG, NONE>;
@@ -447,7 +472,7 @@ def OP_LCONV_TO_OVF_I4_2 : OpcodeGeneral<"long_conv_to_ovf_i4_2", IREG, IREG, IR
 
 /* 32 bit opcodes: must be in the same order as the matching CEE_ opcodes: binops_op_map */
 def OP_IADD    : OpcodeGeneral<"int_add", IREG, IREG, IREG>;
-def OP_ISUB    : OpcodeGeneral<"int_sub", IREG, IREG, IREG>;
+def OP_ISUB    : OpcodeGeneral<"int_sub", IREG, IREG, IREG> { let noSideEffect = 1; };
 def OP_IMUL    : OpcodeGeneral<"int_mul", IREG, IREG, IREG>;
 def OP_IDIV    : OpcodeGeneral<"int_div", IREG, IREG, IREG>;
 def OP_IDIV_UN : OpcodeGeneral<"int_div_un", IREG, IREG, IREG>;
@@ -461,24 +486,29 @@ def OP_ISHR    : OpcodeGeneral<"int_shr", IREG, IREG, IREG>;
 def OP_ISHR_UN : OpcodeGeneral<"int_shr_un", IREG, IREG, IREG>;
 
 /* 32 bit opcodes: must be in the same order as the matching CEE_ opcodes: unops_op_map */
+/* INEG sets the condition codes, and the OP_LNEG decomposition depends on this on x86 */
 def OP_INEG       : OpcodeGeneral<"int_neg", IREG, IREG, NONE>;
-def OP_INOT       : OpcodeGeneral<"int_not", IREG, IREG, NONE>;
-def OP_ICONV_TO_I1 : OpcodeGeneral<"int_conv_to_i1", IREG, IREG, NONE>;
-def OP_ICONV_TO_I2 : OpcodeGeneral<"int_conv_to_i2", IREG, IREG, NONE>;
-def OP_ICONV_TO_I4 : OpcodeGeneral<"int_conv_to_i4", IREG, IREG, NONE>;
-def OP_ICONV_TO_I8 : OpcodeGeneral<"int_conv_to_i8", LREG, IREG, NONE>;
-def OP_ICONV_TO_R4 : OpcodeGeneral<"int_conv_to_r4", FREG, IREG, NONE>;
-def OP_ICONV_TO_R8 : OpcodeGeneral<"int_conv_to_r8", FREG, IREG, NONE>;
-def OP_ICONV_TO_U4 : OpcodeGeneral<"int_conv_to_u4", IREG, IREG, NONE>;
-def OP_ICONV_TO_U8 : OpcodeGeneral<"int_conv_to_u8", LREG, IREG, NONE>;
+let noSideEffect = 1 in {
+    def OP_INOT       : OpcodeGeneral<"int_not", IREG, IREG, NONE>;
+    def OP_ICONV_TO_I1 : OpcodeGeneral<"int_conv_to_i1", IREG, IREG, NONE>;
+    def OP_ICONV_TO_I2 : OpcodeGeneral<"int_conv_to_i2", IREG, IREG, NONE>;
+    def OP_ICONV_TO_I4 : OpcodeGeneral<"int_conv_to_i4", IREG, IREG, NONE>;
+    def OP_ICONV_TO_I8 : OpcodeGeneral<"int_conv_to_i8", LREG, IREG, NONE>;
+    def OP_ICONV_TO_R4 : OpcodeGeneral<"int_conv_to_r4", FREG, IREG, NONE>;
+    def OP_ICONV_TO_R8 : OpcodeGeneral<"int_conv_to_r8", FREG, IREG, NONE>;
+    def OP_ICONV_TO_U4 : OpcodeGeneral<"int_conv_to_u4", IREG, IREG, NONE>;
+    def OP_ICONV_TO_U8 : OpcodeGeneral<"int_conv_to_u8", LREG, IREG, NONE>;
+}
 
 def OP_ICONV_TO_R_UN : OpcodeGeneral<"int_conv_to_r_un", FREG, IREG, NONE>;
 def OP_ICONV_TO_U   : OpcodeGeneral<"int_conv_to_u", IREG, IREG, NONE>;
 
 /* 32 bit opcodes: must be in the same order as the matching CEE_ opcodes: ovfops_op_map */
-def OP_ICONV_TO_U2   : OpcodeGeneral<"int_conv_to_u2", IREG, IREG, NONE>;
-def OP_ICONV_TO_U1   : OpcodeGeneral<"int_conv_to_u1", IREG, IREG, NONE>;
-def OP_ICONV_TO_I    : OpcodeGeneral<"int_conv_to_i", IREG, IREG, NONE>;
+let noSideEffect = 1 in {
+    def OP_ICONV_TO_U2   : OpcodeGeneral<"int_conv_to_u2", IREG, IREG, NONE>;
+    def OP_ICONV_TO_U1   : OpcodeGeneral<"int_conv_to_u1", IREG, IREG, NONE>;
+    def OP_ICONV_TO_I    : OpcodeGeneral<"int_conv_to_i", IREG, IREG, NONE>;
+}
 def OP_ICONV_TO_OVF_I : OpcodeGeneral<"int_conv_to_ovf_i", IREG, IREG, NONE>;
 def OP_ICONV_TO_OVF_U : OpcodeGeneral<"int_conv_to_ovf_u", IREG, IREG, NONE>;
 def OP_IADD_OVF      : OpcodeGeneral<"int_add_ovf", IREG, IREG, IREG>;
@@ -517,31 +547,37 @@ def OP_ISBB_IMM : OpcodeGeneral<"int_sbb_imm", IREG, IREG, NONE>;
 def OP_IADDCC   : OpcodeGeneral<"int_addcc", IREG, IREG, IREG>;
 def OP_ISUBCC   : OpcodeGeneral<"int_subcc", IREG, IREG, IREG>;
 
-def OP_IADD_IMM    : OpcodeGeneral<"int_add_imm", IREG, IREG, NONE>;
-def OP_ISUB_IMM    : OpcodeGeneral<"int_sub_imm", IREG, IREG, NONE>;
+let noSideEffect = 1 in {
+    def OP_IADD_IMM    : OpcodeGeneral<"int_add_imm", IREG, IREG, NONE>;
+    def OP_ISUB_IMM    : OpcodeGeneral<"int_sub_imm", IREG, IREG, NONE>;
+}
 def OP_IMUL_IMM    : OpcodeGeneral<"int_mul_imm", IREG, IREG, NONE>;
 def OP_IDIV_IMM    : OpcodeGeneral<"int_div_imm", IREG, IREG, NONE>;
 def OP_IDIV_UN_IMM : OpcodeGeneral<"int_div_un_imm", IREG, IREG, NONE>;
 def OP_IREM_IMM    : OpcodeGeneral<"int_rem_imm", IREG, IREG, NONE>;
 def OP_IREM_UN_IMM : OpcodeGeneral<"int_rem_un_imm", IREG, IREG, NONE>;
-def OP_IAND_IMM    : OpcodeGeneral<"int_and_imm", IREG, IREG, NONE>;
-def OP_IOR_IMM     : OpcodeGeneral<"int_or_imm", IREG, IREG, NONE>;
-def OP_IXOR_IMM    : OpcodeGeneral<"int_xor_imm", IREG, IREG, NONE>;
-def OP_ISHL_IMM    : OpcodeGeneral<"int_shl_imm", IREG, IREG, NONE>;
-def OP_ISHR_IMM    : OpcodeGeneral<"int_shr_imm", IREG, IREG, NONE>;
-def OP_ISHR_UN_IMM : OpcodeGeneral<"int_shr_un_imm", IREG, IREG, NONE>;
+let noSideEffect = 1 in {
+    def OP_IAND_IMM    : OpcodeGeneral<"int_and_imm", IREG, IREG, NONE>;
+    def OP_IOR_IMM     : OpcodeGeneral<"int_or_imm", IREG, IREG, NONE>;
+    def OP_IXOR_IMM    : OpcodeGeneral<"int_xor_imm", IREG, IREG, NONE>;
+    def OP_ISHL_IMM    : OpcodeGeneral<"int_shl_imm", IREG, IREG, NONE>;
+    def OP_ISHR_IMM    : OpcodeGeneral<"int_shr_imm", IREG, IREG, NONE>;
+    def OP_ISHR_UN_IMM : OpcodeGeneral<"int_shr_un_imm", IREG, IREG, NONE>;
+}
 
-def OP_ICEQ   : OpcodeGeneral<"int_ceq", IREG, NONE, NONE>;
-def OP_ICGT   : OpcodeGeneral<"int_cgt", IREG, NONE, NONE>;
-def OP_ICGT_UN : OpcodeGeneral<"int_cgt_un", IREG, NONE, NONE>;
-def OP_ICLT   : OpcodeGeneral<"int_clt", IREG, NONE, NONE>;
-def OP_ICLT_UN : OpcodeGeneral<"int_clt_un", IREG, NONE, NONE>;
+let isSetCC = 1 in {
+    def OP_ICEQ   : OpcodeGeneral<"int_ceq", IREG, NONE, NONE>;
+    def OP_ICGT   : OpcodeGeneral<"int_cgt", IREG, NONE, NONE>;
+    def OP_ICGT_UN : OpcodeGeneral<"int_cgt_un", IREG, NONE, NONE>;
+    def OP_ICLT   : OpcodeGeneral<"int_clt", IREG, NONE, NONE>;
+    def OP_ICLT_UN : OpcodeGeneral<"int_clt_un", IREG, NONE, NONE>;
 
-def OP_ICNEQ  : OpcodeGeneral<"int_cneq", IREG, NONE, NONE>;
-def OP_ICGE   : OpcodeGeneral<"int_cge", IREG, NONE, NONE>;
-def OP_ICLE   : OpcodeGeneral<"int_cle", IREG, NONE, NONE>;
-def OP_ICGE_UN : OpcodeGeneral<"int_cge_un", IREG, NONE, NONE>;
-def OP_ICLE_UN : OpcodeGeneral<"int_cle_un", IREG, NONE, NONE>;
+    def OP_ICNEQ  : OpcodeGeneral<"int_cneq", IREG, NONE, NONE>;
+    def OP_ICGE   : OpcodeGeneral<"int_cge", IREG, NONE, NONE>;
+    def OP_ICLE   : OpcodeGeneral<"int_cle", IREG, NONE, NONE>;
+    def OP_ICGE_UN : OpcodeGeneral<"int_cge_un", IREG, NONE, NONE>;
+    def OP_ICLE_UN : OpcodeGeneral<"int_cle_un", IREG, NONE, NONE>;
+}
 
 def OP_IBEQ    : OpcodeGeneral<"int_beq", NONE, NONE, NONE>;
 def OP_IBGE    : OpcodeGeneral<"int_bge", NONE, NONE, NONE>;
@@ -653,15 +689,17 @@ def OP_FCONV_TO_OVF_I8 : OpcodeGeneral<"float_conv_to_ovf_i8", LREG, FREG, NONE>
 def OP_FCONV_TO_OVF_U8 : OpcodeGeneral<"float_conv_to_ovf_u8", LREG, FREG, NONE>;
 
 /* These do the comparison too */
-def OP_FCEQ   : OpcodeGeneral<"float_ceq", IREG, FREG, FREG>;
-def OP_FCGT   : OpcodeGeneral<"float_cgt", IREG, FREG, FREG>;
-def OP_FCGT_UN : OpcodeGeneral<"float_cgt_un", IREG, FREG, FREG>;
-def OP_FCLT   : OpcodeGeneral<"float_clt", IREG, FREG, FREG>;
-def OP_FCLT_UN : OpcodeGeneral<"float_clt_un", IREG, FREG, FREG>;
+let isSetCC = 1 in {
+    def OP_FCEQ   : OpcodeGeneral<"float_ceq", IREG, FREG, FREG>;
+    def OP_FCGT   : OpcodeGeneral<"float_cgt", IREG, FREG, FREG>;
+    def OP_FCGT_UN : OpcodeGeneral<"float_cgt_un", IREG, FREG, FREG>;
+    def OP_FCLT   : OpcodeGeneral<"float_clt", IREG, FREG, FREG>;
+    def OP_FCLT_UN : OpcodeGeneral<"float_clt_un", IREG, FREG, FREG>;
 
-def OP_FCNEQ  : OpcodeGeneral<"float_cneq", IREG, FREG, FREG>;
-def OP_FCGE   : OpcodeGeneral<"float_cge", IREG, FREG, FREG>;
-def OP_FCLE   : OpcodeGeneral<"float_cle", IREG, FREG, FREG>;
+    def OP_FCNEQ  : OpcodeGeneral<"float_cneq", IREG, FREG, FREG>;
+    def OP_FCGE   : OpcodeGeneral<"float_cge", IREG, FREG, FREG>;
+    def OP_FCLE   : OpcodeGeneral<"float_cle", IREG, FREG, FREG>;
+}
 
 def OP_FCEQ_MEMBASE   : OpcodeGeneral<"float_ceq_membase", IREG, FREG, BREG>;
 def OP_FCGT_MEMBASE   : OpcodeGeneral<"float_cgt_membase", IREG, FREG, BREG>;
@@ -757,15 +795,16 @@ def OP_ADDCC   : Opcode<IREG, IREG, IREG>;
 def OP_ADDCC_IMM   : Opcode<IREG, IREG, NONE>;
 def OP_SUBCC   : Opcode<IREG, IREG, IREG>;
 def OP_SUBCC_IMM   : Opcode<IREG, IREG, NONE>;
-def OP_BR_REG  : Opcode<NONE, IREG, NONE>;
-def OP_SEXT_I1  : Opcode<IREG, IREG, NONE>;
-def OP_SEXT_I2  : Opcode<IREG, IREG, NONE>;
-def OP_SEXT_I4  : Opcode<LREG, IREG, NONE>;
-def OP_ZEXT_I1  : Opcode<IREG, IREG, NONE>;
-def OP_ZEXT_I2  : Opcode<IREG, IREG, NONE>;
-def OP_ZEXT_I4  : Opcode<LREG, IREG, NONE>;
+let noSideEffect = 1 in {
+    def OP_SEXT_I1  : Opcode<IREG, IREG, NONE>;
+    def OP_SEXT_I2  : Opcode<IREG, IREG, NONE>;
+    def OP_SEXT_I4  : Opcode<LREG, IREG, NONE>;
+    def OP_ZEXT_I1  : Opcode<IREG, IREG, NONE>;
+    def OP_ZEXT_I2  : Opcode<IREG, IREG, NONE>;
+    def OP_ZEXT_I4  : Opcode<LREG, IREG, NONE>;
+    def OP_TRUNC_I4 : Opcode<IREG, LREG, NONE>;
+}
 def OP_CNE      : Opcode<NONE, NONE, NONE>;
-def OP_TRUNC_I4 : Opcode<IREG, LREG, NONE>;
 /* to implement the upper half of long32 add and sub */
 def OP_ADD_OVF_CARRY   : Opcode<IREG, IREG, IREG>;
 def OP_SUB_OVF_CARRY   : Opcode<IREG, IREG, IREG>;
@@ -1019,12 +1058,14 @@ def OP_DPPS : Opcode<XREG, XREG, XREG>;
 /* inst_c0 is the rounding mode: 0 = round, 1 = floor, 2 = ceiling */
 def OP_SSE41_ROUNDPD : OpcodeGeneral<"roundpd", XREG, XREG, NONE>;
 
-}
+} // SIMD
 
-def OP_XMOVE   : Opcode<XREG, XREG, NONE>;
-def OP_XZERO   : Opcode<XREG, NONE, NONE>;
-def OP_XONES   : Opcode<XREG, NONE, NONE>;
-def OP_XPHI : Opcode<XREG, NONE, NONE>;
+let noSideEffect = 1 in {
+    def OP_XMOVE   : Opcode<XREG, XREG, NONE> { let isMove = 1; };
+    def OP_XZERO   : Opcode<XREG, NONE, NONE>;
+    def OP_XONES   : Opcode<XREG, NONE, NONE>;
+    def OP_XPHI : Opcode<XREG, NONE, NONE> { let isPhi = 1; };
+}
 
 /*
  * These are used for efficient implementation of the
@@ -1091,27 +1132,29 @@ def OP_ATOMIC_CAS_I8 : Opcode3<IREG, BREG, IREG, IREG>;
  * the cmov in those cases.
  * These opcodes operate on pointer sized values.
  */
-def OP_CMOV_IEQ    : Opcode<IREG, IREG, IREG>;
-def OP_CMOV_IGE    : Opcode<IREG, IREG, IREG>;
-def OP_CMOV_IGT    : Opcode<IREG, IREG, IREG>;
-def OP_CMOV_ILE    : Opcode<IREG, IREG, IREG>;
-def OP_CMOV_ILT    : Opcode<IREG, IREG, IREG>;
-def OP_CMOV_INE_UN : Opcode<IREG, IREG, IREG>;
-def OP_CMOV_IGE_UN : Opcode<IREG, IREG, IREG>;
-def OP_CMOV_IGT_UN : Opcode<IREG, IREG, IREG>;
-def OP_CMOV_ILE_UN : Opcode<IREG, IREG, IREG>;
-def OP_CMOV_ILT_UN : Opcode<IREG, IREG, IREG>;
+let noSideEffect = 1 in {
+    def OP_CMOV_IEQ    : Opcode<IREG, IREG, IREG>;
+    def OP_CMOV_IGE    : Opcode<IREG, IREG, IREG>;
+    def OP_CMOV_IGT    : Opcode<IREG, IREG, IREG>;
+    def OP_CMOV_ILE    : Opcode<IREG, IREG, IREG>;
+    def OP_CMOV_ILT    : Opcode<IREG, IREG, IREG>;
+    def OP_CMOV_INE_UN : Opcode<IREG, IREG, IREG>;
+    def OP_CMOV_IGE_UN : Opcode<IREG, IREG, IREG>;
+    def OP_CMOV_IGT_UN : Opcode<IREG, IREG, IREG>;
+    def OP_CMOV_ILE_UN : Opcode<IREG, IREG, IREG>;
+    def OP_CMOV_ILT_UN : Opcode<IREG, IREG, IREG>;
 
-def OP_CMOV_LEQ    : Opcode<IREG, IREG, IREG>;
-def OP_CMOV_LGE    : Opcode<IREG, IREG, IREG>;
-def OP_CMOV_LGT    : Opcode<IREG, IREG, IREG>;
-def OP_CMOV_LLE    : Opcode<IREG, IREG, IREG>;
-def OP_CMOV_LLT    : Opcode<IREG, IREG, IREG>;
-def OP_CMOV_LNE_UN : Opcode<IREG, IREG, IREG>;
-def OP_CMOV_LGE_UN : Opcode<IREG, IREG, IREG>;
-def OP_CMOV_LGT_UN : Opcode<IREG, IREG, IREG>;
-def OP_CMOV_LLE_UN : Opcode<IREG, IREG, IREG>;
-def OP_CMOV_LLT_UN : Opcode<IREG, IREG, IREG>;
+    def OP_CMOV_LEQ    : Opcode<IREG, IREG, IREG>;
+    def OP_CMOV_LGE    : Opcode<IREG, IREG, IREG>;
+    def OP_CMOV_LGT    : Opcode<IREG, IREG, IREG>;
+    def OP_CMOV_LLE    : Opcode<IREG, IREG, IREG>;
+    def OP_CMOV_LLT    : Opcode<IREG, IREG, IREG>;
+    def OP_CMOV_LNE_UN : Opcode<IREG, IREG, IREG>;
+    def OP_CMOV_LGE_UN : Opcode<IREG, IREG, IREG>;
+    def OP_CMOV_LGT_UN : Opcode<IREG, IREG, IREG>;
+    def OP_CMOV_LLE_UN : Opcode<IREG, IREG, IREG>;
+    def OP_CMOV_LLT_UN : Opcode<IREG, IREG, IREG>;
+}
 
 /* Debugging support */
 /* 
