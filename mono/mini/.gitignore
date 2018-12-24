@@ -34,3 +34,4 @@
 /buildver-sgen.h
 /buildver-boehm.h
 /regressiontests.out
+/mini-ops-gen.h
