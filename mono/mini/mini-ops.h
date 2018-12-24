@@ -1,3 +1,6 @@
+#ifdef ENABLE_TABLEGEN
+#include "mini-ops-gen.h"
+#else
 /**
  * \file
  * Copyright 2003 Ximian, Inc
@@ -1338,3 +1341,5 @@ MINI_OP(OP_GET_LAST_ERROR, "get_last_error", IREG, NONE, NONE)
  * should be enough to locate arguments and variables.
  */
 MINI_OP(OP_FILL_PROF_CALL_CTX, "fill_prof_call_ctx", NONE, IREG, NONE)
+
+#endif /* ENABLE_TABLEGEN */
