@@ -5,6 +5,7 @@ from __future__ import print_function
 
 import sys
 import io
+import os
 import argparse
 
 # Random python2/3 hack
@@ -685,7 +686,11 @@ class TableGen:
             output = open (self.args.outfile, "w")
         else:
             output = sys.stdout
-        backend.generate (table, self.props, output)
+        try:
+            backend.generate (table, self.props, output)
+        except:
+            os.remove (self.args.outfile)
+            raise
         if output != sys.stdout:
             output.close ()
 
