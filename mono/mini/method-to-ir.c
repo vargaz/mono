@@ -201,6 +201,7 @@ static GENERATE_GET_CLASS_WITH_CACHE (geqcomparer, "System.Collections.Generic",
 #define MINI_OP3(a,b,dest,src1,src2,src3) dest, src1, src2, src3,
 #define NONE ' '
 #define IREG 'i'
+#define BREG 'i'
 #define FREG 'f'
 #define VREG 'v'
 #define XREG 'x'

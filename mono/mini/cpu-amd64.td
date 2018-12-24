@@ -4,7 +4,6 @@
 include "cpu-desc.td"
 
 // FIXME:
-// - define 'b' in ops.td
 // - get rid of unused opcodes
 
 // Additional reg/clob spec
@@ -22,27 +21,27 @@ let clob = ClobCallee in {
 	def call: Ins<32> { let dest = RegRAX; };
 	def voidcall: Ins<32>;
 	def voidcall_reg: Ins<32>;
-	def voidcall_membase: Ins<32> { let src1 = RegBase; };
+	def voidcall_membase: Ins<32>;
 	def fcall: Ins<64>;
 	def fcall_reg: Ins<64>;
-	def fcall_membase: Ins<64> { let src1 = RegBase; };
+	def fcall_membase: Ins<64>;
 	def rcall: Ins<64>;
 	def rcall_reg: Ins<64>;
-	def rcall_membase: Ins<64> { let src1 = RegBase; };
+	def rcall_membase: Ins<64>;
 	def lcall: Ins<64> { let dest = RegRAX; };
 	def lcall_reg: Ins<64> { let dest = RegRAX; };
-	def lcall_membase: Ins<64> { let dest = RegRAX; let src1 = RegBase; };
+	def lcall_membase: Ins<64> { let dest = RegRAX; };
 	def vcall: Ins<64>;
 	def vcall_reg: Ins<64>;
-	def vcall_membase: Ins<64> { let src1 = RegBase; };
+	def vcall_membase: Ins<64>;
 	def call_reg: Ins<32> { let dest = RegRAX; };
-	def call_membase: Ins<32> { let dest = RegRAX; let src1 = RegBase; };
+	def call_membase: Ins<32> { let dest = RegRAX; };
 	def tailcall: Ins<255>;
-	def tailcall_reg: Ins<255> { let src1 = RegBase; };
-	def tailcall_membase: Ins<255> { let src1 = RegBase; };
+	def tailcall_reg: Ins<255>;
+	def tailcall_membase: Ins<255>;
     def vcall2: Ins<64>;
     def vcall2_reg: Ins<64>;
-    def vcall2_membase: Ins<64> { let src1 = RegBase; };
+    def vcall2_membase: Ins<64>;
     def dyn_call: Ins<192>;
 }
 
@@ -280,41 +279,38 @@ def r4const: Ins<14>;
 def r8const: Ins<9>;
 
 // Store membase
-let dest = RegBase in {
-	def store_membase_imm: Ins<15>;
-	def store_membase_reg: Ins<9>;
-	def storei8_membase_reg: Ins<9>;
-	def storei1_membase_imm: Ins<11>;
-	def storei1_membase_reg: Ins<9>;
-	def storei2_membase_imm: Ins<13>;
-	def storei2_membase_reg: Ins<9>;
-	def storei4_membase_imm: Ins<13>;
-	def storei4_membase_reg: Ins<9>;
-	def storei8_membase_imm: Ins<18>;
-	def storer4_membase_reg: Ins<15>;
-	def storer8_membase_reg: Ins<10>;
-    def storex_membase: Ins<9>;
-    def storex_membase_reg: Ins<9>;
-    def storex_aligned_membase_reg: Ins<7>;
-    def storex_nta_membase_reg: Ins<7>;
-}
+def store_membase_imm: Ins<15>;
+def store_membase_reg: Ins<9>;
+def storei8_membase_reg: Ins<9>;
+def storei1_membase_imm: Ins<11>;
+def storei1_membase_reg: Ins<9>;
+def storei2_membase_imm: Ins<13>;
+def storei2_membase_reg: Ins<9>;
+def storei4_membase_imm: Ins<13>;
+def storei4_membase_reg: Ins<9>;
+def storei8_membase_imm: Ins<18>;
+def storer4_membase_reg: Ins<15>;
+def storer8_membase_reg: Ins<10>;
+def storex_membase: Ins<9>;
+def storex_membase_reg: Ins<9>;
+def storex_aligned_membase_reg: Ins<7>;
+def storex_nta_membase_reg: Ins<7>;
 
 // Load membase
-let src1 = RegBase in {
-	def load_membase: Ins<8>;
-	def loadi1_membase: Ins<9>;
-	def loadu1_membase: Ins<9>;
-	def loadi2_membase: Ins<9>;
-	def loadu2_membase: Ins<9>;
-	def loadi4_membase: Ins<9>;
-	def loadu4_membase: Ins<9>;
-	def loadi8_membase: Ins<18>;
-	def loadr4_membase: Ins<16>;
-	def loadr8_membase: Ins<16>;
-    def loadx_membase: Ins<9>;
-    def loadx_aligned_membase: Ins<7>;
-    def prefetch_membase: Ins<4>;
-}
+def load_membase: Ins<8>;
+def loadi1_membase: Ins<9>;
+def loadu1_membase: Ins<9>;
+def loadi2_membase: Ins<9>;
+def loadu2_membase: Ins<9>;
+def loadi4_membase: Ins<9>;
+def loadu4_membase: Ins<9>;
+def loadi8_membase: Ins<18>;
+def loadr4_membase: Ins<16>;
+def loadr8_membase: Ins<16>;
+def loadx_membase: Ins<9>;
+def loadx_aligned_membase: Ins<7>;
+def prefetch_membase: Ins<4>;
+
 def load_mem: Ins<16>;
 def loadi8_mem: Ins<16>;
 def loadi4_mem: Ins<16>;
@@ -452,13 +448,11 @@ def float_clt_un: Ins<42>;
 def float_cneq: Ins<42>;
 def float_cge: Ins<35>;
 def float_cle: Ins<35>;
-let src2 = RegBase in {
-    def float_ceq_membase: Ins<35>;
-    def float_cgt_membase: Ins<35>;
-    def float_cgt_un_membase: Ins<48>;
-    def float_clt_membase: Ins<35>;
-    def float_clt_un_membase: Ins<42>;
-}
+def float_ceq_membase: Ins<35>;
+def float_cgt_membase: Ins<35>;
+def float_cgt_un_membase: Ins<48>;
+def float_clt_membase: Ins<35>;
+def float_clt_un_membase: Ins<42>;
 
 // R4
 let len = 32 in {
@@ -504,20 +498,19 @@ let clob = ClobSrc1 in {
 }
 
 // Arch specific
-let src1 = RegBase in {
-    def x86_compare_membase_reg: Ins<9>;
-    def x86_compare_membase_imm: Ins<13>;
-    def x86_compare_membase8_imm: Ins<9>;
-    def x86_inc_membase: Ins<8>;
-    def x86_dec_membase: Ins<8>;
-    def x86_add_membase_imm: Ins<13>;
-    def x86_sub_membase_imm: Ins<13>;
-    def x86_push_membase: Ins<8>;
-    def x86_seteq_membase: Ins<9>;
-    def x86_push_obj: Ins<40>;
-}
+def x86_compare_membase_reg: Ins<9>;
+def x86_compare_membase_imm: Ins<13>;
+def x86_compare_membase8_imm: Ins<9>;
+def x86_inc_membase: Ins<8>;
+def x86_dec_membase: Ins<8>;
+def x86_add_membase_imm: Ins<13>;
+def x86_sub_membase_imm: Ins<13>;
+def x86_push_membase: Ins<8>;
+def x86_seteq_membase: Ins<9>;
+def x86_push_obj: Ins<40>;
+
 def x86_test_null: Ins<5>;
-def x86_compare_reg_membase: Ins<8> { let src2 = RegBase; };
+def x86_compare_reg_membase: Ins<8>;
 def x86_inc_reg: Ins<3> { let clob = ClobSrc1; };
 def x86_dec_reg: Ins<3> { let clob = ClobSrc1; };
 def x86_push: Ins<3>;
@@ -526,7 +519,7 @@ def x86_lea: Ins<8>;
 def x86_lea_membase: Ins<11>;
 def x86_fpop: Ins<3>;
 
-let src2 = RegBase, clob = ClobSrc1, len = 13 in {
+let clob = ClobSrc1, len = 13 in {
     def x86_add_reg_membase: Ins;
     def x86_sub_reg_membase: Ins;
     def x86_mul_reg_membase: Ins;
@@ -536,42 +529,39 @@ let src2 = RegBase, clob = ClobSrc1, len = 13 in {
 }
 
 def amd64_test_null: Ins<5>;
-def amd64_icompare_membase_reg: Ins<8> { let src1 = RegBase; };
-def amd64_icompare_membase_imm: Ins<13> { let src1 = RegBase; };
-def amd64_icompare_reg_membase: Ins<8> { let src2 = RegBase; };
+def amd64_icompare_membase_reg: Ins<8>;
+def amd64_icompare_membase_imm: Ins<13>;
+def amd64_icompare_reg_membase: Ins<8>;
 def amd64_set_xmmreg_r4: Ins<14> { let clob = ClobM; };
 def amd64_set_xmmreg_r8: Ins<14> { let clob = ClobM; };
 def amd64_save_sp_to_lmf: Ins<16>;
 def amd64_loadi8_memindex: Ins<10>;
 
-let src1 = RegBase in {
-    def amd64_compare_membase_reg: Ins<9>;
-    def amd64_compare_membase_imm: Ins<14>;
-    def amd64_add_membase_imm: Ins<16>;
-    def amd64_sub_membase_imm: Ins<16>;
-    def amd64_and_membase_imm: Ins<13>;
-    def amd64_or_membase_imm: Ins<13>;
-    def amd64_xor_membase_imm: Ins<13>;
-    def x86_and_membase_imm: Ins<12>;
-    def x86_or_membase_imm: Ins<12>;
-    def x86_xor_membase_imm: Ins<12>;
-    def x86_add_membase_reg: Ins<12>;
-    def x86_sub_membase_reg: Ins<12>;
-    def x86_and_membase_reg: Ins<12>;
-    def x86_or_membase_reg: Ins<12>;
-    def x86_xor_membase_reg: Ins<12>;
-    def x86_mul_membase_reg: Ins<14>;
-    def amd64_add_membase_reg: Ins<13>;
-    def amd64_sub_membase_reg: Ins<13>;
-    def amd64_and_membase_reg: Ins<13>;
-    def amd64_or_membase_reg: Ins<13>;
-    def amd64_xor_membase_reg: Ins<13>;
-    def amd64_mul_membase_reg: Ins<15>;
-}
-let src2 = RegBase in {
-    def amd64_compare_reg_membase: Ins<9>;
-}
-let src2 = RegBase, clob = ClobSrc1 in {
+def amd64_compare_membase_reg: Ins<9>;
+def amd64_compare_membase_imm: Ins<14>;
+def amd64_add_membase_imm: Ins<16>;
+def amd64_sub_membase_imm: Ins<16>;
+def amd64_and_membase_imm: Ins<13>;
+def amd64_or_membase_imm: Ins<13>;
+def amd64_xor_membase_imm: Ins<13>;
+def x86_and_membase_imm: Ins<12>;
+def x86_or_membase_imm: Ins<12>;
+def x86_xor_membase_imm: Ins<12>;
+def x86_add_membase_reg: Ins<12>;
+def x86_sub_membase_reg: Ins<12>;
+def x86_and_membase_reg: Ins<12>;
+def x86_or_membase_reg: Ins<12>;
+def x86_xor_membase_reg: Ins<12>;
+def x86_mul_membase_reg: Ins<14>;
+def amd64_add_membase_reg: Ins<13>;
+def amd64_sub_membase_reg: Ins<13>;
+def amd64_and_membase_reg: Ins<13>;
+def amd64_or_membase_reg: Ins<13>;
+def amd64_xor_membase_reg: Ins<13>;
+def amd64_mul_membase_reg: Ins<15>;
+def amd64_compare_reg_membase: Ins<9>;
+
+let clob = ClobSrc1 in {
     def amd64_add_reg_membase: Ins<14>;
     def amd64_sub_reg_membase: Ins<14>;
     def amd64_and_reg_membase: Ins<14>;
@@ -580,16 +570,15 @@ let src2 = RegBase, clob = ClobSrc1 in {
 }
 
 // Atomics
-let src1 = RegBase in {
-    def atomic_add_i4: Ins<32>;
-    def atomic_add_i8: Ins<32>;
-    def atomic_exchange_i4: Ins<12>;
-    def atomic_exchange_i8: Ins<12>;
-    def atomic_cas_i4: Ins<24> { let dest = RegRAX; let src3 = RegRAX; };
-    def atomic_cas_i8: Ins<24> { let dest = RegRAX; let src3 = RegRAX; };
-}
+def atomic_add_i4: Ins<32>;
+def atomic_add_i8: Ins<32>;
+def atomic_exchange_i4: Ins<12>;
+def atomic_exchange_i8: Ins<12>;
+def atomic_cas_i4: Ins<24> { let dest = RegRAX; let src3 = RegRAX; };
+def atomic_cas_i8: Ins<24> { let dest = RegRAX; let src3 = RegRAX; };
+
 def memory_barrier: Ins<3>;
-let src1 = RegBase, len = 9 in {
+let len = 9 in {
     def atomic_load_i1: Ins;
     def atomic_load_u1: Ins;
     def atomic_load_i2: Ins;
@@ -599,11 +588,10 @@ let src1 = RegBase, len = 9 in {
     def atomic_load_i8: Ins;
     def atomic_load_u8: Ins;
 }
-let src1 = RegBase in {
-    def atomic_load_r4: Ins<16>;
-    def atomic_load_r8: Ins<16>;
-}
-let dest = RegBase, len = 12 in {
+def atomic_load_r4: Ins<16>;
+def atomic_load_r8: Ins<16>;
+
+let len = 12 in {
     def atomic_store_i1: Ins;
     def atomic_store_u1: Ins;
     def atomic_store_i2: Ins;
@@ -613,10 +601,8 @@ let dest = RegBase, len = 12 in {
     def atomic_store_i8: Ins;
     def atomic_store_u8: Ins;
 }
-let dest = RegBase in {
-    def atomic_store_r4: Ins<18>;
-    def atomic_store_r8: Ins<13>;
-}
+def atomic_store_r4: Ins<18>;
+def atomic_store_r8: Ins<13>;
 
 def sin: Ins<32>;
 def cos: Ins<32>;

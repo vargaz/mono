@@ -11,6 +11,8 @@ def FREG: RegType;
 def LREG: RegType;
 def VREG: RegType;
 def XREG: RegType;
+// Same as IREG, used as a basereg in loads/stores
+def BREG: RegType;
 
 class OpcodeGeneral<string label, RegType dreg = NONE, RegType sreg1 = NONE, RegType sreg2 = NONE, RegType sreg3 = NONE> {
   // If this is empty, its set from the opcode name, i.e. OP_ADD_IMM -> add_imm
@@ -65,7 +67,7 @@ def OP_SETFRET : Opcode<FREG, FREG, NONE>;
 def OP_SETLRET : Opcode<NONE, IREG, IREG>;
 def OP_LOCALLOC : Opcode<IREG, IREG, NONE>;
 def OP_LOCALLOC_IMM : Opcode<IREG, NONE, NONE>;
-def OP_CHECK_THIS : OpcodeGeneral<"checkthis", NONE, IREG, NONE>;
+def OP_CHECK_THIS : OpcodeGeneral<"checkthis", NONE, BREG, NONE>;
 def OP_SEQ_POINT : Opcode<NONE, NONE, NONE>;
 def OP_IL_SEQ_POINT : Opcode<NONE, NONE, NONE>;
 def OP_IMPLICIT_EXCEPTION : Opcode<NONE, NONE, NONE>;
@@ -125,27 +127,30 @@ def OP_ARG : 		Opcode<NONE, NONE, NONE>;
 /* CALL opcodes need to stay together, see MONO_IS_CALL macro */
 def OP_VOIDCALL : Opcode<NONE, NONE, NONE>;
 def OP_VOIDCALL_REG : Opcode<NONE, IREG, NONE>;
-def OP_VOIDCALL_MEMBASE : Opcode<NONE, IREG, NONE>;
+def OP_VOIDCALL_MEMBASE : Opcode<NONE, BREG, NONE>;
 def OP_CALL        : Opcode<IREG, NONE, NONE>;
 def OP_CALL_REG : Opcode<IREG, IREG, NONE>;
-def OP_CALL_MEMBASE : Opcode<IREG, IREG, NONE>;
+def OP_CALL_MEMBASE : Opcode<IREG, BREG, NONE>;
 def OP_FCALL : Opcode<FREG, NONE, NONE>;
 def OP_FCALL_REG : Opcode<FREG, IREG, NONE>;
-def OP_FCALL_MEMBASE : Opcode<FREG, IREG, NONE>;
+def OP_FCALL_MEMBASE : Opcode<FREG, BREG, NONE>;
 def OP_RCALL : Opcode<FREG, NONE, NONE>;
 def OP_RCALL_REG : Opcode<FREG, IREG, NONE>;
-def OP_RCALL_MEMBASE : Opcode<FREG, IREG, NONE>;
+def OP_RCALL_MEMBASE : Opcode<FREG, BREG, NONE>;
 def OP_LCALL : Opcode<LREG, NONE, NONE>;
 def OP_LCALL_REG : Opcode<LREG, IREG, NONE>;
-def OP_LCALL_MEMBASE : Opcode<LREG, IREG, NONE>;
+def OP_LCALL_MEMBASE : Opcode<LREG, BREG, NONE>;
 def OP_VCALL  : Opcode<VREG, NONE, NONE>;
 def OP_VCALL_REG : Opcode<VREG, IREG, NONE>;
-def OP_VCALL_MEMBASE : Opcode<VREG, IREG, NONE>;
+def OP_VCALL_MEMBASE : Opcode<VREG, BREG, NONE>;
 /* Represents the decomposed vcall which doesn't return a vtype no more */
 def OP_VCALL2  : Opcode<NONE, NONE, NONE>;
 def OP_VCALL2_REG : Opcode<NONE, IREG, NONE>;
-def OP_VCALL2_MEMBASE : Opcode<NONE, IREG, NONE>;
+def OP_VCALL2_MEMBASE : Opcode<NONE, BREG, NONE>;
 def OP_DYN_CALL : Opcode<NONE, IREG, IREG>;
+def OP_TAILCALL   : Opcode<NONE, NONE, NONE>;
+def OP_TAILCALL_REG : Opcode<NONE, BREG, NONE>;
+def OP_TAILCALL_MEMBASE : Opcode<NONE, BREG, NONE>;
 
 def OP_ICONST : Opcode<IREG, NONE, NONE>;
 def OP_I8CONST : Opcode<LREG, NONE, NONE>;
@@ -191,50 +196,50 @@ def OP_GET_EX_OBJ : Opcode<IREG, NONE, NONE>;
  * - mono_ArgIterator_Setup receives this value and uses it to find the signature and
  *   the arguments.
  */
-def OP_ARGLIST : OpcodeGeneral<"oparglist", NONE, IREG, NONE>;
+def OP_ARGLIST : OpcodeGeneral<"oparglist", NONE, BREG, NONE>;
 
 /* MONO_IS_STORE_MEMBASE depends on the order here */
-def OP_STORE_MEMBASE_REG : Opcode<IREG, IREG, NONE>;
-def OP_STOREI1_MEMBASE_REG : Opcode<IREG, IREG, NONE>;
-def OP_STOREI2_MEMBASE_REG : Opcode<IREG, IREG, NONE>;
-def OP_STOREI4_MEMBASE_REG : Opcode<IREG, IREG, NONE>;
-def OP_STOREI8_MEMBASE_REG : Opcode<IREG, LREG, NONE>;
-def OP_STORER4_MEMBASE_REG : Opcode<IREG, FREG, NONE>;
-def OP_STORER8_MEMBASE_REG : Opcode<IREG, FREG, NONE>;
+def OP_STORE_MEMBASE_REG : Opcode<BREG, IREG, NONE>;
+def OP_STOREI1_MEMBASE_REG : Opcode<BREG, IREG, NONE>;
+def OP_STOREI2_MEMBASE_REG : Opcode<BREG, IREG, NONE>;
+def OP_STOREI4_MEMBASE_REG : Opcode<BREG, IREG, NONE>;
+def OP_STOREI8_MEMBASE_REG : Opcode<BREG, LREG, NONE>;
+def OP_STORER4_MEMBASE_REG : Opcode<BREG, FREG, NONE>;
+def OP_STORER8_MEMBASE_REG : Opcode<BREG, FREG, NONE>;
 
 let arch = "X86,AMD64" in {
-def OP_STOREX_MEMBASE_REG : Opcode<IREG, XREG, NONE>;
-def OP_STOREX_ALIGNED_MEMBASE_REG     : Opcode<IREG, XREG, NONE>;
-def OP_STOREX_NTA_MEMBASE_REG     : Opcode<IREG, XREG, NONE>;
+def OP_STOREX_MEMBASE_REG : Opcode<BREG, XREG, NONE>;
+def OP_STOREX_ALIGNED_MEMBASE_REG     : Opcode<BREG, XREG, NONE>;
+def OP_STOREX_NTA_MEMBASE_REG     : Opcode<BREG, XREG, NONE>;
 }
 
-def OP_STORE_MEMBASE_IMM : Opcode<IREG, NONE, NONE>;
-def OP_STOREI1_MEMBASE_IMM : Opcode<IREG, NONE, NONE>;
-def OP_STOREI2_MEMBASE_IMM : Opcode<IREG, NONE, NONE>;
-def OP_STOREI4_MEMBASE_IMM : Opcode<IREG, NONE, NONE>;
-def OP_STOREI8_MEMBASE_IMM : Opcode<IREG, NONE, NONE>;
-def OP_STOREX_MEMBASE       : Opcode<IREG, XREG, NONE>;
-def OP_STOREV_MEMBASE      : Opcode<IREG, VREG, NONE>;
+def OP_STORE_MEMBASE_IMM : Opcode<BREG, NONE, NONE>;
+def OP_STOREI1_MEMBASE_IMM : Opcode<BREG, NONE, NONE>;
+def OP_STOREI2_MEMBASE_IMM : Opcode<BREG, NONE, NONE>;
+def OP_STOREI4_MEMBASE_IMM : Opcode<BREG, NONE, NONE>;
+def OP_STOREI8_MEMBASE_IMM : Opcode<BREG, NONE, NONE>;
+def OP_STOREX_MEMBASE       : Opcode<BREG, XREG, NONE>;
+def OP_STOREV_MEMBASE      : Opcode<BREG, VREG, NONE>;
 
 /* MONO_IS_LOAD_MEMBASE depends on the order here */
-def OP_LOAD_MEMBASE : Opcode<IREG, IREG, NONE>;
-def OP_LOADI1_MEMBASE : Opcode<IREG, IREG, NONE>;
-def OP_LOADU1_MEMBASE : Opcode<IREG, IREG, NONE>;
-def OP_LOADI2_MEMBASE : Opcode<IREG, IREG, NONE>;
-def OP_LOADU2_MEMBASE : Opcode<IREG, IREG, NONE>;
-def OP_LOADI4_MEMBASE : Opcode<IREG, IREG, NONE>;
-def OP_LOADU4_MEMBASE : Opcode<IREG, IREG, NONE>;
-def OP_LOADI8_MEMBASE : Opcode<LREG, IREG, NONE>;
-def OP_LOADR4_MEMBASE : Opcode<FREG, IREG, NONE>;
-def OP_LOADR8_MEMBASE : Opcode<FREG, IREG, NONE>;
+def OP_LOAD_MEMBASE : Opcode<IREG, BREG, NONE>;
+def OP_LOADI1_MEMBASE : Opcode<IREG, BREG, NONE>;
+def OP_LOADU1_MEMBASE : Opcode<IREG, BREG, NONE>;
+def OP_LOADI2_MEMBASE : Opcode<IREG, BREG, NONE>;
+def OP_LOADU2_MEMBASE : Opcode<IREG, BREG, NONE>;
+def OP_LOADI4_MEMBASE : Opcode<IREG, BREG, NONE>;
+def OP_LOADU4_MEMBASE : Opcode<IREG, BREG, NONE>;
+def OP_LOADI8_MEMBASE : Opcode<LREG, BREG, NONE>;
+def OP_LOADR4_MEMBASE : Opcode<FREG, BREG, NONE>;
+def OP_LOADR8_MEMBASE : Opcode<FREG, BREG, NONE>;
 
-def OP_LOADX_MEMBASE 		 : Opcode<XREG, IREG, NONE>;
+def OP_LOADX_MEMBASE 		 : Opcode<XREG, BREG, NONE>;
 
 let arch="X86,AMD64" in {
-def OP_LOADX_ALIGNED_MEMBASE  : Opcode<XREG, IREG, NONE>;
+def OP_LOADX_ALIGNED_MEMBASE  : Opcode<XREG, BREG, NONE>;
 }
 
-def OP_LOADV_MEMBASE   : Opcode<VREG, IREG, NONE>;
+def OP_LOADV_MEMBASE   : Opcode<VREG, BREG, NONE>;
 
 /* indexed loads: dreg = load at (sreg1 + sreg2>;*/
 def OP_LOAD_MEMINDEX  : Opcode<IREG, IREG, IREG>;
@@ -296,11 +301,7 @@ def OP_SHR_IMM    : Opcode<IREG, IREG, NONE>;
 def OP_SHR_UN_IMM : Opcode<IREG, IREG, NONE>;
 
 def OP_BR         : Opcode<NONE, NONE, NONE>;
-/* Similar to old OP_JMP, but the passing of arguments is done similarly to calls */
-def OP_TAILCALL   : Opcode<NONE, NONE, NONE>;
 def OP_TAILCALL_PARAMETER : Opcode<NONE, NONE, NONE>; // no code, just size
-def OP_TAILCALL_REG : Opcode<NONE, IREG, NONE>;
-def OP_TAILCALL_MEMBASE : Opcode<NONE, IREG, NONE>;
 def OP_BREAK      : Opcode<NONE, NONE, NONE>;
 
 def OP_CEQ   : Opcode<IREG, NONE, NONE>;
@@ -662,11 +663,11 @@ def OP_FCNEQ  : OpcodeGeneral<"float_cneq", IREG, FREG, FREG>;
 def OP_FCGE   : OpcodeGeneral<"float_cge", IREG, FREG, FREG>;
 def OP_FCLE   : OpcodeGeneral<"float_cle", IREG, FREG, FREG>;
 
-def OP_FCEQ_MEMBASE   : OpcodeGeneral<"float_ceq_membase", IREG, FREG, IREG>;
-def OP_FCGT_MEMBASE   : OpcodeGeneral<"float_cgt_membase", IREG, FREG, IREG>;
-def OP_FCGT_UN_MEMBASE : OpcodeGeneral<"float_cgt_un_membase", IREG, FREG, IREG>;
-def OP_FCLT_MEMBASE   : OpcodeGeneral<"float_clt_membase", IREG, FREG, IREG>;
-def OP_FCLT_UN_MEMBASE : OpcodeGeneral<"float_clt_un_membase", IREG, FREG, IREG>;
+def OP_FCEQ_MEMBASE   : OpcodeGeneral<"float_ceq_membase", IREG, FREG, BREG>;
+def OP_FCGT_MEMBASE   : OpcodeGeneral<"float_cgt_membase", IREG, FREG, BREG>;
+def OP_FCGT_UN_MEMBASE : OpcodeGeneral<"float_cgt_un_membase", IREG, FREG, BREG>;
+def OP_FCLT_MEMBASE   : OpcodeGeneral<"float_clt_membase", IREG, FREG, BREG>;
+def OP_FCLT_UN_MEMBASE : OpcodeGeneral<"float_clt_un_membase", IREG, FREG, BREG>;
 
 def OP_FCONV_TO_U : OpcodeGeneral<"float_conv_to_u", IREG, FREG, NONE>;
 def OP_CKFINITE : Opcode<FREG, FREG, NONE>;
@@ -1050,36 +1051,36 @@ def OP_XPHI : Opcode<XREG, NONE, NONE>;
 
 def OP_MEMORY_BARRIER : Opcode<NONE, NONE, NONE>;
 
-def OP_ATOMIC_LOAD_I1 : Opcode<IREG, IREG, NONE>;
-def OP_ATOMIC_LOAD_I2 : Opcode<IREG, IREG, NONE>;
-def OP_ATOMIC_LOAD_I4 : Opcode<IREG, IREG, NONE>;
-def OP_ATOMIC_LOAD_I8 : Opcode<IREG, IREG, NONE>;
-def OP_ATOMIC_LOAD_U1 : Opcode<IREG, IREG, NONE>;
-def OP_ATOMIC_LOAD_U2 : Opcode<IREG, IREG, NONE>;
-def OP_ATOMIC_LOAD_U4 : Opcode<IREG, IREG, NONE>;
-def OP_ATOMIC_LOAD_U8 : Opcode<IREG, IREG, NONE>;
-def OP_ATOMIC_LOAD_R4 : Opcode<FREG, IREG, NONE>;
-def OP_ATOMIC_LOAD_R8 : Opcode<FREG, IREG, NONE>;
+def OP_ATOMIC_LOAD_I1 : Opcode<IREG, BREG, NONE>;
+def OP_ATOMIC_LOAD_I2 : Opcode<IREG, BREG, NONE>;
+def OP_ATOMIC_LOAD_I4 : Opcode<IREG, BREG, NONE>;
+def OP_ATOMIC_LOAD_I8 : Opcode<IREG, BREG, NONE>;
+def OP_ATOMIC_LOAD_U1 : Opcode<IREG, BREG, NONE>;
+def OP_ATOMIC_LOAD_U2 : Opcode<IREG, BREG, NONE>;
+def OP_ATOMIC_LOAD_U4 : Opcode<IREG, BREG, NONE>;
+def OP_ATOMIC_LOAD_U8 : Opcode<IREG, BREG, NONE>;
+def OP_ATOMIC_LOAD_R4 : Opcode<FREG, BREG, NONE>;
+def OP_ATOMIC_LOAD_R8 : Opcode<FREG, BREG, NONE>;
 
-def OP_ATOMIC_STORE_I1 : Opcode<IREG, IREG, NONE>;
-def OP_ATOMIC_STORE_I2 : Opcode<IREG, IREG, NONE>;
-def OP_ATOMIC_STORE_I4 : Opcode<IREG, IREG, NONE>;
-def OP_ATOMIC_STORE_I8 : Opcode<IREG, IREG, NONE>;
-def OP_ATOMIC_STORE_U1 : Opcode<IREG, IREG, NONE>;
-def OP_ATOMIC_STORE_U2 : Opcode<IREG, IREG, NONE>;
-def OP_ATOMIC_STORE_U4 : Opcode<IREG, IREG, NONE>;
-def OP_ATOMIC_STORE_U8 : Opcode<IREG, IREG, NONE>;
-def OP_ATOMIC_STORE_R4 : Opcode<IREG, FREG, NONE>;
-def OP_ATOMIC_STORE_R8 : Opcode<IREG, FREG, NONE>;
+def OP_ATOMIC_STORE_I1 : Opcode<BREG, IREG, NONE>;
+def OP_ATOMIC_STORE_I2 : Opcode<BREG, IREG, NONE>;
+def OP_ATOMIC_STORE_I4 : Opcode<BREG, IREG, NONE>;
+def OP_ATOMIC_STORE_I8 : Opcode<BREG, IREG, NONE>;
+def OP_ATOMIC_STORE_U1 : Opcode<BREG, IREG, NONE>;
+def OP_ATOMIC_STORE_U2 : Opcode<BREG, IREG, NONE>;
+def OP_ATOMIC_STORE_U4 : Opcode<BREG, IREG, NONE>;
+def OP_ATOMIC_STORE_U8 : Opcode<BREG, IREG, NONE>;
+def OP_ATOMIC_STORE_R4 : Opcode<BREG, FREG, NONE>;
+def OP_ATOMIC_STORE_R8 : Opcode<BREG, FREG, NONE>;
 
-def OP_ATOMIC_ADD_I4 : Opcode<IREG, IREG, IREG>;
-def OP_ATOMIC_ADD_I8 : Opcode<IREG, IREG, IREG>;
+def OP_ATOMIC_ADD_I4 : Opcode<IREG, BREG, IREG>;
+def OP_ATOMIC_ADD_I8 : Opcode<IREG, BREG, IREG>;
 
-def OP_ATOMIC_EXCHANGE_I4 : Opcode<IREG, IREG, IREG>;
-def OP_ATOMIC_EXCHANGE_I8 : Opcode<IREG, IREG, IREG>;
+def OP_ATOMIC_EXCHANGE_I4 : Opcode<IREG, BREG, IREG>;
+def OP_ATOMIC_EXCHANGE_I8 : Opcode<IREG, BREG, IREG>;
 
-def OP_ATOMIC_CAS_I4 : Opcode3<IREG, IREG, IREG, IREG>;
-def OP_ATOMIC_CAS_I8 : Opcode3<IREG, IREG, IREG, IREG>;
+def OP_ATOMIC_CAS_I4 : Opcode3<IREG, BREG, IREG, IREG>;
+def OP_ATOMIC_CAS_I8 : Opcode3<IREG, BREG, IREG, IREG>;
 
 /* Conditional move opcodes.
  * Must be in the same order as the matching CEE_B... opcodes
@@ -1157,38 +1158,38 @@ def OP_GENERIC_CLASS_INIT : Opcode<NONE, IREG, NONE>;
 /* Arch specific opcodes */
 let arch="X86,AMD64" in {
 def OP_X86_TEST_NULL          : Opcode<NONE, IREG, NONE>;
-def OP_X86_COMPARE_MEMBASE_REG : Opcode<NONE, IREG, IREG>;
-def OP_X86_COMPARE_MEMBASE_IMM : Opcode<NONE, IREG, NONE>;
+def OP_X86_COMPARE_MEMBASE_REG : Opcode<NONE, BREG, IREG>;
+def OP_X86_COMPARE_MEMBASE_IMM : Opcode<NONE, BREG, NONE>;
 def OP_X86_COMPARE_MEM_IMM    : Opcode<NONE, NONE, NONE>;
-def OP_X86_COMPARE_MEMBASE8_IMM : Opcode<NONE, IREG, NONE>;
-def OP_X86_COMPARE_REG_MEMBASE : Opcode<NONE, IREG, IREG>;
+def OP_X86_COMPARE_MEMBASE8_IMM : Opcode<NONE, BREG, NONE>;
+def OP_X86_COMPARE_REG_MEMBASE : Opcode<NONE, IREG, BREG>;
 def OP_X86_INC_REG            : Opcode<IREG, IREG, NONE>;
-def OP_X86_INC_MEMBASE        : Opcode<NONE, IREG, NONE>;
+def OP_X86_INC_MEMBASE        : Opcode<NONE, BREG, NONE>;
 def OP_X86_DEC_REG            : Opcode<IREG, IREG, NONE>;
-def OP_X86_DEC_MEMBASE        : Opcode<NONE, IREG, NONE>;
-def OP_X86_ADD_MEMBASE_IMM    : Opcode<NONE, IREG, NONE>;
-def OP_X86_SUB_MEMBASE_IMM    : Opcode<NONE, IREG, NONE>;
-def OP_X86_AND_MEMBASE_IMM    : Opcode<NONE, IREG, NONE>;
-def OP_X86_OR_MEMBASE_IMM     : Opcode<NONE, IREG, NONE>;
-def OP_X86_XOR_MEMBASE_IMM    : Opcode<NONE, IREG, NONE>;
-def OP_X86_ADD_MEMBASE_REG    : Opcode<NONE, IREG, IREG>;
-def OP_X86_SUB_MEMBASE_REG    : Opcode<NONE, IREG, IREG>;
-def OP_X86_AND_MEMBASE_REG    : Opcode<NONE, IREG, IREG>;
-def OP_X86_OR_MEMBASE_REG     : Opcode<NONE, IREG, IREG>;
-def OP_X86_XOR_MEMBASE_REG    : Opcode<NONE, IREG, IREG>;
-def OP_X86_MUL_MEMBASE_REG    : Opcode<NONE, IREG, IREG>;
+def OP_X86_DEC_MEMBASE        : Opcode<NONE, BREG, NONE>;
+def OP_X86_ADD_MEMBASE_IMM    : Opcode<NONE, BREG, NONE>;
+def OP_X86_SUB_MEMBASE_IMM    : Opcode<NONE, BREG, NONE>;
+def OP_X86_AND_MEMBASE_IMM    : Opcode<NONE, BREG, NONE>;
+def OP_X86_OR_MEMBASE_IMM     : Opcode<NONE, BREG, NONE>;
+def OP_X86_XOR_MEMBASE_IMM    : Opcode<NONE, BREG, NONE>;
+def OP_X86_ADD_MEMBASE_REG    : Opcode<NONE, BREG, IREG>;
+def OP_X86_SUB_MEMBASE_REG    : Opcode<NONE, BREG, IREG>;
+def OP_X86_AND_MEMBASE_REG    : Opcode<NONE, BREG, IREG>;
+def OP_X86_OR_MEMBASE_REG     : Opcode<NONE, BREG, IREG>;
+def OP_X86_XOR_MEMBASE_REG    : Opcode<NONE, BREG, IREG>;
+def OP_X86_MUL_MEMBASE_REG    : Opcode<NONE, BREG, IREG>;
 
-def OP_X86_ADD_REG_MEMBASE    : Opcode<IREG, IREG, IREG>;
-def OP_X86_SUB_REG_MEMBASE    : Opcode<IREG, IREG, IREG>;
-def OP_X86_MUL_REG_MEMBASE    : Opcode<IREG, IREG, IREG>;
-def OP_X86_AND_REG_MEMBASE    : Opcode<IREG, IREG, IREG>;
-def OP_X86_OR_REG_MEMBASE     : Opcode<IREG, IREG, IREG>;
-def OP_X86_XOR_REG_MEMBASE    : Opcode<IREG, IREG, IREG>;
+def OP_X86_ADD_REG_MEMBASE    : Opcode<IREG, IREG, BREG>;
+def OP_X86_SUB_REG_MEMBASE    : Opcode<IREG, IREG, BREG>;
+def OP_X86_MUL_REG_MEMBASE    : Opcode<IREG, IREG, BREG>;
+def OP_X86_AND_REG_MEMBASE    : Opcode<IREG, IREG, BREG>;
+def OP_X86_OR_REG_MEMBASE     : Opcode<IREG, IREG, BREG>;
+def OP_X86_XOR_REG_MEMBASE    : Opcode<IREG, IREG, BREG>;
 
-def OP_X86_PUSH_MEMBASE       : Opcode<NONE, IREG, NONE>;
+def OP_X86_PUSH_MEMBASE       : Opcode<NONE, BREG, NONE>;
 def OP_X86_PUSH_IMM           : Opcode<NONE, NONE, NONE>;
 def OP_X86_PUSH               : Opcode<NONE, IREG, NONE>;
-def OP_X86_PUSH_OBJ           : Opcode<NONE, IREG, NONE>;
+def OP_X86_PUSH_OBJ           : Opcode<NONE, BREG, NONE>;
 def OP_X86_PUSH_GOT_ENTRY     : Opcode<NONE, IREG, NONE>;
 def OP_X86_LEA                : Opcode<IREG, IREG, IREG>;
 def OP_X86_LEA_MEMBASE        : Opcode<IREG, IREG, NONE>;
@@ -1196,8 +1197,8 @@ def OP_X86_XCHG               : Opcode<NONE, IREG, IREG>;
 def OP_X86_FPOP               : Opcode<NONE, FREG, NONE>;
 def OP_X86_FP_LOAD_I8         : Opcode<FREG, IREG, NONE>;
 def OP_X86_FP_LOAD_I4         : Opcode<FREG, IREG, NONE>;
-def OP_X86_SETEQ_MEMBASE      : Opcode<NONE, IREG, NONE>;
-def OP_X86_SETNE_MEMBASE      : Opcode<NONE, IREG, NONE>;
+def OP_X86_SETEQ_MEMBASE      : Opcode<NONE, BREG, NONE>;
+def OP_X86_SETNE_MEMBASE      : Opcode<NONE, BREG, NONE>;
 def OP_X86_FXCH               : Opcode<NONE, NONE, NONE>;
 }
 
@@ -1205,33 +1206,33 @@ let arch="AMD64" in {
 def OP_AMD64_TEST_NULL              : Opcode<NONE, IREG, NONE>;
 def OP_AMD64_SET_XMMREG_R4          : Opcode<FREG, FREG, NONE>;
 def OP_AMD64_SET_XMMREG_R8          : Opcode<FREG, FREG, NONE>;
-def OP_AMD64_ICOMPARE_MEMBASE_REG   : Opcode<NONE, IREG, IREG>;
-def OP_AMD64_ICOMPARE_MEMBASE_IMM   : Opcode<NONE, IREG, NONE>;
-def OP_AMD64_ICOMPARE_REG_MEMBASE   : Opcode<NONE, IREG, IREG>;
-def OP_AMD64_COMPARE_MEMBASE_REG    : Opcode<NONE, IREG, IREG>;
-def OP_AMD64_COMPARE_MEMBASE_IMM    : Opcode<NONE, IREG, NONE>;
-def OP_AMD64_COMPARE_REG_MEMBASE    : Opcode<NONE, IREG, IREG>;
+def OP_AMD64_ICOMPARE_MEMBASE_REG   : Opcode<NONE, BREG, IREG>;
+def OP_AMD64_ICOMPARE_MEMBASE_IMM   : Opcode<NONE, BREG, NONE>;
+def OP_AMD64_ICOMPARE_REG_MEMBASE   : Opcode<NONE, IREG, BREG>;
+def OP_AMD64_COMPARE_MEMBASE_REG    : Opcode<NONE, BREG, IREG>;
+def OP_AMD64_COMPARE_MEMBASE_IMM    : Opcode<NONE, BREG, NONE>;
+def OP_AMD64_COMPARE_REG_MEMBASE    : Opcode<NONE, IREG, BREG>;
 
-def OP_AMD64_ADD_MEMBASE_REG        : Opcode<NONE, IREG, IREG>;
-def OP_AMD64_SUB_MEMBASE_REG        : Opcode<NONE, IREG, IREG>;
-def OP_AMD64_AND_MEMBASE_REG        : Opcode<NONE, IREG, IREG>;
-def OP_AMD64_OR_MEMBASE_REG         : Opcode<NONE, IREG, IREG>;
-def OP_AMD64_XOR_MEMBASE_REG        : Opcode<NONE, IREG, IREG>;
-def OP_AMD64_MUL_MEMBASE_REG        : Opcode<NONE, IREG, IREG>;
+def OP_AMD64_ADD_MEMBASE_REG        : Opcode<NONE, BREG, IREG>;
+def OP_AMD64_SUB_MEMBASE_REG        : Opcode<NONE, BREG, IREG>;
+def OP_AMD64_AND_MEMBASE_REG        : Opcode<NONE, BREG, IREG>;
+def OP_AMD64_OR_MEMBASE_REG         : Opcode<NONE, BREG, IREG>;
+def OP_AMD64_XOR_MEMBASE_REG        : Opcode<NONE, BREG, IREG>;
+def OP_AMD64_MUL_MEMBASE_REG        : Opcode<NONE, BREG, IREG>;
 
-def OP_AMD64_ADD_MEMBASE_IMM        : Opcode<NONE, IREG, NONE>;
-def OP_AMD64_SUB_MEMBASE_IMM        : Opcode<NONE, IREG, NONE>;
-def OP_AMD64_AND_MEMBASE_IMM        : Opcode<NONE, IREG, NONE>;
-def OP_AMD64_OR_MEMBASE_IMM         : Opcode<NONE, IREG, NONE>;
-def OP_AMD64_XOR_MEMBASE_IMM        : Opcode<NONE, IREG, NONE>;
-def OP_AMD64_MUL_MEMBASE_IMM        : Opcode<NONE, IREG, NONE>;
+def OP_AMD64_ADD_MEMBASE_IMM        : Opcode<NONE, BREG, NONE>;
+def OP_AMD64_SUB_MEMBASE_IMM        : Opcode<NONE, BREG, NONE>;
+def OP_AMD64_AND_MEMBASE_IMM        : Opcode<NONE, BREG, NONE>;
+def OP_AMD64_OR_MEMBASE_IMM         : Opcode<NONE, BREG, NONE>;
+def OP_AMD64_XOR_MEMBASE_IMM        : Opcode<NONE, BREG, NONE>;
+def OP_AMD64_MUL_MEMBASE_IMM        : Opcode<NONE, BREG, NONE>;
 
-def OP_AMD64_ADD_REG_MEMBASE        : Opcode<IREG, IREG, IREG>;
-def OP_AMD64_SUB_REG_MEMBASE        : Opcode<IREG, IREG, IREG>;
-def OP_AMD64_AND_REG_MEMBASE        : Opcode<IREG, IREG, IREG>;
-def OP_AMD64_OR_REG_MEMBASE         : Opcode<IREG, IREG, IREG>;
-def OP_AMD64_XOR_REG_MEMBASE        : Opcode<IREG, IREG, IREG>;
-def OP_AMD64_MUL_REG_MEMBASE        : Opcode<IREG, IREG, IREG>;
+def OP_AMD64_ADD_REG_MEMBASE        : Opcode<IREG, IREG, BREG>;
+def OP_AMD64_SUB_REG_MEMBASE        : Opcode<IREG, IREG, BREG>;
+def OP_AMD64_AND_REG_MEMBASE        : Opcode<IREG, IREG, BREG>;
+def OP_AMD64_OR_REG_MEMBASE         : Opcode<IREG, IREG, BREG>;
+def OP_AMD64_XOR_REG_MEMBASE        : Opcode<IREG, IREG, BREG>;
+def OP_AMD64_MUL_REG_MEMBASE        : Opcode<IREG, IREG, BREG>;
 
 def OP_AMD64_LOADI8_MEMINDEX        : Opcode<IREG, IREG, IREG>;
 def OP_AMD64_SAVE_SP_TO_LMF         : Opcode<NONE, NONE, NONE>;
