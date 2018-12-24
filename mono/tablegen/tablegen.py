@@ -81,7 +81,8 @@ class TokenKind:
 
 class Lexer:
 
-    def __init__(self, input_file):
+    def __init__(self, filename, input_file):
+        self.filename = filename
         self.input = input_file
         self.cur_c = None
         self.id_val = ""
@@ -334,7 +335,7 @@ class DefValue(Value):
 current_lexer = None
 
 def error(msg):
-    raise Exception("Error at line " + str (current_lexer.line) + " column " +  str (current_lexer.column) + ": " + msg)
+    raise Exception("Error at " + str (current_lexer.filename) + ":" + str (current_lexer.line) + " column " +  str (current_lexer.column) + ": " + msg)
     sys.exit (1)
 
 def unexpected(lexer):
@@ -388,7 +389,7 @@ class Parser:
         lexer = self.lexer
         tok = lexer.lex ()
         if tok != token:
-            error (msg + " expected, got " + str(tok))
+            error ("'" + msg + "' expected, got " + TokenKind.to_str [lexer.cur_token])
 
     def parse_value(self, tok):
         lexer = self.lexer
@@ -405,7 +406,13 @@ class Parser:
             unexpected (lexer)
 
     def typecheck (self, name, member_type, value):
-        if (value.type == "string" or value.type == "int") and member_type != value.type:
+        fail = False
+        if value.type == "int":
+            if member_type != "int" and member_type != "bit":
+                fail = True
+        elif value.type == "string" and member_type != value.type:
+            fail = True
+        if fail:
             error ("Cannot assign value '" + str (value) + "' to member '" + name + "' of type '" + member_type + ".")
 
     def instantiate_class(self, klass, args, let_bindings):
@@ -610,9 +617,9 @@ class Parser:
         name = lexer.id_val
         self.lexer_stack.append (lexer)
         f = open (name)
-        self.lexer = Lexer(f)
+        self.lexer = Lexer(name, f)
         global current_lexer
-        current_lexer = lexer
+        current_lexer = self.lexer
 
 class Table:
     def __init__(self, defines):
@@ -668,7 +675,7 @@ class TableGen:
         self.parse_args ()
         f = open (self.args.infile)
 
-        lexer = Lexer(f)
+        lexer = Lexer(self.args.infile, f)
         global current_lexer
         current_lexer = lexer
 
