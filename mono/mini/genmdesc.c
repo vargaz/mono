@@ -28,9 +28,9 @@ opnames[] = {
  */
 static const char*
 inst_name (int op) {
-	if (op >= OP_LOAD && op <= OP_LAST)
-		return opnames [op - OP_LOAD];
-	if (op < OP_LOAD)
+	if (op >= OP_FIRST && op <= OP_LAST)
+		return opnames [op - OP_FIRST];
+	if (op < OP_FIRST)
 		return mono_opcode_name (op);
 	g_error ("unknown opcode name for %d", op);
 	return NULL;
@@ -218,7 +218,7 @@ init_table (void) {
 	table = g_hash_table_new (g_str_hash, g_str_equal);
 
 	opcodes = g_new0 (OpDesc, OP_LAST);
-	for (i = OP_LOAD; i < OP_LAST; ++i) {
+	for (i = OP_FIRST; i < OP_LAST; ++i) {
 		desc = opcodes + i;
 		desc->num = i;
 		desc->name = inst_name (i);
@@ -254,7 +254,7 @@ build_table (const char *fname, const char *name) {
 	idx = 1;
 	g_string_append_printf (idx_array, "const guint16 mono_%s_idx [] = {\n", name);
 
-	for (i = OP_LOAD; i < OP_LAST; ++i) {
+	for (i = OP_FIRST; i < OP_LAST; ++i) {
 		desc = opcodes + i;
 		if (!desc->desc)
 			g_string_append_printf (idx_array, "\t0,\t/* %s */\n", desc->name ? desc->name : "");
@@ -291,7 +291,7 @@ dump (void) {
 				g_print ("\n");
 		}
 	}
-	for (i = OP_LOAD; i < OP_LAST; ++i) {
+	for (i = OP_FIRST; i < OP_LAST; ++i) {
 		desc = opcodes + i;
 		if (!desc->desc)
 			g_print ("%s:\n", desc->name);

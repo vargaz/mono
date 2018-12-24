@@ -8,9 +8,9 @@
  * Copyright 2011 Xamarin Inc
  * Licensed under the MIT license. See LICENSE file in the project root for full license information.
  */
-MINI_OP(OP_LOAD,	"load", NONE, NONE, NONE)
+MINI_OP(OP_FIRST,	"first", NONE, NONE, NONE)
+
 MINI_OP(OP_LDADDR,	"ldaddr", IREG, NONE, NONE)
-MINI_OP(OP_STORE,	"store", NONE, NONE, NONE)
 MINI_OP(OP_NOP,     "nop", NONE, NONE, NONE)
 MINI_OP(OP_HARD_NOP,    "hard_nop", NONE, NONE, NONE)
 MINI_OP(OP_RELAXED_NOP,     "relaxed_nop", NONE, NONE, NONE)

@@ -39,10 +39,9 @@ class Opcode3<RegType dreg = NONE, RegType sreg1 = NONE, RegType sreg2 = NONE, R
 }
 
 // Have to come first
-def OP_LOAD : Opcode<NONE, NONE, NONE>;
+def OP_FIRST : Opcode<NONE, NONE, NONE>;
+
 def OP_LDADDR : Opcode<IREG, NONE, NONE> { let noSideEffect = 1; };
-// Unused
-def OP_STORE :	Opcode<NONE, NONE, NONE>;
 let noSideEffect = 1 in {
     def OP_NOP :  	Opcode<NONE, NONE, NONE>;
     def OP_HARD_NOP : Opcode<NONE, NONE, NONE>;

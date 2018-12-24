@@ -75,9 +75,9 @@ static const gint16 opidx [] = {
 const char*
 mono_inst_name (int op) {
 #ifndef DISABLE_LOGGING
-	if (op >= OP_LOAD && op <= OP_LAST)
-		return (const char*)&opstr + opidx [op - OP_LOAD];
-	if (op < OP_LOAD)
+	if (op >= OP_FIRST && op <= OP_LAST)
+		return (const char*)&opstr + opidx [op - OP_FIRST];
+	if (op < OP_FIRST)
 		return mono_opcode_name (op);
 	g_error ("unknown opcode name for %d", op);
 	return NULL;

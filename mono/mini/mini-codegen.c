@@ -1149,7 +1149,7 @@ mono_local_regalloc (MonoCompile *cfg, MonoBasicBlock *bb)
 
 		/* Validate the cpu description against the info in mini-ops.h */
 #if defined(TARGET_AMD64) || defined(TARGET_X86) || defined(TARGET_ARM) || defined(TARGET_ARM64) || defined (TARGET_RISCV)
-		for (i = OP_LOAD; i < OP_LAST; ++i) {
+		for (i = OP_FIRST; i < OP_LAST; ++i) {
 			const char *ispec;
 
 			spec = ins_get_spec (i);
