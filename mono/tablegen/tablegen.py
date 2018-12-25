@@ -332,6 +332,17 @@ class DefValue(Value):
     def __str__(self):
         return self.value.name
 
+class ListValue(Value):
+    def __init__(self, value):
+        self.type = "list"
+        self.value = value
+    def eval_in_scope(self, scope):
+        return self
+    def get_value(self):
+        return map (lambda x: x.get_value (), self.value)
+    def __str__(self):
+        return str (self.value)
+
 current_lexer = None
 
 def error(msg):
@@ -402,6 +413,18 @@ class Parser:
                 return IdValue (lexer.id_val)
         elif tok == TokenKind.INT:
             return IntValue (int (lexer.id_val))
+        elif tok == TokenKind.LSQUARE:
+            l = []
+            tok = lexer.lex ()
+            while tok != TokenKind.RSQUARE:
+                l.append (self.parse_value (tok))
+                tok = lexer.lex ()
+                if tok == TokenKind.RSQUARE:
+                    break
+                if tok != TokenKind.COMMA:
+                    unexpected ()
+                tok = lexer.lex ()
+            return ListValue (l)
         else:
             unexpected (lexer)
 
@@ -446,9 +469,8 @@ class Parser:
         for m in lets:
             if lets[m] != None:
                 error ("Unknown member '" + m + "' in let statement.")
-    
-    # type Id [= <value>]
-    def parse_decl(self):
+
+    def parse_type(self):
         lexer = self.lexer
         tok = lexer.lex ()
         if tok == TokenKind.KW_INT:
@@ -459,8 +481,20 @@ class Parser:
             decl_type = "bit"
         elif tok == TokenKind.ID:
             decl_type = lexer.id_val
+        elif tok == TokenKind.KW_LIST:
+            self.parse_expected (TokenKind.LESS, "<")
+            self.parse_type ()
+            self.parse_expected (TokenKind.GREATER, ">")
+            # Ignore the subtype
+            decl_type = "list"
         else:
             error ("type expected")
+        return decl_type
+
+    # type Id [= <value>]
+    def parse_decl(self):
+        lexer = self.lexer
+        decl_type = self.parse_type ()
         tok = lexer.lex ()
         if tok != TokenKind.ID:
             error ("id expected")
@@ -664,12 +698,13 @@ class TableGen:
             parser.add_argument (g, dest='backend', action='store_const', const=g, help=self.backends_help [g])
         self.args = parser.parse_args ()
         self.props = {}
-        for prop in self.args.props_list:
-            parts = prop.split ('=')
-            if len (parts) != 2:
-                print ("Usage: -p VARIABLE=VALUE")
-                sys.exit (1)
-            self.props [parts [0]] = parts [1]
+        if self.args.props_list != None:
+            for prop in self.args.props_list:
+                parts = prop.split ('=')
+                if len (parts) != 2:
+                    print ("Usage: -p VARIABLE=VALUE")
+                    sys.exit (1)
+                self.props [parts [0]] = parts [1]
 
     def run(self):
         self.parse_args ()

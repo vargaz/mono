@@ -25,6 +25,10 @@ def Def3 : Class3<"ARG1"> {
 let arg3 = "ARG3" in {
 def Def4 : Class3<"ARG3">;
 }
+class Class4<list<string> _elems> {
+        list<string> elems = _elems;
+}
+def Def5 : Class4<["A", "B"]>;
 """
         tblgen = tablegen.TableGen ()
         table = tblgen.parse (src)
@@ -57,6 +61,13 @@ def Def4 : Class3<"ARG3">;
         # Let outside def
         d = table.by_name ["Def4"]
         self.assertEqual ("ARG3", d.arg3)
+
+        # List
+        d = table.by_name ["Def5"]
+        l = d.elems
+        self.assertEqual (2, len (l))
+        self.assertEqual ("A", l [0])
+        self.assertEqual ("B", l [1])
 
     def assertParseError(self, src):
         fail = False

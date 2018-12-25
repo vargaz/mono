@@ -23,6 +23,7 @@ Supported data types:
 - string
 - bit
 - defs
+- list
 
 Incompatibilities:
 
