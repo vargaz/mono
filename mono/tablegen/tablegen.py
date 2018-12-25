@@ -705,7 +705,7 @@ class TableGen:
     def parse(self, input_str):
         f = io.StringIO (unicode (input_str))
 
-        lexer = Lexer(f)
+        lexer = Lexer("", f)
         global current_lexer
         current_lexer = lexer
 
