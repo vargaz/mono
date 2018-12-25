@@ -136,6 +136,13 @@ def Def1: Class1<"A">;
 """
         self.assertParseError (src)
 
+    def testUndefinedName(self):
+        src = """
+class Class1<string _arg> { int arg = arg2; }
+def Def1: Class1<"A">;
+"""
+        self.assertParseError (src)
+
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(ParseTest())

@@ -304,6 +304,8 @@ class IdValue(Value):
         self.type = "id"
         self.value = value
     def eval_in_scope(self, scope):
+        if not self.value in scope:
+            error ("Unknown id '" + self.value + "'.")
         return scope [self.value]
     def get_value(self):
         error ("Undefined value '" + self.value + "'")
@@ -422,7 +424,7 @@ class Parser:
                 if tok == TokenKind.RSQUARE:
                     break
                 if tok != TokenKind.COMMA:
-                    unexpected ()
+                    unexpected (lexer)
                 tok = lexer.lex ()
             return ListValue (l)
         else:
