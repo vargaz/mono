@@ -191,6 +191,15 @@ static GENERATE_GET_CLASS_WITH_CACHE (geqcomparer, "System.Collections.Generic",
 /*
  * Instruction metadata
  */
+#ifdef ENABLE_TABLEGEN
+
+#define MINI_EMIT_INS_INFO_TABLE 1
+#define MINI_EMIT_OPFLAGS_TABLE 1
+#define MINI_EMIT_SREG_COUNTS_TABLE 1
+#include "mini-ops.h"
+
+#else
+
 #ifdef MINI_OP
 #undef MINI_OP
 #endif
@@ -218,17 +227,6 @@ mini_ins_info[] = {
 #undef MINI_OP
 #undef MINI_OP3
 
-/* Emit the mini_opflags table here */
-#ifdef ENABLE_TABLEGEN
-#define MINI_EMIT_OPFLAGS_TABLE 1
-#define MINI_OP(a,b,dest,src1,src2)
-#define MINI_OP3(a,b,dest,src1,src2,src3)
-#include "mini-ops.h"
-#undef MINI_EMIT_OPFLAGS_TABLE
-#undef MINI_OP
-#undef MINI_OP3
-#endif
-
 #define MINI_OP(a,b,dest,src1,src2) ((src2) != NONE ? 2 : ((src1) != NONE ? 1 : 0)),
 #define MINI_OP3(a,b,dest,src1,src2,src3) ((src3) != NONE ? 3 : ((src2) != NONE ? 2 : ((src1) != NONE ? 1 : 0))),
 /* 
@@ -240,6 +238,8 @@ const gint8 mini_ins_sreg_counts[] = {
 };
 #undef MINI_OP
 #undef MINI_OP3
+
+#endif /* !ENABLE_TABLEGEN */
 
 guint32
 mono_alloc_ireg (MonoCompile *cfg)

@@ -193,6 +193,13 @@ typedef struct {
  * Instruction metadata
  * This is the same as ins_info, but LREG != IREG.
  */
+#ifdef ENABLE_TABLEGEN
+
+#define MINI_EMIT_LLVM_INS_INFO_TABLE 1
+#include "mini-ops.h"
+
+#else
+
 #ifdef MINI_OP
 #undef MINI_OP
 #endif
@@ -215,6 +222,8 @@ mini_llvm_ins_info[] = {
 };
 #undef MINI_OP
 #undef MINI_OP3
+
+#endif /* !ENABLE_TABLEGEN */
 
 #if TARGET_SIZEOF_VOID_P == 4
 #define GET_LONG_IMM(ins) ((ins)->inst_l)

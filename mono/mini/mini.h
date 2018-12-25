@@ -1653,6 +1653,14 @@ typedef struct {
 extern MonoJitStats mono_jit_stats;
 
 /* opcodes: value assigned after all the CIL opcodes */
+#ifdef ENABLE_TABLEGEN
+
+#define MINI_EMIT_INS_DEFS 1
+#include "mini-ops.h"
+#undef MINI_EMIT_INS_DEFS
+
+#else
+
 #ifdef MINI_OP
 #undef MINI_OP
 #endif
@@ -1668,6 +1676,8 @@ enum {
 };
 #undef MINI_OP
 #undef MINI_OP3
+
+#endif /* !ENABLE_TABLEGEN */
 
 #if TARGET_SIZEOF_VOID_P == 8
 #define OP_PCONST OP_I8CONST

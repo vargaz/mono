@@ -5,31 +5,111 @@
 import sys
 import tablegen
 
+def is_64bit(arch):
+    # FIXME:
+    return arch == "AMD64"
+
 class MiniOpsBackend(tablegen.Backend):
     def __init__(self):
         pass
+
+    def map_regtype(self, regtype, map_l_to_i):
+        if regtype == "NONE":
+            return " "
+        if regtype == "IREG":
+            return "i"
+        if regtype == "BREG":
+            return "i"
+        if regtype == "LREG":
+            if map_l_to_i:
+                return "i"
+            else:
+                return "l"
+        if regtype == "VREG":
+            return "v"
+        if regtype == "FREG":
+            return "f"
+        if regtype == "XREG":
+            return "x"
+        raise Exception()
+
+    def map_regs(self, m, map_l_to_i):
+        regs = []
+        regs.append (self.map_regtype (m.dreg.name, map_l_to_i))
+        regs.append (self.map_regtype (m.sreg1.name, map_l_to_i))
+        regs.append (self.map_regtype (m.sreg2.name, map_l_to_i))
+        regs.append (self.map_regtype (m.sreg3.name, map_l_to_i))
+        return regs
 
     def generate(self, table, props, output):
         if not "ARCH" in props:
             print ("Required property ARCH is not set.")
             sys.exit (1)
         arch = props ["ARCH"]
-        output.write ("// GENERATED FROM '" + table.filename + "', DO NOT MODIFY.\n")
-        # The defines are in the same order as in the .td file, parts of the JIT depend on this
+        map_l_to_i = is_64bit (arch)
+
+        opcodes = []
         for m in table.defines:
             if not m.instance_of ("OpcodeGeneral"):
+                continue
+            if m.arch != "" and not arch in m.arch:
                 continue
             if m.label == "":
                 # Auto generate the label
                 m.label = m.name[3:].lower()
-            if m.arch != "" and not arch in m.arch:
-                continue
-            if m.instance_of ("Opcode3"):
-                output.write ("MINI_OP3(" + m.name + ", \"" + m.label + "\", " + m.dreg.name + ", " + m.sreg1.name + ", " + m.sreg2.name + ", " + m.sreg3.name + ")\n")
-            else:
-                output.write ("MINI_OP(" + m.name + ", \"" + m.label + "\", " + m.dreg.name + ", " + m.sreg1.name + ", " + m.sreg2.name + ")\n")
+            opcodes.append (m)
 
-        # Emit a table of flags
+        output.write ("// GENERATED FROM '" + table.filename + "', DO NOT MODIFY.\n")
+
+        #for m in opcodes:
+        #if m.instance_of ("Opcode3"):
+        #   output.write ("MINI_OP3(" + m.name + ", \"" + m.label + "\", " + m.dreg.name + ", " + m.sreg1.name + ", " + m.sreg2.name + ", " + m.sreg3.name + ")\n")
+        #else:
+        #output.write ("MINI_OP(" + m.name + ", \"" + m.label + "\", " + m.dreg.name + ", " + m.sreg1.name + ", " + m.sreg2.name + ")\n")
+
+        # The defines are in the same order as in the .td file, parts of the JIT depend on this
+        output.write ("\n#ifdef MINI_EMIT_INS_DEFS\n")
+        output.write ("enum {\n")
+        output.write ("\tOP_START = MONO_CEE_LAST - 1,\n")
+        for m in opcodes:
+            output.write ("\t" + m.name + ",\n")
+        output.write ("\tOP_LAST\n")
+        output.write ("};\n")
+        output.write ("#endif\n")
+
+        # Ins info table
+        output.write ("\n")
+        output.write ("\n#ifdef MINI_EMIT_INS_INFO_TABLE\n")
+        output.write ("const char mini_ins_info [] = {\n")
+        count = 0
+        for m in opcodes:
+            regs = self.map_regs (m, map_l_to_i)
+            for r in regs:
+                output.write ("'" + r + "', ")
+            count += 1
+            if count == 6:
+                count = 0
+                output.write ("\n")
+        output.write ("};\n")
+        output.write ("#endif\n")
+
+        # Same for llvm
+        output.write ("\n")
+        output.write ("\n#ifdef MINI_EMIT_LLVM_INS_INFO_TABLE\n")
+        output.write ("const char mini_llvm_ins_info [] = {\n")
+        count = 0
+        for m in opcodes:
+            regs = self.map_regs (m, False)
+            for r in regs:
+                output.write ("'" + r + "', ")
+            count += 1
+            if count == 6:
+                count = 0
+                output.write ("\n")
+        output.write ("};\n")
+        output.write ("#endif\n")
+
+        # Flags table
         output.write ("\n")
         output.write ("#define MINI_OPFLAG_NOSIDEFFECT (1 << 0)\n")
         output.write ("#define MINI_OPFLAG_IS_MOVE (1 << 1)\n")
@@ -39,16 +119,49 @@ class MiniOpsBackend(tablegen.Backend):
         # Max 8 flags for now
         output.write ("\n#ifdef MINI_EMIT_OPFLAGS_TABLE\n")
         output.write ("const guint8 mini_ins_flags [] = {\n")
-        for m in table.defines:
-            if not m.instance_of ("OpcodeGeneral"):
-                continue
-            if m.label == "":
-                # Auto generate the label
-                m.label = m.name[3:].lower()
-            if m.arch != "" and not arch in m.arch:
-                continue
+        for m in opcodes:
             val = (m.noSideEffect << 0) | (m.isMove << 1) | (m.isPhi << 2) | (m.isCall << 3) | (m.isSetCC << 4)
             output.write (str (val) + ", ")
+        output.write ("};\n")
+        output.write ("#endif\n")
+
+        # Sreg counts table
+        output.write ("\n")
+        output.write ("\n#ifdef MINI_EMIT_SREG_COUNTS_TABLE\n")
+        output.write ("const gint8 mini_ins_sreg_counts[] = {\n")
+        for m in opcodes:
+            if m.sreg3.name != "NONE":
+                count = 3
+            elif m.sreg2.name != "NONE":
+                count = 2
+            elif m.sreg1.name != "NONE":
+                count = 1
+            else:
+                count = 0
+            output.write (str (count) + ", ")
+        output.write ("};\n")
+        output.write ("#endif\n")
+
+        # Opcode name table
+        output.write ("\n")
+        output.write ("\n#ifdef MINI_EMIT_OPCODE_NAME_TABLE\n")
+        output.write ("const char mini_ins_name_table[] = {\n")
+        output.write ("\"")
+        idx = 0
+        for m in opcodes:
+            output.write (m.label + "\\0")
+            m.name_idx = idx
+            idx += len (m.label) + 1
+        output.write ("\"")
+        output.write ("};\n")
+        output.write ("const gint16 mini_ins_name_idx_table[] = {\n")
+        count = 0
+        for m in opcodes:
+            output.write (str (m.name_idx) + ", ")
+            count += 1
+            if count == 20:
+                count = 0
+                output.write ("\n")
         output.write ("};\n")
         output.write ("#endif\n")
 
@@ -66,10 +179,12 @@ class CpuDescBackend(tablegen.Backend):
         pass
 
     def generate(self, table, props, output):
-        # FIXME:
-        arch = "AMD64"
-        symbol_name = "amd64_desc"
-        self.map_l_to_i = True
+        if not "ARCH" in props:
+            print ("Required property ARCH is not set.")
+            sys.exit (1)
+        arch = props ["ARCH"]
+        symbol_name = arch.lower () + "_desc";
+        self.map_l_to_i = is_64bit (arch)
         
         opcodes={}
         opcode_id = 0

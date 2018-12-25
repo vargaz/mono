@@ -19,6 +19,13 @@
 
 #ifndef DISABLE_LOGGING
 
+#ifdef ENABLE_TABLEGEN
+
+#define MINI_EMIT_OPCODE_NAME_TABLE 1
+#include "mini-ops.h"
+
+#else
+
 #ifdef MINI_OP
 #undef MINI_OP
 #endif
@@ -35,20 +42,22 @@ static const struct msgstr_t {
 #include "mini-ops.h"
 #undef MINI_OP
 #undef MINI_OP3
-} opstr = {
+} mini_ins_name_table = {
 #define MINI_OP(a,b,dest,src1,src2) b,
 #define MINI_OP3(a,b,dest,src1,src2,src3) b,
 #include "mini-ops.h"
 #undef MINI_OP
 #undef MINI_OP3
 };
-static const gint16 opidx [] = {
+static const gint16 mini_ins_name_idx_table [] = {
 #define MINI_OP(a,b,dest,src1,src2)       offsetof (struct msgstr_t, MSGSTRFIELD(__LINE__)),
 #define MINI_OP3(a,b,dest,src1,src2,src3) offsetof (struct msgstr_t, MSGSTRFIELD(__LINE__)),
 #include "mini-ops.h"
 #undef MINI_OP
 #undef MINI_OP3
 };
+
+#endif /* !ENABLE_TABLEGEN */
 
 #endif /* DISABLE_LOGGING */
 
@@ -76,7 +85,7 @@ const char*
 mono_inst_name (int op) {
 #ifndef DISABLE_LOGGING
 	if (op >= OP_FIRST && op <= OP_LAST)
-		return (const char*)&opstr + opidx [op - OP_FIRST];
+		return (const char*)&mini_ins_name_table + mini_ins_name_idx_table [op - OP_FIRST];
 	if (op < OP_FIRST)
 		return mono_opcode_name (op);
 	g_error ("unknown opcode name for %d", op);
