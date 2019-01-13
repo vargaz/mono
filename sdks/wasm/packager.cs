@@ -6,6 +6,51 @@ using Mono.Cecil;
 using Mono.Options;
 using Mono.Cecil.Cil;
 
+//
+// Google V8 style options:
+// - bool: --foo/--no-foo
+//
+
+enum FlagType {
+	BoolFlag,
+}
+
+// 'Option' is already used by Mono.Options
+class Flag {
+	public Flag (string name, string desc, FlagType type) {
+		Name = name;
+		FlagType = type;
+		Description = desc;
+	}
+
+	public string Name {
+		get; set;
+	}
+
+	public FlagType FlagType {
+		get; set;
+	}
+
+	public string Description {
+		get; set;
+	}
+}
+
+class BoolFlag : Flag {
+	public BoolFlag (string name, string description, bool def_value, Action<bool> action) : base (name, description, FlagType.BoolFlag) {
+		Setter = action;
+		DefaultValue = def_value;
+	}
+
+	public Action<bool> Setter {
+		get; set;
+	}
+
+	public bool DefaultValue {
+		get; set;
+	}
+}
+
 class Driver {
 	static bool enable_debug, enable_linker;
 	static string app_prefix, framework_prefix, bcl_prefix, bcl_tools_prefix, bcl_facades_prefix, out_prefix;
@@ -44,6 +89,16 @@ class Driver {
 		None,
 	}
 
+	void AddFlag (OptionSet options, Flag flag) {
+		if (flag is BoolFlag) {
+			options.Add (flag.Name, s => (flag as BoolFlag).Setter (true));
+			options.Add ("no-" + flag.Name, s => (flag as BoolFlag).Setter (false));
+		}
+		option_list.Add (flag);
+	}
+
+	static List<Flag> option_list = new List<Flag> ();
+
 	static void Usage () {
 		Console.WriteLine ("Usage: packager.exe <options> <assemblies>");
 		Console.WriteLine ("Valid options:");
@@ -68,6 +123,17 @@ class Driver {
 		Console.WriteLine ("\t--aot-assemblies=x List of assemblies to AOT in AOT+INTERP mode.");
 
 		Console.WriteLine ("foo.dll         Include foo.dll as one of the root assemblies");
+		Console.WriteLine ();
+
+		Console.WriteLine ("Additional options (--option/--no-option):");
+		foreach (var flag in option_list) {
+			if (flag is BoolFlag) {
+				Console.WriteLine ("  --" + flag.Name + " (" + flag.Description + ")");
+				Console.WriteLine ("        type: bool  default: " + ((flag as BoolFlag).DefaultValue ? "true" : "false"));
+			}
+		}
+
+
 	}
 
 	static void Debug (string s) {
