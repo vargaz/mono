@@ -20,6 +20,7 @@ namespace CppSharp
         static string MonoDir = @"";
 
         static List<string> Abis = new List<string> ();
+        static List<string> Defines = new List<string> ();
         static string OutputDir;
         static string OutputFile;
 
@@ -242,6 +243,9 @@ namespace CppSharp
              {
                 if (Abis.Any() && !Abis.Contains (target.Triple))
                     continue;
+
+                foreach (var define in Defines)
+                    target.Defines.Add (define);
                 
                 Console.WriteLine();
                 Console.WriteLine("Processing triple: {0}", target.Triple);
@@ -292,6 +296,7 @@ namespace CppSharp
                 { "mono=", "include directory", v => MonoDir = v },
                 { "gen-ios", "generate iOS offsets", v => GenIOS = v != null },
                 { "gen-android", "generate Android offsets", v => GenAndroid = v != null },
+                { "define=", "Additional defines", v => Defines.Add (v) },
                 { "h|help",  "show this message and exit",  v => showHelp = v != null },
             };
 
