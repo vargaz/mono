@@ -4176,6 +4176,18 @@ mono_assembly_load_corlib (const MonoRuntimeInfo *runtime, MonoImageOpenStatus *
 	aname = mono_assembly_name_new (MONO_ASSEMBLY_CORLIB_NAME);
 	corlib = invoke_assembly_preload_hook (aname, NULL);
 	/* MonoCore preload hook should know how to find it */
+	if (!corlib) {
+		MonoAssemblyCandidatePredicate predicate = &mono_assembly_candidate_predicate_sn_same_name;
+		void* predicate_ud = aname;
+		MonoAssemblyOpenRequest req;
+		mono_assembly_request_prepare (&req.request, sizeof (req), MONO_ASMCTX_DEFAULT);
+		req.request.predicate = predicate;
+		req.request.predicate_ud = predicate_ud;
+
+		MonoImageOpenStatus status;
+		char *corlib_name = g_strdup_printf ("%s.dll", MONO_ASSEMBLY_CORLIB_NAME);
+		corlib = mono_assembly_request_open (corlib_name, &req, &status);
+	}
 	/* FIXME: AOT compiler comes here without an installed hook. */
 	g_assert (corlib);
 #else
