@@ -9208,7 +9208,11 @@ calli_end:
 					GSHAREDVT_FAILURE (il_op);
 
 				static_data_reg = alloc_ireg (cfg);
+#ifdef ENABLE_NETCORE
+				MONO_EMIT_NEW_LOAD_MEMBASE (cfg, static_data_reg, thread_ins->dreg, MONO_STRUCT_OFFSET (MonoThread, static_data));
+#else
 				MONO_EMIT_NEW_LOAD_MEMBASE (cfg, static_data_reg, thread_ins->dreg, MONO_STRUCT_OFFSET (MonoInternalThread, static_data));
+#endif
 
 				if (cfg->compile_aot) {
 					int offset_reg, offset2_reg, idx_reg;

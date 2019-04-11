@@ -439,7 +439,11 @@ mono_check_corlib_version_internal (void)
 	/* Check that the managed and unmanaged layout of MonoInternalThread matches */
 	guint32 native_offset;
 	guint32 managed_offset;
+#ifdef ENABLE_NETCORE
+	native_offset = (guint32) MONO_STRUCT_OFFSET (MonoThread, last);
+#else
 	native_offset = (guint32) MONO_STRUCT_OFFSET (MonoInternalThread, last);
+#endif
 	managed_offset = mono_field_get_offset (mono_class_get_field_from_name_full (mono_defaults.internal_thread_class, "last", NULL));
 	if (native_offset != managed_offset)
 		result = g_strdup_printf ("expected InternalThread.last field offset %u, found %u. See InternalThread.last comment", native_offset, managed_offset);

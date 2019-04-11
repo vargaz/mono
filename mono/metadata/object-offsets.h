@@ -88,10 +88,17 @@ DECL_OFFSET(MonoDelegate, method_code)
 DECL_OFFSET(MonoDelegate, method_is_virtual)
 DECL_OFFSET(MonoDelegate, extra_arg)
 
+#ifdef ENABLE_NETCORE
+DECL_OFFSET(MonoThread, tid)
+DECL_OFFSET(MonoThread, small_id)
+DECL_OFFSET(MonoThread, static_data)
+DECL_OFFSET(MonoThread, last)
+#else
 DECL_OFFSET(MonoInternalThread, tid)
 DECL_OFFSET(MonoInternalThread, small_id)
 DECL_OFFSET(MonoInternalThread, static_data)
 DECL_OFFSET(MonoInternalThread, last)
+#endif
 
 DECL_OFFSET(MonoMulticastDelegate, delegates)
 
