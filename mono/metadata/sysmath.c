@@ -222,7 +222,12 @@ ves_icall_System_Math_ScaleB (gdouble x, gint32 n)
 gdouble
 ves_icall_System_Math_FusedMultiplyAdd (gdouble x, gdouble y, gdouble z)
 {
+#ifdef TARGET_WASM
+	/* Enabling these leads to error: undefined symbol: llvm_fma_f32 from esmcripten */
+	g_assert_not_reached ();
+#else
 	return fma (x, y, z);
+#endif
 }
 #endif
 
@@ -386,6 +391,10 @@ ves_icall_System_MathF_ScaleB (float x, gint32 n)
 float
 ves_icall_System_MathF_FusedMultiplyAdd (float x, float y, float z)
 {
+#ifdef TARGET_WASM
+	g_assert_not_reached ();
+#else
 	return fmaf (x, y, z);
+#endif
 }
 #endif
