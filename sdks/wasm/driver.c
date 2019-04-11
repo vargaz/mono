@@ -11,7 +11,11 @@
 #include <mono/utils/mono-dl-fallback.h>
 #include <mono/jit/jit.h>
 
+#ifdef ENABLE_NETCORE
+#include "pinvoke-tables-default-netcore.h"
+#else
 #include "pinvoke-tables-default.h"
+#endif
 
 #ifdef CORE_BINDINGS
 void core_initialize_internals ();

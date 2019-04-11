@@ -24,6 +24,8 @@ CSC?= MONO_PATH=$(TOP)/mcs/class/lib/build $(TOP)/sdks/builds/bcl/runtime/mono-w
 CSC_FLAGS := /debug:portable /noconfig /nostdlib /nologo /langversion:latest
 API_REFS=$(TOP)/external/binary-reference-assemblies/v4.6
 
+NETCORE_SDKROOT=$(TOP)/netcore/shared/Microsoft.NETCore.App/3.0.0-preview5-27606-02
+
 MINI_TEST_FILES= \
     TestDriver.cs   \
     aot-tests.cs \
@@ -85,8 +87,15 @@ jsup:
 .PHONY: toolchain
 toolchain: .stamp-jsvu
 
-driver.o: driver.c corebindings.c pinvoke-tables-default.h
-	$(EMCC) -g -Os -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s BINARYEN=1 -s "BINARYEN_TRAP_MODE='clamp'" -s ALIASING_FUNCTION_POINTERS=0 -DCORE_BINDINGS -I$(WASM_RUNTIME_DIR)/include/mono-2.0 driver.c -c -o driver.o
+ifdef ENABLE_NETCORE
+NETCORE_CFLAGS=-DENABLE_NETCORE
+PINVOKE_TABLES=pinvoke-tables-default-netcore.h
+else
+PINVOKE_TABLES=pinvoke-tables-default.h
+endif
+
+driver.o: driver.c corebindings.c $(PINVOKE_TABLES)
+	$(EMCC) -g -Os -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s BINARYEN=1 -s "BINARYEN_TRAP_MODE='clamp'" -s ALIASING_FUNCTION_POINTERS=0 -DCORE_BINDINGS -I$(WASM_RUNTIME_DIR)/include/mono-2.0 $(NETCORE_CFLAGS) driver.c -c -o driver.o
 
 corebindings.o: corebindings.c
 	$(EMCC) -g -Os -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s BINARYEN=1 -s "BINARYEN_TRAP_MODE='clamp'" -s ALIASING_FUNCTION_POINTERS=0 -I$(WASM_RUNTIME_DIR)/include/mono-2.0 corebindings.c -c -o corebindings.o
@@ -96,18 +105,26 @@ debug/:
 release/:
 	mkdir -p $@
 
+ifdef ENABLE_NETCORE
+MONO_LIBS = $(TOP)/sdks/out/wasm-runtime-release/lib/{libmono-ee-interp.a,libmonosgen-2.0.a,libmono-ilgen.a,libmono-icall-table.a} netcore-System.Native.bc
+MONO_LIB_DEPS = netcore-System.Native.bc
+else
 MONO_LIBS = $(TOP)/sdks/out/wasm-runtime-release/lib/{libmono-ee-interp.a,libmono-native.a,libmonosgen-2.0.a,libmono-ilgen.a,libmono-icall-table.a}
+endif
 
 EMCC_FLAGS=-s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s BINARYEN=1 -s "BINARYEN_TRAP_MODE='clamp'" -s ALIASING_FUNCTION_POINTERS=0 -s NO_EXIT_RUNTIME=1 -s "EXTRA_EXPORTED_RUNTIME_METHODS=['ccall', 'FS_createPath', 'FS_createDataFile', 'cwrap', 'setValue', 'getValue', 'UTF8ToString']" -s EMULATED_FUNCTION_POINTERS=1
 
-debug/.stamp-build: driver.o corebindings.o library_mono.js binding_support.js dotnet_support.js $(TOP)/sdks/out/wasm-runtime-release/lib/libmonosgen-2.0.a | debug/
+debug/.stamp-build: driver.o corebindings.o library_mono.js binding_support.js dotnet_support.js $(TOP)/sdks/out/wasm-runtime-release/lib/libmonosgen-2.0.a $(MONO_LIB_DEPS) | debug/
 	$(EMCC) $(EMCC_FLAGS) -g4 -Os -s ASSERTIONS=1 --js-library library_mono.js --js-library binding_support.js --js-library dotnet_support.js driver.o corebindings.o $(MONO_LIBS) -o debug/mono.js
 	touch $@
 
 # Notice that release/.stamp-build depends on debug/.stamp-build. This is the case as emcc is believed to not work well with parallel builds.
-release/.stamp-build: driver.o corebindings.o library_mono.js binding_support.js dotnet_support.js $(TOP)/sdks/out/wasm-runtime-release/lib/libmonosgen-2.0.a debug/.stamp-build | release/
+release/.stamp-build: driver.o corebindings.o library_mono.js binding_support.js dotnet_support.js $(TOP)/sdks/out/wasm-runtime-release/lib/libmonosgen-2.0.a $(MONO_LIB_DEPS) debug/.stamp-build | release/
 	$(EMCC) $(EMCC_FLAGS) -Oz --llvm-opts 2 --llvm-lto 1 --js-library library_mono.js --js-library binding_support.js --js-library dotnet_support.js driver.o corebindings.o $(MONO_LIBS) -o release/mono.js -s "EXPORTED_FUNCTIONS=['_putchar']"
 	touch $@
+
+netcore-System.Native.bc:
+	cd $(COREFX_ROOT)/src/Native && touch _version.c && cd Unix && mkdir -p build && cd build && source $(TOP)/sdks/builds/toolchains/emsdk/emsdk_env.sh && emcmake cmake "-DEMSCRIPTEN_GENERATE_BITCODE_STATIC_LIBRARIES=1" "-DCMAKE_TOOLCHAIN_FILE=$(TOP)/sdks/builds/toolchains/emsdk/emscripten/1.38.29/cmake/Modules/Platform/Emscripten.cmake" -G Ninja -DCMAKE_BUILD_TYPE=Debug .. && ninja && cp System.Native/System.Native.so $(PWD)/$@
 
 build-native: debug/.stamp-build release/.stamp-build
 
@@ -198,7 +215,7 @@ run-aot-sample: build-aot-sample
 	(cd bin/aot-sample && $(SM) runtime.js --run hello.exe)
 
 build-interp-sample: packager.exe hello.exe
-	mono --debug packager.exe --emscripten-sdkdir=$(EMSCRIPTEN_SDKDIR) --mono-sdkdir=$(TOP)/sdks/out -appdir=bin/interp-sample --nobinding --builddir=obj/interp-sample --template=runtime-tests.js hello.exe --linker --link-icalls
+	mono --debug packager.exe --debugrt --emscripten-sdkdir=$(EMSCRIPTEN_SDKDIR) --mono-sdkdir=$(TOP)/sdks/out -appdir=bin/interp-sample --nobinding --builddir=obj/interp-sample --template=runtime-tests.js hello.exe --linker --link-icalls
 	ninja -v -C obj/interp-sample
 
 run-interp-sample: build-interp-sample
@@ -272,6 +289,9 @@ build: build-native build-managed build-debugger-test-app
 
 gen-pinvoke-tables:
 	mono ../../mcs/class/lib/wasm_tools/wasm-tuner.exe --gen-pinvoke-table System.Native $(WASM_BCL_DIR)/mscorlib.dll > pinvoke-tables-default.h
+
+pinvoke-tables-default-netcore.h:
+	mono ../../mcs/class/lib/wasm_tools/wasm-tuner.exe --gen-pinvoke-table System.Native $(NETCORE_SDKROOT)/System.Private.CoreLib.dll $(NETCORE_SDKROOT)/System.Console.dll > $@
 
 CHAKRA=~/.jsvu/ch
 D8=~/.jsvu/v8
