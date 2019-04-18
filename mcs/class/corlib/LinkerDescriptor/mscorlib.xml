@@ -531,7 +531,7 @@
 		<type fullname="System.IO.MonoIOStat" preserve="fields" />
 
 		<!-- appdomain.c: ves_icall_System_AppDomain_GetAssemblies -->
-		<type fullname="System.Reflection.Assembly" preserve="fields"/>
+		<type fullname="System.Reflection.Assembly" preserve="nothing"/>
 
 		<type fullname="System.Reflection.AssemblyName" preserve="fields" />
 		
@@ -654,8 +654,8 @@
 			<method name="DefineLPArrayInternal" feature="sre" />
 		</type>
 		<type fullname="System.Reflection.Emit.ArrayType" preserve="fields" feature="sre" />
-		<type fullname="System.Reflection.Emit.ByRefType" preserve="fields" feature="sre" />
-		<type fullname="System.Reflection.Emit.PointerType" preserve="fields" feature="sre" />
+		<type fullname="System.Reflection.Emit.ByRefType" preserve="nothing" feature="sre" />
+		<type fullname="System.Reflection.Emit.PointerType" preserve="nothing" feature="sre" />
 		<type fullname="System.Reflection.Emit.FieldOnTypeBuilderInst" preserve="fields" feature="sre" />
 		<type fullname="System.Reflection.Emit.MethodOnTypeBuilderInst" preserve="fields" feature="sre" />
 		<type fullname="System.Reflection.Emit.ConstructorOnTypeBuilderInst" preserve="fields" feature="sre" />
@@ -841,7 +841,7 @@
 		<type fullname="System.Threading.WasmRuntime"/>
 
 		<!-- mini-generic-sharing.c -->
-		<type fullname="Mono.ValueTuple" preserve="fields"/>
+		<type fullname="Mono.ValueTuple" preserve="nothing"/>
 		<type fullname="Mono.ValueTuple`1" preserve="fields"/>
 		<type fullname="Mono.ValueTuple`2" preserve="fields"/>
 		<type fullname="Mono.ValueTuple`3" preserve="fields"/>
