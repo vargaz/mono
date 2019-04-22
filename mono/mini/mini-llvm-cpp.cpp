@@ -236,15 +236,15 @@ mono_llvm_set_is_constant (LLVMValueRef global_var)
 }
 
 void
-mono_llvm_set_preserveall_cc (LLVMValueRef func)
+mono_llvm_set_cold_cc (LLVMValueRef func)
 {
-	unwrap<Function>(func)->setCallingConv (CallingConv::PreserveAll);
+	unwrap<Function>(func)->setCallingConv (CallingConv::Cold);
 }
 
 void
-mono_llvm_set_call_preserveall_cc (LLVMValueRef func)
+mono_llvm_set_call_cold_cc (LLVMValueRef func)
 {
-	unwrap<CallInst>(func)->setCallingConv (CallingConv::PreserveAll);
+	unwrap<CallInst>(func)->setCallingConv (CallingConv::Cold);
 }
 
 void

@@ -98,10 +98,10 @@ void
 mono_llvm_set_is_constant (LLVMValueRef global_var);
 
 void
-mono_llvm_set_preserveall_cc (LLVMValueRef func);
+mono_llvm_set_cold_cc (LLVMValueRef func);
 
 void
-mono_llvm_set_call_preserveall_cc (LLVMValueRef call);
+mono_llvm_set_call_cold_cc (LLVMValueRef call);
 
 void
 mono_llvm_set_call_notailcall (LLVMValueRef call);
