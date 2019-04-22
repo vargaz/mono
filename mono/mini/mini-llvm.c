@@ -3119,6 +3119,51 @@ get_init_icall_wrapper (MonoLLVMModule *module, MonoAotInitSubtype subtype)
 	}
 }
 
+/* A cold cconv wrapper around mono_threads_state_poll () */
+static void
+emit_gc_safepoint_entry (MonoLLVMModule *module)
+{
+	LLVMModuleRef lmodule = module->lmodule;
+	LLVMValueRef func, indexes [2], got_entry_addr, callee;
+	LLVMBasicBlockRef entry_bb;
+	LLVMBuilderRef builder;
+	LLVMTypeRef sig;
+	MonoJumpInfo *ji;
+	int got_offset;
+
+	sig = LLVMFunctionType0 (LLVMVoidType (), FALSE);
+	func = LLVMAddFunction (lmodule, "safepoint_entry", sig);
+	mono_llvm_add_func_attr (func, LLVM_ATTR_NO_UNWIND);
+	LLVMSetLinkage (func, LLVMInternalLinkage);
+	set_cold_cc (func);
+
+	entry_bb = LLVMAppendBasicBlock (func, "entry");
+
+	builder = LLVMCreateBuilder ();
+
+	/* entry: */
+	LLVMPositionBuilderAtEnd (builder, entry_bb);
+
+	/* This is a preinited got slot */
+	ji = g_new0 (MonoJumpInfo, 1);
+	ji->type = MONO_PATCH_INFO_JIT_ICALL;
+	ji->data.name = "mono_threads_state_poll";
+	ji = mono_aot_patch_info_dup (ji);
+	got_offset = compute_aot_got_offset (module, ji, sig);
+	module->max_got_offset = MAX (module->max_got_offset, got_offset);
+	indexes [0] = LLVMConstInt (LLVMInt32Type (), 0, FALSE);
+	indexes [1] = LLVMConstInt (LLVMInt32Type (), got_offset, FALSE);
+	got_entry_addr = LLVMBuildGEP (builder, module->got_var, indexes, 2, "");
+	callee = LLVMBuildLoad (builder, got_entry_addr, "");
+	callee = LLVMBuildBitCast (builder, callee, LLVMPointerType (sig, 0), "");
+	LLVMBuildCall (builder, callee, NULL, 0, "");
+
+	LLVMBuildRetVoid (builder);
+
+	LLVMVerifyFunction (func, LLVMAbortProcessAction);
+	LLVMDisposeBuilder (builder);
+}
+
 static void
 emit_gc_safepoint_poll (MonoLLVMModule *module)
 {
@@ -3134,7 +3179,6 @@ emit_gc_safepoint_poll (MonoLLVMModule *module)
 	func = mono_llvm_get_or_insert_gc_safepoint_poll (lmodule);
 	mono_llvm_add_func_attr (func, LLVM_ATTR_NO_UNWIND);
 	LLVMSetLinkage (func, LLVMWeakODRLinkage);
-	// set_cold_cc (func);
 
 	entry_bb = LLVMAppendBasicBlock (func, "gc.safepoint_poll.entry");
 	poll_bb = LLVMAppendBasicBlock (func, "gc.safepoint_poll.poll");
@@ -3146,6 +3190,7 @@ emit_gc_safepoint_poll (MonoLLVMModule *module)
 	LLVMPositionBuilderAtEnd (builder, entry_bb);
 
 	/* get_aotconst */
+	/* This is a preinited got slot */
 	ji = g_new0 (MonoJumpInfo, 1);
 	ji->type = MONO_PATCH_INFO_GC_SAFE_POINT_FLAG;
 	ji = mono_aot_patch_info_dup (ji);
@@ -3163,18 +3208,9 @@ emit_gc_safepoint_poll (MonoLLVMModule *module)
 	/* poll: */
 	LLVMPositionBuilderAtEnd(builder, poll_bb);
 
-	ji = g_new0 (MonoJumpInfo, 1);
-	ji->type = MONO_PATCH_INFO_JIT_ICALL;
-	ji->data.name = "mono_threads_state_poll";
-	ji = mono_aot_patch_info_dup (ji);
-	got_offset = compute_aot_got_offset (module, ji, sig);
-	module->max_got_offset = MAX (module->max_got_offset, got_offset);
-	indexes [0] = LLVMConstInt (LLVMInt32Type (), 0, FALSE);
-	indexes [1] = LLVMConstInt (LLVMInt32Type (), got_offset, FALSE);
-	got_entry_addr = LLVMBuildGEP (builder, module->got_var, indexes, 2, "");
-	callee = LLVMBuildLoad (builder, got_entry_addr, "");
-	callee = LLVMBuildBitCast (builder, callee, LLVMPointerType (sig, 0), "");
-	LLVMBuildCall (builder, callee, NULL, 0, "");
+	callee = LLVMGetNamedFunction (lmodule, "safepoint_entry");
+	LLVMValueRef call = LLVMBuildCall (builder, callee, NULL, 0, "");
+	set_call_cold_cc (call);
 	LLVMBuildBr(builder, exit_bb);
 
 	/* exit: */
@@ -6230,7 +6266,6 @@ process_bb (EmitContext *ctx, MonoBasicBlock *bb)
 			/*
 			 * if (!*sreg1)
 			 *   mono_threads_state_poll ();
-			 * FIXME: Use a cold wrapper
 			 */
 			val = mono_llvm_build_load (builder, convert (ctx, lhs, LLVMPointerType (IntPtrType (), 0)), "", TRUE);
 			cmp = LLVMBuildICmp (builder, LLVMIntEQ, val, LLVMConstNull (LLVMTypeOf (val)), "");
@@ -6247,12 +6282,14 @@ process_bb (EmitContext *ctx, MonoBasicBlock *bb)
 			LLVMPositionBuilderAtEnd (builder, poll_bb);
 
 			if (ctx->cfg->compile_aot) {
-				callee = get_callee (ctx, sig, MONO_PATCH_INFO_JIT_ICALL, icall_name);
+				callee = LLVMGetNamedFunction (ctx->lmodule, "safepoint_entry");
+				LLVMValueRef call = LLVMBuildCall (builder, callee, NULL, 0, "");
+				set_call_cold_cc (call);
 			} else {
 				gpointer target = resolve_patch (ctx->cfg, MONO_PATCH_INFO_JIT_ICALL, icall_name);
 				callee = emit_jit_callee (ctx, icall_name, sig, target);
+				LLVMBuildCall (builder, callee, NULL, 0, "");
 			}
-			LLVMBuildCall (builder, callee, NULL, 0, "");
 			LLVMBuildBr (builder, cont_bb);
 
 			ctx->builder = builder = create_builder (ctx);
@@ -8940,6 +8977,7 @@ mono_llvm_create_aot_module (MonoAssembly *assembly, const char *global_prefix, 
 	}
 
 
+	emit_gc_safepoint_entry (module);
 	emit_gc_safepoint_poll (module);
 
 	emit_llvm_code_start (module);
