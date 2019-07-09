@@ -154,6 +154,7 @@ class WasmRunner : IMessageSink
 		}
 		if (state == 3) {
 			Console.WriteLine (".");
+			int ncases = 0;
 			for (int i = 0; i < 20; ++i) {
 				if (tc_index == testCases.Count)
 					break;
@@ -161,21 +162,53 @@ class WasmRunner : IMessageSink
 				tc_index ++;
 				var method = (tc.Method as ReflectionMethodInfo).MethodInfo;
 
-				var obj = Activator.CreateInstance (method.DeclaringType);
-				Console.WriteLine (tc.DisplayName);
-
 				if (tc is Xunit.Sdk.XunitTheoryTestCase) {
-					// FIXME:
-					continue;
-					//var attrs = tc.TestMethod.Method.GetCustomAttributes(typeof(DataAttribute));
-				}
+					// From XunitTheoryTestCaseRunner
+					var attrs = tc.TestMethod.Method.GetCustomAttributes(typeof(DataAttribute));
+					bool failed = false;
+					foreach (var dataAttribute in attrs) {
+						var discovererAttribute = dataAttribute.GetCustomAttributes(typeof(DataDiscovererAttribute)).First();
+						var args = discovererAttribute.GetConstructorArguments().Cast<string>().ToList();
 
-				nrun ++;
-				try {
-					method.Invoke (obj, tc.TestMethodArguments);
-				} catch (Exception ex) {
-					Console.WriteLine ("FAIL: " + ex);
-					nfail ++;
+						Type discovererType = null;
+						if (args [1] == "xunit.core")
+							discovererType = typeof (IXunitTestCollectionFactory).Assembly.GetType (args [0]);
+						if (discovererType == null) {
+							Console.WriteLine ("FAIL (discoverer): " + args [0] + " " + args [1]);
+							failed = true;
+						}
+
+						IDataDiscoverer discoverer;
+						discoverer = ExtensibilityPointFactory.GetDataDiscoverer (this, discovererType);
+
+						var data = discoverer.GetData (dataAttribute, tc.TestMethod.Method);
+						foreach (var dataRow in data) {
+							var obj = Activator.CreateInstance (method.DeclaringType);
+							Console.WriteLine (tc.DisplayName);
+							nrun ++;
+							try {
+								method.Invoke (obj, dataRow);
+							} catch (Exception ex) {
+								Console.WriteLine ("FAIL: " + ex);
+								nfail ++;
+							}
+						}
+					}
+					if (failed) {
+						nfail ++;
+						continue;
+					}
+				} else {
+					var obj = Activator.CreateInstance (method.DeclaringType);
+					Console.WriteLine (tc.DisplayName);
+
+					nrun ++;
+					try {
+						method.Invoke (obj, tc.TestMethodArguments);
+					} catch (Exception ex) {
+						Console.WriteLine ("FAIL: " + ex);
+						nfail ++;
+					}
 				}
 			}
 
