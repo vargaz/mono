@@ -155,7 +155,7 @@ var Module = {
 			function () {
 				App.init ();
 			},
-			function (asset ) 
+			function (asset)
 			{
 			  if (typeof window != 'undefined') {
 				return fetch (asset, { credentials: 'same-origin' });
@@ -235,6 +235,12 @@ var App = {
 		if (runtime_args.length > 0)
 			MONO.mono_wasm_set_runtime_options (runtime_args);
 
+		var xunit = false;
+		if (args[0] == "--xunit") {
+			xunit = true;
+			args = args.slice (1);
+		}
+
 		if (args[0] == "--run") {
 			// Run an exe
 			if (args.length == 1)
@@ -279,9 +285,39 @@ var App = {
 				test_exit (1);
 			}
 
-			if (is_browser)
-				test_exit (0);
-			return;
+			// Don't exit in xunit mode after Main () has exited
+			if (!xunit) {
+				if (is_browser)
+					test_exit (0);
+
+				return;
+			}
+		}
+
+		if (xunit) {
+			//
+			// Run an xunit test suite
+			// Run the tests step-by-step so we can run the GC
+			//
+			try {
+				var send_message = BINDING.bind_static_method("[xunit-main]XunitDriver:Send");
+			} catch (e) {
+				Module.printErr("[xunit-main]XunitDriver:Send not found: " + e);
+				throw e;
+			}
+
+			while (send_message ("pump", "") != "DONE") {
+				Module.pump_message ();
+				print ("|");
+			}
+			print ("\nDONE")
+
+			var status = send_message ("test-result", "");
+			print ("Test status " + status)
+			if (status != "PASS")
+				fail_exec (status);
+
+			test_exit (0);
 		}
 
 		Module.print("Initializing Binding Test Suite support.....");
