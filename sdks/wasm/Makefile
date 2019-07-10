@@ -229,11 +229,13 @@ bin/test-suite/mono.js: packager.exe $(WASM_FRAMEWORK)/.stamp-framework binding_
 
 build-test-suite: bin/test-suite/mono.js
 
+XUNIT_DIR = $(TOP)/external/xunit-binaries
+
 xunit-main.exe: xunit-main.cs
-	csc /out:$@ /r:xunit.abstractions.dll /r:xunit.core.dll /r:$(WASM_BCL_DIR)/Facades/System.Runtime.dll /r:$(WASM_BCL_DIR)/Facades/System.Reflection.dll /r:$(WASM_BCL_DIR)/Facades/System.Collections.dll /r:xunit.execution.dotnet.dll /r:xunit.runner.utility.net452.dll xunit-main.cs
+	csc /out:$@ /r:$(XUNIT_DIR)/xunit.abstractions.dll /r:$(XUNIT_DIR)/xunit.core.dll /r:$(WASM_BCL_DIR)/Facades/System.Runtime.dll /r:$(WASM_BCL_DIR)/Facades/System.Reflection.dll /r:$(WASM_BCL_DIR)/Facades/System.Collections.dll /r:$(XUNIT_DIR)/xunit.execution.dotnet.dll /r:$(XUNIT_DIR)/xunit.runner.utility.net452.dll xunit-main.cs
 
 bin/System.Core-xunit/mono.js: packager.exe $(WASM_FRAMEWORK)/.stamp-framework xunit-main.exe runtime-tests.js
-	mono packager.exe --search-path=$(WASM_BCL_DIR)/tests --template=runtime-tests.js --appdir=bin/System.Core-xunit --builddir=obj/System.Core-xunit xunit-main.exe xunit.execution.dotnet.dll $(WASM_BCL_DIR)/tests/wasm_System.Core_xunit-test.dll $(WASM_BCL_DIR)/tests/Xunit.NetCore.Extensions.dll
+	mono packager.exe --search-path=$(XUNIT_DIR) --search-path=$(WASM_BCL_DIR)/tests --template=runtime-tests.js --appdir=bin/System.Core-xunit --builddir=obj/System.Core-xunit xunit-main.exe $(XUNIT_DIR)/xunit.execution.dotnet.dll $(WASM_BCL_DIR)/tests/wasm_System.Core_xunit-test.dll $(WASM_BCL_DIR)/tests/Xunit.NetCore.Extensions.dll
 	ninja -v -C obj/System.Core-xunit
 
 build-System.Core-xunit: bin/System.Core-xunit/mono.js
