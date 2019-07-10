@@ -1,0 +1,5 @@
+-noclass System.IO.Pipes.Tests.AnonymousPipeTest_CreateClient
+-noclass TaskCoverage.Coverage
+-noclass Test.TaskContinueWhenAnyTests
+-noclass Test.TaskContinueWith_ContFuncAndActionTests
+-noclass Test.TaskContinueWith_ContFuncAndActionWithArgsTests

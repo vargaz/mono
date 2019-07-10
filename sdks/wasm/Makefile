@@ -234,14 +234,32 @@ XUNIT_DIR = $(TOP)/external/xunit-binaries
 xunit-main.exe: xunit-main.cs
 	csc /out:$@ /r:$(XUNIT_DIR)/xunit.abstractions.dll /r:$(XUNIT_DIR)/xunit.core.dll /r:$(XUNIT_DIR)/xunit.console.exe /r:$(WASM_BCL_DIR)/Facades/System.Runtime.dll /r:$(WASM_BCL_DIR)/Facades/System.Reflection.dll /r:$(WASM_BCL_DIR)/Facades/System.Collections.dll /r:$(XUNIT_DIR)/xunit.execution.dotnet.dll /r:$(XUNIT_DIR)/xunit.runner.utility.net452.dll xunit-main.cs
 
-bin/System.Core-xunit/mono.js: packager.exe $(WASM_FRAMEWORK)/.stamp-framework xunit-main.exe runtime-tests.js
-	mono packager.exe --search-path=$(XUNIT_DIR) --search-path=$(WASM_BCL_DIR)/tests --template=runtime-tests.js --appdir=bin/System.Core-xunit --builddir=obj/System.Core-xunit xunit-main.exe $(XUNIT_DIR)/xunit.execution.dotnet.dll $(WASM_BCL_DIR)/tests/wasm_System.Core_xunit-test.dll $(WASM_BCL_DIR)/tests/Xunit.NetCore.Extensions.dll
-	ninja -v -C obj/System.Core-xunit
+#
+# Targets for running xunit tests
+# xunit-exclusions.rsp contains the exclusions
+#
 
-build-System.Core-xunit: bin/System.Core-xunit/mono.js
+##
+# Parameters:
+# $(1) - make target suffix
+# $(2) - directory name
+# $(3) - test assembly filename
+# $(4) - command line arguments
+define XunitTestTemplate
 
-run-System.Core-xunit: bin/System.Core-xunit/mono.js
-	(cd bin/System.Core-xunit && $(SM) runtime.js --xunit --run xunit-main.exe wasm_System.Core_xunit-test.dll -noclass System.IO.Pipes.Tests.AnonymousPipeTest_CreateClient)
+bin/$(2)/mono.js: packager.exe $(WASM_FRAMEWORK)/.stamp-framework xunit-main.exe runtime-tests.js
+	mono packager.exe --search-path=$(XUNIT_DIR) --search-path=$(WASM_BCL_DIR)/tests --template=runtime-tests.js --appdir=bin/$(2) --builddir=obj/$(2) --asset=xunit-exclusions.rsp xunit-main.exe $(XUNIT_DIR)/xunit.execution.dotnet.dll $(WASM_BCL_DIR)/tests/$(3) $(WASM_BCL_DIR)/tests/Xunit.NetCore.Extensions.dll
+	ninja -v -C obj/$(2)
+
+build-$(1): bin/$(2)/mono.js
+
+run-$(1): bin/$(2)/mono.js
+	(cd bin/$(2) && $$(SM) runtime.js --xunit --run xunit-main.exe $(3) $(4) `cat xunit-exclusions.rsp`)
+
+endef
+
+$(eval $(call XunitTestTemplate,System.Core-xunit,System.Core-xunit,wasm_System.Core_xunit-test.dll))
+$(eval $(call XunitTestTemplate,corlib-xunit,corlib-xunit,wasm_corlib_xunit-test.dll))
 
 $(BROWSER_TEST)/.stamp-browser-test-suite: packager.exe $(WASM_FRAMEWORK)/.stamp-framework $(BROWSER_TEST_SOURCES)
 	$(CSC) $(CSC_FLAGS) /target:library -out:$(BROWSER_TEST)/HttpTestSuite.dll $(BCL_DEPS) $(WASM_FRAMEWORK_DEPS) $(BROWSER_TEST)/HttpTestSuite.cs 

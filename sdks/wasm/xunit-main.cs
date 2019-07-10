@@ -194,7 +194,9 @@ class WasmRunner : IMessageSink
 
 						var data = discoverer.GetData (dataAttribute, tc.TestMethod.Method);
 						foreach (var dataRow in data) {
-							var obj = Activator.CreateInstance (method.DeclaringType);
+							object obj = null;
+							if (!method.IsStatic)
+								obj = Activator.CreateInstance (method.DeclaringType);
 							Console.WriteLine (tc.DisplayName);
 							nrun ++;
 							try {
@@ -210,7 +212,9 @@ class WasmRunner : IMessageSink
 						continue;
 					}
 				} else {
-					var obj = Activator.CreateInstance (method.DeclaringType);
+					object obj = null;
+					if (!method.IsStatic)
+						obj = Activator.CreateInstance (method.DeclaringType);
 					Console.WriteLine (tc.DisplayName);
 
 					nrun ++;
@@ -246,6 +250,19 @@ public class XunitDriver
 	static WasmRunner testRunner;
 
 	static void Main (String[] args) {
+		// Process rsp files
+		// FIXME: This doesn't work with wasm
+		/*
+		var new_args = new List<string> ();
+		foreach (var arg in args) {
+			if (arg [0] == '@') {
+				foreach (var line in File.ReadAllLines ("/" + arg.Substring (1)))
+					new_args.Add (line);
+			} else {
+				new_args.Add (arg);
+			}
+		}
+		*/
 		var cmdline = new CmdLineParser (args);
 		testRunner = new WasmRunner (cmdline.Project);
 	}
