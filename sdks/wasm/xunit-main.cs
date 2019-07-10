@@ -148,7 +148,7 @@ class WasmRunner : IMessageSink
 				}
 				n ++;
 			}
-			state = 2;
+			//state = 2;
 			return true;
 		}
 		if (state == 2) {
@@ -173,6 +173,12 @@ class WasmRunner : IMessageSink
 
 				var method = (tc.Method as ReflectionMethodInfo).MethodInfo;
 
+				if (method.ReflectedType.IsGenericTypeDefinition) {
+					Console.WriteLine ("FAIL (generic): " + tc.DisplayName);
+					nfail ++;
+					continue;
+				}
+
 				if (tc is Xunit.Sdk.XunitTheoryTestCase) {
 					// From XunitTheoryTestCaseRunner
 					var attrs = tc.TestMethod.Method.GetCustomAttributes(typeof(DataAttribute));
@@ -193,13 +199,13 @@ class WasmRunner : IMessageSink
 						discoverer = ExtensibilityPointFactory.GetDataDiscoverer (this, discovererType);
 
 						var data = discoverer.GetData (dataAttribute, tc.TestMethod.Method);
+						Console.WriteLine (tc.DisplayName + " [" + data.Count () + "]");
 						foreach (var dataRow in data) {
-							object obj = null;
-							if (!method.IsStatic)
-								obj = Activator.CreateInstance (method.DeclaringType);
-							Console.WriteLine (tc.DisplayName);
 							nrun ++;
 							try {
+								object obj = null;
+								if (!method.IsStatic)
+									obj = Activator.CreateInstance (method.ReflectedType);
 								method.Invoke (obj, dataRow);
 							} catch (Exception ex) {
 								Console.WriteLine ("FAIL: " + ex);
@@ -212,13 +218,12 @@ class WasmRunner : IMessageSink
 						continue;
 					}
 				} else {
-					object obj = null;
-					if (!method.IsStatic)
-						obj = Activator.CreateInstance (method.DeclaringType);
-					Console.WriteLine (tc.DisplayName);
-
 					nrun ++;
+					Console.WriteLine (tc.DisplayName);
 					try {
+						object obj = null;
+						if (!method.IsStatic)
+							obj = Activator.CreateInstance (method.ReflectedType);
 						method.Invoke (obj, tc.TestMethodArguments);
 					} catch (Exception ex) {
 						Console.WriteLine ("FAIL: " + ex);

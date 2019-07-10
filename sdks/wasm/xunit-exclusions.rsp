@@ -3,3 +3,6 @@
 -noclass Test.TaskContinueWhenAnyTests
 -noclass Test.TaskContinueWith_ContFuncAndActionTests
 -noclass Test.TaskContinueWith_ContFuncAndActionWithArgsTests
+-nonamespace System.Linq.Parallel.Tests
+-nomethod System.Linq.Expressions.Tests.CompilerTests.CompileDeepTree_NoStackOverflow
+-nomethod System.Linq.Expressions.Tests.CompilerTests.CompileDeepTree_NoStackOverflowFast
