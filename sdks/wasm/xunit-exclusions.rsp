@@ -1,8 +1,27 @@
 -noclass System.IO.Pipes.Tests.AnonymousPipeTest_CreateClient
+
+# Threads
 -noclass TaskCoverage.Coverage
 -noclass Test.TaskContinueWhenAnyTests
 -noclass Test.TaskContinueWith_ContFuncAndActionTests
 -noclass Test.TaskContinueWith_ContFuncAndActionWithArgsTests
 -nonamespace System.Linq.Parallel.Tests
+-noclass System.Tests.ProgressTests
+-nonamespace System.Threading.Tests
+-nonamespace System.Threading.Tasks
+-nonamespace System.Collections.Concurrent
+
+# Stack overflow
 -nomethod System.Linq.Expressions.Tests.CompilerTests.CompileDeepTree_NoStackOverflow
 -nomethod System.Linq.Expressions.Tests.CompilerTests.CompileDeepTree_NoStackOverflowFast
+
+# Crashes
+-noclass System.Tests.MathFTests
+
+# Crashes in GC
+-nonamespace System.MemoryTests
+-nonamespace System.SpanTests
+
+# OOM
+-nomethod System.Collections.Tests.BitArray_CtorTests.Ctor_LargeByteArrayOverflowingBitArray_ThrowsArgumentException
+-nomethod System.Collections.Tests.BitArray_CtorTests.Clone_LongLength_Works

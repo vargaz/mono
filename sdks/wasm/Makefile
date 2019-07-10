@@ -248,13 +248,13 @@ xunit-main.exe: xunit-main.cs
 define XunitTestTemplate
 
 bin/$(2)/mono.js: packager.exe $(WASM_FRAMEWORK)/.stamp-framework xunit-main.exe runtime-tests.js
-	mono packager.exe --search-path=$(XUNIT_DIR) --search-path=$(WASM_BCL_DIR)/tests --template=runtime-tests.js --appdir=bin/$(2) --builddir=obj/$(2) --asset=xunit-exclusions.rsp xunit-main.exe $(XUNIT_DIR)/xunit.execution.dotnet.dll $(WASM_BCL_DIR)/tests/$(3) $(WASM_BCL_DIR)/tests/Xunit.NetCore.Extensions.dll
+	mono packager.exe --debugrt --search-path=$(XUNIT_DIR) --search-path=$(WASM_BCL_DIR)/tests --template=runtime-tests.js --appdir=bin/$(2) --builddir=obj/$(2) --asset=xunit-exclusions.rsp xunit-main.exe $(XUNIT_DIR)/xunit.execution.dotnet.dll $(WASM_BCL_DIR)/tests/$(3) $(WASM_BCL_DIR)/tests/Xunit.NetCore.Extensions.dll
 	ninja -v -C obj/$(2)
 
 build-$(1): bin/$(2)/mono.js
 
 run-$(1): bin/$(2)/mono.js
-	(cd bin/$(2) && $$(SM) runtime.js --xunit --run xunit-main.exe $(3) $(4) `cat xunit-exclusions.rsp`)
+	(cd bin/$(2) && $$(SM) runtime.js --xunit --run xunit-main.exe $(3) $(4) `cat xunit-exclusions.rsp | grep -v '#'`)
 
 endef
 
