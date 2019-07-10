@@ -7,6 +7,7 @@ using System.Linq;
 using Xunit;
 using Xunit.Abstractions;
 using Xunit.Sdk;
+using Xunit.ConsoleClient;
 
 class MsgBus : IMessageBus
 {
@@ -80,15 +81,18 @@ class WasmRunner : IMessageSink
 	ITestFrameworkExecutor executor;
 	ITestFrameworkExecutionOptions executionOptions;
 	List<ITestCase> testCases;
+	XunitProject project;
 
-	public WasmRunner (string assemblyFileName) {
+	public WasmRunner (XunitProject project) {
+		this.project = project;
+
+		var assemblyFileName = "/" + project.Assemblies.First ().AssemblyFilename;
 		testCases = new List<ITestCase> ();
 
 		var assembly = Assembly.LoadFrom (assemblyFileName);
 		var assemblyInfo = new Xunit.Sdk.ReflectionAssemblyInfo (assembly);
 
 		var collectionBehaviorAttribute = assemblyInfo.GetCustomAttributes(typeof(CollectionBehaviorAttribute)).SingleOrDefault();
-		Console.WriteLine ("ATTR: " + collectionBehaviorAttribute);
 		var testAssembly = new TestAssembly(assemblyInfo, null);
 
 		var collectionFactory = ExtensibilityPointFactory.GetXunitTestCollectionFactory(this, collectionBehaviorAttribute, testAssembly);
@@ -127,7 +131,7 @@ class WasmRunner : IMessageSink
 	// State machine state
 	int state;
 	int tc_index;
-	public int nrun, nfail;
+	public int nrun, nfail, nfiltered;
 
 	public bool Step () {
 		if (state == 0) {
@@ -159,7 +163,14 @@ class WasmRunner : IMessageSink
 				if (tc_index == testCases.Count)
 					break;
 				var tc = testCases [tc_index] as XunitTestCase;
+
 				tc_index ++;
+
+				if (!project.Filters.Filter (tc)) {
+					nfiltered ++;
+					continue;
+				}
+
 				var method = (tc.Method as ReflectionMethodInfo).MethodInfo;
 
 				if (tc is Xunit.Sdk.XunitTheoryTestCase) {
@@ -216,11 +227,17 @@ class WasmRunner : IMessageSink
 			//	Console.WriteLine (tc.DisplayName);
             //executor.RunTests (testCases, this, executionOptions);
 			if (tc_index == testCases.Count) {
-				Console.WriteLine ("TESTS = "  + testCases.Count + ", RUN = " + nrun + ", FAIL = " + nfail);
+				Console.WriteLine ("TESTS = "  + testCases.Count + ", RUN = " + nrun + ", SKIP = " + nfiltered + ", FAIL = " + nfail);
 				return false;
 			}
 		}
 		return true;
+	}
+}
+
+class CmdLineParser : CommandLine
+{
+	public CmdLineParser (String[] args) : base (args, s => true) {
 	}
 }
 
@@ -229,8 +246,8 @@ public class XunitDriver
 	static WasmRunner testRunner;
 
 	static void Main (String[] args) {
-		Console.WriteLine ("hello");
-		testRunner = new WasmRunner ("/" + args [0]);
+		var cmdline = new CmdLineParser (args);
+		testRunner = new WasmRunner (cmdline.Project);
 	}
 
 	public static string Send (string key, string val) {
