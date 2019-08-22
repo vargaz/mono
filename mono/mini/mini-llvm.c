@@ -80,6 +80,7 @@ typedef struct {
 	int max_got_offset;
 	LLVMValueRef personality;
 	LLVMValueRef *intrins_by_id;
+	gpointer gc_poll_cold_wrapper;
 
 	/* For AOT */
 	MonoAssembly *assembly;
@@ -3058,7 +3059,7 @@ emit_init_icall_wrapper (MonoLLVMModule *module, MonoAotInitSubtype subtype)
 
 /* Emit a wrapper around the parameterless JIT icall ICALL_ID with a cold calling convention */
 static LLVMValueRef
-emit_icall_cold_wrapper (MonoLLVMModule *module, MonoJitICallId icall_id)
+emit_icall_cold_wrapper (MonoLLVMModule *module, MonoJitICallId icall_id, gboolean aot)
 {
 	LLVMModuleRef lmodule = module->lmodule;
 	LLVMValueRef func, callee;
@@ -3079,7 +3080,17 @@ emit_icall_cold_wrapper (MonoLLVMModule *module, MonoJitICallId icall_id)
 	builder = LLVMCreateBuilder ();
 	LLVMPositionBuilderAtEnd (builder, entry_bb);
 
-	callee = get_aotconst_typed_module (module, builder, MONO_PATCH_INFO_JIT_ICALL_ID, GUINT_TO_POINTER (icall_id), LLVMPointerType (sig, 0));
+	if (aot) {
+		callee = get_aotconst_typed_module (module, builder, MONO_PATCH_INFO_JIT_ICALL_ID, GUINT_TO_POINTER (icall_id), LLVMPointerType (sig, 0));
+	} else {
+		MonoJitICallInfo * const info = mono_find_jit_icall_info (icall_id);
+		gpointer target = (gpointer)mono_icall_get_wrapper_full (info, TRUE);
+
+		LLVMValueRef tramp_var = LLVMAddGlobal (lmodule, LLVMPointerType (sig, 0), name);
+		LLVMSetInitializer (tramp_var, LLVMConstIntToPtr (LLVMConstInt (LLVMInt64Type (), (guint64)(size_t)target, FALSE), LLVMPointerType (sig, 0)));
+		LLVMSetLinkage (tramp_var, LLVMExternalLinkage);
+		callee = LLVMBuildLoad (builder, tramp_var, "");
+	}
 	LLVMBuildCall (builder, callee, NULL, 0, "");
 
 	LLVMBuildRetVoid (builder);
@@ -3129,7 +3140,7 @@ emit_gc_safepoint_poll (MonoLLVMModule *module)
 	LLVMBuilderRef builder;
 	LLVMTypeRef sig;
 
-	icall_wrapper = emit_icall_cold_wrapper (module, MONO_JIT_ICALL_mono_threads_state_poll);
+	icall_wrapper = emit_icall_cold_wrapper (module, MONO_JIT_ICALL_mono_threads_state_poll, TRUE);
 
 	sig = LLVMFunctionType0 (LLVMVoidType (), FALSE);
 	func = mono_llvm_get_or_insert_gc_safepoint_poll (lmodule);
@@ -6210,8 +6221,9 @@ process_bb (EmitContext *ctx, MonoBasicBlock *bb)
 			LLVMBasicBlockRef poll_bb, cont_bb;
 			LLVMValueRef args [2];
 			static LLVMTypeRef sig;
-			MonoJitICallId const icall_id = MONO_JIT_ICALL_mono_threads_state_poll;
 			const char *icall_name = "mono_threads_state_poll";
+
+			g_assert (!cfg->compile_aot);
 
 			if (!sig)
 				sig = LLVMFunctionType0 (LLVMVoidType (), FALSE);
@@ -6219,7 +6231,6 @@ process_bb (EmitContext *ctx, MonoBasicBlock *bb)
 			/*
 			 * if (!*sreg1)
 			 *   mono_threads_state_poll ();
-			 * FIXME: Use a cold cconv wrapper
 			 */
 			val = mono_llvm_build_load (builder, convert (ctx, lhs, LLVMPointerType (IntPtrType (), 0)), "", TRUE);
 			cmp = LLVMBuildICmp (builder, LLVMIntEQ, val, LLVMConstNull (LLVMTypeOf (val)), "");
@@ -6235,12 +6246,9 @@ process_bb (EmitContext *ctx, MonoBasicBlock *bb)
 			ctx->builder = builder = create_builder (ctx);
 			LLVMPositionBuilderAtEnd (builder, poll_bb);
 
-			if (ctx->cfg->compile_aot) {
-				callee = get_callee (ctx, sig, MONO_PATCH_INFO_JIT_ICALL_ID, GUINT_TO_POINTER (icall_id));
-			} else {
-				callee = get_jit_callee (ctx, icall_name, sig, MONO_PATCH_INFO_JIT_ICALL_ID, GUINT_TO_POINTER (icall_id));
-			}
-			LLVMBuildCall (builder, callee, NULL, 0, "");
+			callee = get_jit_callee (ctx, icall_name, sig, MONO_PATCH_INFO_ABS, ctx->module->gc_poll_cold_wrapper);
+			LLVMValueRef call = LLVMBuildCall (builder, callee, NULL, 0, "");
+			set_call_cold_cconv (call);
 			LLVMBuildBr (builder, cont_bb);
 
 			ctx->builder = builder = create_builder (ctx);
@@ -7136,45 +7144,6 @@ process_bb (EmitContext *ctx, MonoBasicBlock *bb)
 				cmp = LLVMBuildAnd (builder, cmp, shuffle, "");
 				half = half / 2;
 			}
-#if 0
-			if (nelems == 32) {
-				// AND [0..15] and [16..31] into [0..15]
-				for (int i = 0; i < 16; ++i)
-					mask [i] = LLVMConstInt (LLVMInt32Type (), 16 + i, FALSE);
-				for (int i = 16; i < 32; ++i)
-					mask [i] = LLVMConstInt (LLVMInt32Type (), 0, FALSE);
-				shuffle = LLVMBuildShuffleVector (builder, cmp, LLVMGetUndef (t), LLVMConstVector (mask, LLVMGetVectorSize (t)), "");
-				cmp = LLVMBuildAnd (builder, cmp, shuffle, "");
-			}
-			// AND [0..7] and [8..15] into [0..7]
-			for (int i = 0; i < 8; ++i)
-				mask [i] = LLVMConstInt (LLVMInt32Type (), 8 + i, FALSE);
-			for (int i = 8; i < nelems; ++i)
-				mask [i] = LLVMConstInt (LLVMInt32Type (), 0, FALSE);
-			shuffle = LLVMBuildShuffleVector (builder, cmp, LLVMGetUndef (t), LLVMConstVector (mask, LLVMGetVectorSize (t)), "");
-			cmp = LLVMBuildAnd (builder, cmp, shuffle, "");
-			// AND [0..3] and [4..7] into [0..3]
-			for (int i = 0; i < 4; ++i)
-				mask [i] = LLVMConstInt (LLVMInt32Type (), 4 + i, FALSE);
-			for (int i = 4; i < nelems; ++i)
-				mask [i] = LLVMConstInt (LLVMInt32Type (), 0, FALSE);
-			shuffle = LLVMBuildShuffleVector (builder, cmp, LLVMGetUndef (t), LLVMConstVector (mask, LLVMGetVectorSize (t)), "");
-			cmp = LLVMBuildAnd (builder, cmp, shuffle, "");
-			// AND [0..1] and [2..3] into [0..1]
-			for (int i = 0; i < 2; ++i)
-				mask [i] = LLVMConstInt (LLVMInt32Type (), 2 + i, FALSE);
-			for (int i = 2; i < nelems; ++i)
-				mask [i] = LLVMConstInt (LLVMInt32Type (), 0, FALSE);
-			shuffle = LLVMBuildShuffleVector (builder, cmp, LLVMGetUndef (t), LLVMConstVector (mask, LLVMGetVectorSize (t)), "");
-			cmp = LLVMBuildAnd (builder, cmp, shuffle, "");
-			// AND [0] and [1] into [0]
-			for (int i = 0; i < 1; ++i)
-				mask [i] = LLVMConstInt (LLVMInt32Type (), 1 + i, FALSE);
-			for (int i = 1; i < nelems; ++i)
-				mask [i] = LLVMConstInt (LLVMInt32Type (), 0, FALSE);
-			shuffle = LLVMBuildShuffleVector (builder, cmp, LLVMGetUndef (t), LLVMConstVector (mask, LLVMGetVectorSize (t)), "");
-			cmp = LLVMBuildAnd (builder, cmp, shuffle, "");
-#endif
 			// Extract [0]
 			values [ins->dreg] = LLVMBuildExtractElement (builder, cmp, LLVMConstInt (LLVMInt32Type (), 0, FALSE), "");
 			// Maybe convert to 0/1 ?
@@ -9094,7 +9063,6 @@ mono_llvm_create_aot_module (MonoAssembly *assembly, const char *global_prefix, 
 	module->inited_var = LLVMAddGlobal (aot_module.lmodule, inited_type, "mono_inited_tmp");
 	LLVMSetInitializer (module->inited_var, LLVMConstNull (inited_type));
 
-
 	emit_gc_safepoint_poll (module);
 
 	emit_llvm_code_start (module);
@@ -10219,6 +10187,13 @@ init_jit_module (MonoDomain *domain)
 
 	add_intrinsics (module->lmodule);
 	add_types (module);
+
+	{
+		LLVMValueRef wrapper = emit_icall_cold_wrapper (module, MONO_JIT_ICALL_mono_threads_state_poll, FALSE);
+
+		gpointer eh_frame;
+		module->gc_poll_cold_wrapper = mono_llvm_compile_method (module->mono_ee, wrapper, 0, NULL, NULL, &eh_frame);
+	}
 
 	module->llvm_types = g_hash_table_new (NULL, NULL);
 
