@@ -174,12 +174,25 @@ typedef struct _InterpMethod
 #endif
 } InterpMethod;
 
+typedef struct _StackFragment StackFragment;
+struct _StackFragment {
+	int size;
+	guint8 *pos, *end;
+	double data [1];
+};
+
+typedef struct {
+	StackFragment *current;
+	gboolean gc_root;
+} FrameStack;
+
 struct _InterpFrame {
 	InterpFrame *parent; /* parent */
 	InterpMethod  *imethod; /* parent */
 	stackval       *retval; /* parent */
 	stackval       *stack_args; /* parent */
 	stackval       *stack;
+	StackFragment *iframe_frag, *data_frag;
 	/* exception info */
 	const unsigned short  *ip;
 };
@@ -197,6 +210,10 @@ typedef struct {
 	MonoJitExceptionInfo *handler_ei;
 	/* Exception that is being thrown. Set with rest of resume state */
 	guint32 exc_gchandle;
+	/* Stack of InterpFrames */
+	FrameStack iframe_stack;
+	/* Stack of frame data */
+	FrameStack data_stack;
 } ThreadContext;
 
 typedef struct {
