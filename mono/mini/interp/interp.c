@@ -159,7 +159,7 @@ frame_stack_pop (FrameStack *stack, StackFragment *frag, gpointer pos)
 {
 	g_assert ((guint8*)pos >= (guint8*)&frag->data && (guint8*)pos <= (guint8*)frag->end);
 	stack->current = frag;
-	stack->current->pos = pos;
+	stack->current->pos = (guint8*)pos;
 }
 
 /*
@@ -174,7 +174,7 @@ alloc_frame (ThreadContext *ctx, gpointer native_stack_addr, InterpFrame *parent
 	InterpFrame *frame;
 
 	// FIXME: Add stack overflow checks
-	frame = frame_stack_alloc (&ctx->iframe_stack, sizeof (InterpFrame), &frag);
+	frame = (InterpFrame*)frame_stack_alloc (&ctx->iframe_stack, sizeof (InterpFrame), &frag);
 
 	frame->iframe_frag = frag;
 	frame->parent = parent;
@@ -200,7 +200,7 @@ alloc_stack_data (ThreadContext *ctx, InterpFrame *frame, int size)
 
 	res = frame_stack_alloc (&ctx->iframe_stack, size, &frag);
 
-	frame->stack = res;
+	frame->stack = (stackval*)res;
 	frame->data_frag = frag;
 }
 
