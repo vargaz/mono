@@ -192,6 +192,8 @@ struct _InterpFrame {
 	stackval       *retval; /* parent */
 	stackval       *stack_args; /* parent */
 	stackval       *stack;
+	/* An address on the native stack associated with the frame, used during EH */
+	gpointer       native_stack_addr;
 	StackFragment *iframe_frag, *data_frag;
 	/* exception info */
 	const unsigned short  *ip;
