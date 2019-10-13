@@ -107,6 +107,7 @@ stack_frag_new (int size)
 	frag->size = size;
 	frag->pos = (guint8*)&frag->data;
 	frag->end = (guint8*)frag + size;
+	frag->prev = NULL;
 	return frag;
 }
 
@@ -141,6 +142,7 @@ frame_stack_alloc (FrameStack *stack, int size, StackFragment **out_frag)
 		new_frag = stack_frag_new (frag_size);
 		if (stack->gc_root)
 			mono_gc_register_root ((char*)new_frag, frag_size, MONO_GC_DESCRIPTOR_NULL, MONO_ROOT_SOURCE_STACK, NULL, NULL);
+		new_frag->prev = stack->current;
 		current = stack->current = new_frag;
 
 		g_assert (current->pos + size <= current->end);
@@ -160,6 +162,20 @@ frame_stack_pop (FrameStack *stack, StackFragment *frag, gpointer pos)
 	g_assert ((guint8*)pos >= (guint8*)&frag->data && (guint8*)pos <= (guint8*)frag->end);
 	stack->current = frag;
 	stack->current->pos = (guint8*)pos;
+}
+
+static void
+frame_stack_free (FrameStack *stack)
+{
+	StackFragment *frag = stack->current;
+	while (frag) {
+		StackFragment *prev = frag->prev;
+		if (stack->gc_root)
+			mono_gc_deregister_root ((char*)frag);
+		printf ("FREE: %p\n", frag);
+		g_free (frag);
+		frag = prev;
+	}
 }
 
 /*
@@ -385,11 +401,15 @@ clear_resume_state (ThreadContext *context, GSList *finally_ips)
 
 /* Pop CFRAME from the frame stack and check resume state */
 #define CHECK_RESUME_STATE_CALL(context, cframe) do {	\
-		pop_child_frames ((context), (cframe)->parent);				\
+	if (!frame->imethod) printf ("11\n"); \
+		g_assert (frame->imethod);									\
+		if (!frame->imethod) printf ("%p %p\n", frame, cframe); \
+		g_assert (frame->imethod);									\
 		if ((context)->has_resume_state) { \
 			if (frame == (context)->handler_frame && (!clause_args || (context)->handler_ip < clause_args->end_at_ip)) {  \
 				goto resume;											\
 			} else {						\
+				g_assert (frame->imethod);			\
 				goto exit_frame; \
 			} \
 		} \
@@ -434,6 +454,8 @@ interp_free_context (gpointer ctx)
 {
 	ThreadContext *context = (ThreadContext*)ctx;
 
+	frame_stack_free (&context->iframe_stack);
+	frame_stack_free (&context->data_stack);
 	g_free (context);
 }
 
@@ -3409,6 +3431,7 @@ g_error_xsx (const char *format, int x1, const char *s, int x2)
  * If BASE_FRAME is not NULL, copy arguments/locals from BASE_FRAME.
  * The ERROR argument is used to avoid declaring an error object for every interp frame, its not used
  * to return error information.
+ * FRAME is freed by the function.
  *
  * Currently this method uses 0x88 of stack space on 64bit gcc. Make sure to keep it under control.
  */
@@ -6158,8 +6181,10 @@ main_loop:
 			// After mono_threads_end_abort_protected_block to conserve stack.
 			const int clause_index = *ip;
 
-			if (clause_args && clause_index == clause_args->exit_clause)
+			if (clause_args && clause_index == clause_args->exit_clause) {
+				g_assert (frame->imethod);
 				goto exit_frame;
+			}
 
 #if DEBUG_INTERP // This assert causes Linux/amd64/clang to use more stack.
 			g_assert (sp >= frame->stack);
@@ -6216,6 +6241,7 @@ main_loop:
 			// FIXME Null check for frame->imethod follows deref.
 			if (frame->imethod == NULL || (method->flags & METHOD_ATTRIBUTE_PINVOKE_IMPL)
 					|| (method->iflags & (METHOD_IMPL_ATTRIBUTE_INTERNAL_CALL | METHOD_IMPL_ATTRIBUTE_RUNTIME))) {
+				g_assert (frame->imethod);
 				goto exit_frame;
 			}
 			guint32 const ip_offset = frame->ip - frame->imethod->code;
@@ -6623,6 +6649,7 @@ main_loop:
 
 			mono_trace_leave_method (frame->imethod->method, frame->imethod->jinfo, prof_ctx);
 			ip += 3;
+			g_assert (frame->imethod);
 			goto exit_frame;
 		}
 
@@ -6735,6 +6762,7 @@ main_loop:
 		MINT_IN_CASE(MINT_ENDFILTER)
 			/* top of stack is result of filter */
 			frame->retval->data.i = sp [-1].data.i;
+			g_assert (frame->imethod);
 			goto exit_frame;
 		MINT_IN_CASE(MINT_INITOBJ)
 			--sp;
@@ -6894,10 +6922,10 @@ invalid_cast_label:
 resume:
 	g_assert (context->has_resume_state);
 
-	pop_child_frames (context, frame);
-
 	if (frame == context->handler_frame && (!clause_args || context->handler_ip < clause_args->end_at_ip)) {
 		/* Set the current execution state to the resume state in context */
+
+		pop_child_frames (context, frame);
 
 		ip = context->handler_ip;
 		/* spec says stack should be empty at endfinally so it should be at the start too */
@@ -6915,6 +6943,8 @@ resume:
 	// fall through
 exit_frame:
 	error_init_reuse (error);
+
+	g_assert (frame->imethod);
 
 	if (clause_args && clause_args->base_frame)
 		memcpy (clause_args->base_frame->stack, frame->stack, frame->imethod->alloca_size);
@@ -6947,6 +6977,9 @@ exit_frame:
 		g_free (prof_ctx);
 	} else if (context->has_resume_state && frame->imethod->prof_flags & MONO_PROFILER_CALL_INSTRUMENTATION_EXCEPTION_LEAVE)
 		MONO_PROFILER_RAISE (method_exception_leave, (frame->imethod->method, mono_gchandle_get_target_internal (context->exc_gchandle)));
+
+	if (!clause_args)
+		pop_frame (context, frame);
 
 	DEBUG_LEAVE ();
 }

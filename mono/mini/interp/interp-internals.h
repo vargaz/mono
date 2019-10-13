@@ -178,6 +178,7 @@ typedef struct _StackFragment StackFragment;
 struct _StackFragment {
 	int size;
 	guint8 *pos, *end;
+	struct _StackFragment *prev;
 	double data [1];
 };
 
