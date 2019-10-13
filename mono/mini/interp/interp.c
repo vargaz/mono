@@ -135,6 +135,8 @@ frame_stack_alloc (FrameStack *stack, int size, StackFragment **out_frag)
 	} else {
 		StackFragment *new_frag;
 
+		// FIXME: Fix linking/freeing of fragments
+
 		// FIXME:
 		int frag_size = 4096;
 		if (size > frag_size)
