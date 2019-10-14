@@ -107,7 +107,7 @@ stack_frag_new (int size)
 	frag->size = size;
 	frag->pos = (guint8*)&frag->data;
 	frag->end = (guint8*)frag + size;
-	frag->prev = NULL;
+	frag->next = NULL;
 	return frag;
 }
 
@@ -118,7 +118,7 @@ frame_stack_init (FrameStack *stack, int size, gboolean gc_root)
 
 	stack->gc_root = gc_root;
 	frag = stack_frag_new (size);
-	stack->current = frag;
+	stack->first = stack->last = stack->current = frag;
 	if (gc_root)
 		mono_gc_register_root ((char*)stack->current, size, MONO_GC_DESCRIPTOR_NULL, MONO_ROOT_SOURCE_STACK, NULL, NULL);
 }
@@ -135,7 +135,7 @@ frame_stack_alloc (FrameStack *stack, int size, StackFragment **out_frag)
 	} else {
 		StackFragment *new_frag;
 
-		// FIXME: Fix linking/freeing of fragments
+		// FIXME: Alloc from current->next if exists
 
 		// FIXME:
 		int frag_size = 4096;
@@ -144,7 +144,8 @@ frame_stack_alloc (FrameStack *stack, int size, StackFragment **out_frag)
 		new_frag = stack_frag_new (frag_size);
 		if (stack->gc_root)
 			mono_gc_register_root ((char*)new_frag, frag_size, MONO_GC_DESCRIPTOR_NULL, MONO_ROOT_SOURCE_STACK, NULL, NULL);
-		new_frag->prev = stack->current;
+		stack->last->next = new_frag;
+		stack->last = new_frag;
 		current = stack->current = new_frag;
 
 		g_assert (current->pos + size <= current->end);
@@ -169,13 +170,13 @@ frame_stack_pop (FrameStack *stack, StackFragment *frag, gpointer pos)
 static void
 frame_stack_free (FrameStack *stack)
 {
-	StackFragment *frag = stack->current;
+	StackFragment *frag = stack->first;
 	while (frag) {
-		StackFragment *prev = frag->prev;
+		StackFragment *next = frag->next;
 		if (stack->gc_root)
 			mono_gc_deregister_root ((char*)frag);
 		g_free (frag);
-		frag = prev;
+		frag = next;
 	}
 }
 

@@ -178,12 +178,12 @@ typedef struct _StackFragment StackFragment;
 struct _StackFragment {
 	int size;
 	guint8 *pos, *end;
-	struct _StackFragment *prev;
+	struct _StackFragment *next;
 	double data [1];
 };
 
 typedef struct {
-	StackFragment *current;
+	StackFragment *first, *last, *current;
 	gboolean gc_root;
 } FrameStack;
 
