@@ -10702,6 +10702,13 @@ mono_ldptr:
 
 			*sp++ = ins;
 			break;
+		case MONO_CEE_MONO_GET_SP: {
+			/* Used by COOP only, so this is good enough */
+			MonoInst *var = mono_compile_create_var (cfg, mono_get_int_type (), OP_LOCAL);
+			EMIT_NEW_VARLOADA (cfg, ins, var, NULL);
+			*sp++ = ins;
+			break;
+		}
 
 		case MONO_CEE_ARGLIST: {
 			/* somewhat similar to LDTOKEN */
@@ -11123,7 +11130,6 @@ mono_ldptr:
 		case MONO_CEE_READONLY_:
 			readonly = TRUE;
 			break;
-
 		case MONO_CEE_UNUSED56:
 		case MONO_CEE_UNUSED57:
 		case MONO_CEE_UNUSED70:

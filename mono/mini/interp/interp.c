@@ -104,7 +104,6 @@ stack_frag_new (int size)
 {
 	StackFragment *frag = (StackFragment*)g_malloc (size);
 
-	frag->size = size;
 	frag->pos = (guint8*)&frag->data;
 	frag->end = (guint8*)frag + size;
 	frag->next = NULL;
@@ -216,7 +215,7 @@ alloc_stack_data (ThreadContext *ctx, InterpFrame *frame, int size)
 	StackFragment *frag;
 	gpointer res;
 
-	res = frame_stack_alloc (&ctx->iframe_stack, size, &frag);
+	res = frame_stack_alloc (&ctx->data_stack, size, &frag);
 
 	frame->stack = (stackval*)res;
 	frame->data_frag = frag;
@@ -232,11 +231,7 @@ static void
 pop_frame (ThreadContext *context, InterpFrame *frame)
 {
 	frame_stack_pop (&context->iframe_stack, frame->iframe_frag, frame);
-
-	//stack = &ctx->data_stack;
-	//current = stack->current = frame->stack_data_frag;
-	// FIXME: This needs to consider other allocations as well
-	//current->pos = (guint8*)frame->stack;
+	//frame_stack_pop (&context->data_stack, frame->data_frag, frame->stack);
 }
 
 #define interp_exec_method(frame, context, error) interp_exec_method_full ((frame), (context), NULL, error)
@@ -409,7 +404,6 @@ get_context (void)
 		 * Use two stacks, one for InterpFrame structures, one for data.
 		 * This is useful because InterpFrame structures don't need to be GC tracked.
 		 */
-		// FIXME: Free
 		frame_stack_init (&context->iframe_stack, 8192*16, FALSE);
 		frame_stack_init (&context->data_stack, 8192, TRUE);
 		set_context (context);
@@ -3641,6 +3635,7 @@ main_loop:
 			 */
 			if (realloc_frame) {
 				frame->stack = (stackval*)g_alloca (frame->imethod->alloca_size);
+				//alloc_stack_data (context, frame, frame->imethod->alloca_size);
 				memset (frame->stack, 0, frame->imethod->alloca_size);
 				sp = frame->stack;
 			}
@@ -6295,6 +6290,11 @@ main_loop:
 		}
 		MINT_IN_CASE(MINT_MONO_LDDOMAIN)
 			sp->data.p = mono_domain_get ();
+			++sp;
+			++ip;
+			MINT_IN_BREAK;
+		MINT_IN_CASE(MINT_MONO_GET_SP)
+			sp->data.p = &frame;
 			++sp;
 			++ip;
 			MINT_IN_BREAK;

@@ -176,7 +176,6 @@ typedef struct _InterpMethod
 
 typedef struct _StackFragment StackFragment;
 struct _StackFragment {
-	int size;
 	guint8 *pos, *end;
 	struct _StackFragment *next;
 	double data [1];
