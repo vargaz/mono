@@ -223,23 +223,6 @@ alloc_stack_data (ThreadContext *ctx, InterpFrame *frame, int size)
 }
 
 /*
- * pop_child_frames:
- *
- *   Pop child frames of FRAME from the frame stack.
- */
-static void
-pop_child_frames (ThreadContext *context, InterpFrame *frame)
-{
-	// FIXME: Frag might be the next one ?
-	frame_stack_pop (&context->iframe_stack, frame->iframe_frag, (guint8*)frame + sizeof (InterpFrame));
-
-	//stack = &ctx->data_stack;
-	//current = stack->current = frame->stack_data_frag;
-	// FIXME: This needs to consider other allocations as well
-	//current->pos = (guint8*)frame->stack + frame->imethod->alloca_size;
-}
-
-/*
  * pop_frame:
  *
  *   Pop FRAME and its child frames from the frame stack.
@@ -6911,9 +6894,6 @@ resume:
 
 	if (frame == context->handler_frame && (!clause_args || context->handler_ip < clause_args->end_at_ip)) {
 		/* Set the current execution state to the resume state in context */
-
-		if (!clause_args)
-			pop_child_frames (context, frame);
 
 		ip = context->handler_ip;
 		/* spec says stack should be empty at endfinally so it should be at the start too */
