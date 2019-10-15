@@ -199,6 +199,7 @@ alloc_frame (ThreadContext *ctx, gpointer native_stack_addr, InterpFrame *parent
 	frame->imethod = imethod;
 	frame->stack_args = args;
 	frame->retval = retval;
+	frame->stack = NULL;
 	frame->ip = NULL;
 
 	return frame;
@@ -231,7 +232,8 @@ static void
 pop_frame (ThreadContext *context, InterpFrame *frame)
 {
 	frame_stack_pop (&context->iframe_stack, frame->iframe_frag, frame);
-	frame_stack_pop (&context->data_stack, frame->data_frag, frame->stack);
+	if (frame->stack)
+		frame_stack_pop (&context->data_stack, frame->data_frag, frame->stack);
 }
 
 #define interp_exec_method(frame, context, error) interp_exec_method_full ((frame), (context), NULL, error)
