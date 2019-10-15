@@ -153,6 +153,8 @@ frame_stack_alloc (FrameStack *stack, int size, StackFragment **out_frag)
 		current->pos += size;
 	}
 
+	g_assert ((size % 8) == 0);
+
 	if (out_frag)
 		*out_frag = current;
 	return res;
@@ -231,7 +233,7 @@ static void
 pop_frame (ThreadContext *context, InterpFrame *frame)
 {
 	frame_stack_pop (&context->iframe_stack, frame->iframe_frag, frame);
-	//frame_stack_pop (&context->data_stack, frame->data_frag, frame->stack);
+	frame_stack_pop (&context->data_stack, frame->data_frag, frame->stack);
 }
 
 #define interp_exec_method(frame, context, error) interp_exec_method_full ((frame), (context), NULL, error)
@@ -3434,14 +3436,14 @@ interp_exec_method_full (InterpFrame *frame, ThreadContext *context, FrameClause
 	}
 
 	if (!clause_args) {
-		frame->stack = (stackval*)g_alloca (frame->imethod->alloca_size);
-		//alloc_stack_data (context, frame, frame->imethod->alloca_size);
+		//frame->stack = (stackval*)g_alloca (frame->imethod->alloca_size);
+		alloc_stack_data (context, frame, frame->imethod->alloca_size);
 		ip = frame->imethod->code;
 	} else {
 		ip = clause_args->start_with_ip;
 		if (clause_args->base_frame) {
-			frame->stack = (stackval*)g_alloca (frame->imethod->alloca_size);
-			//alloc_stack_data (context, frame, frame->imethod->alloca_size);
+			//frame->stack = (stackval*)g_alloca (frame->imethod->alloca_size);
+			alloc_stack_data (context, frame, frame->imethod->alloca_size);
 			memcpy (frame->stack, clause_args->base_frame->stack, frame->imethod->alloca_size);
 		}
 	}
@@ -3634,8 +3636,8 @@ main_loop:
 			 * than the callee stack frame (at the interp level)
 			 */
 			if (realloc_frame) {
-				frame->stack = (stackval*)g_alloca (frame->imethod->alloca_size);
-				//alloc_stack_data (context, frame, frame->imethod->alloca_size);
+				//frame->stack = (stackval*)g_alloca (frame->imethod->alloca_size);
+				alloc_stack_data (context, frame, frame->imethod->alloca_size);
 				memset (frame->stack, 0, frame->imethod->alloca_size);
 				sp = frame->stack;
 			}
