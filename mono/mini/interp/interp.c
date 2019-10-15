@@ -153,8 +153,6 @@ frame_stack_alloc (FrameStack *stack, int size, StackFragment **out_frag)
 		current->pos += size;
 	}
 
-	g_assert ((size % 8) == 0);
-
 	if (out_frag)
 		*out_frag = current;
 	return res;
