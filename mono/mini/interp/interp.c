@@ -122,6 +122,24 @@ frame_stack_init (FrameStack *stack, int size, gboolean gc_root)
 		mono_gc_register_root ((char*)stack->current, size, MONO_GC_DESCRIPTOR_NULL, MONO_ROOT_SOURCE_STACK, NULL, NULL);
 }
 
+static StackFragment*
+add_frag (FrameStack *stack, int size)
+{
+	StackFragment *new_frag;
+
+	// FIXME:
+	int frag_size = 4096;
+	if (size > frag_size)
+		frag_size = size + sizeof (StackFragment);
+	new_frag = stack_frag_new (frag_size);
+	if (stack->gc_root)
+		mono_gc_register_root ((char*)new_frag, frag_size, MONO_GC_DESCRIPTOR_NULL, MONO_ROOT_SOURCE_STACK, NULL, NULL);
+	stack->last->next = new_frag;
+	stack->last = new_frag;
+	stack->current = new_frag;
+	return new_frag;
+}
+
 static gpointer
 frame_stack_alloc (FrameStack *stack, int size, StackFragment **out_frag)
 {
@@ -132,23 +150,14 @@ frame_stack_alloc (FrameStack *stack, int size, StackFragment **out_frag)
 		res = current->pos;
 		current->pos += size;
 	} else {
-		StackFragment *new_frag;
-
-		// FIXME: Alloc from current->next if exists
-
-		// FIXME:
-		int frag_size = 4096;
-		if (size > frag_size)
-			frag_size = size + sizeof (StackFragment);
-		new_frag = stack_frag_new (frag_size);
-		if (stack->gc_root)
-			mono_gc_register_root ((char*)new_frag, frag_size, MONO_GC_DESCRIPTOR_NULL, MONO_ROOT_SOURCE_STACK, NULL, NULL);
-		stack->last->next = new_frag;
-		stack->last = new_frag;
-		current = stack->current = new_frag;
-
+		if (current->next) {
+			current = stack->current = current->next;
+			current->pos = (guint8*)&current->data;
+			// FIXME: Check that its big enough
+		} else {
+			current = add_frag (stack, size);
+		}
 		g_assert (current->pos + size <= current->end);
-
 		res = (gpointer)current->pos;
 		current->pos += size;
 	}
