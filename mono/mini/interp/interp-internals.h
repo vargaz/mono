@@ -183,7 +183,6 @@ struct _StackFragment {
 
 typedef struct {
 	StackFragment *first, *last, *current;
-	gboolean gc_root;
 } FrameStack;
 
 struct _InterpFrame {

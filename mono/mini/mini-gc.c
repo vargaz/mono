@@ -2604,6 +2604,7 @@ mini_gc_init (void)
 	MonoGCCallbacks cb;
 	memset (&cb, 0, sizeof (cb));
 	cb.get_provenance_func = get_provenance_func;
+	cb.interp_mark_func = mini_get_interp_callbacks ()->mark_stack;
 	mono_gc_set_gc_callbacks (&cb);
 }
 

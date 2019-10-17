@@ -2334,6 +2334,7 @@ sgen_client_scan_thread_data (void *start_nursery, void *end_nursery, gboolean p
 				conservative_stack_mark = TRUE;
 			}
 			//FIXME we should eventually use the new stack_mark from coop
+			SGEN_LOG (3, "Scanning thread %p interp stack", info);
 			sgen_conservatively_pin_objects_from ((void **)aligned_stack_start, (void **)info->client_info.info.stack_end, start_nursery, end_nursery, PIN_TYPE_STACK);
 		}
 
@@ -2352,6 +2353,15 @@ sgen_client_scan_thread_data (void *start_nursery, void *end_nursery, gboolean p
 				}
 			}
 		}
+
+		if (gc_callbacks.interp_mark_func) {
+			PinHandleStackInteriorPtrData ud;
+			memset (&ud, 0, sizeof (ud));
+			ud.start_nursery = (void**)start_nursery;
+			ud.end_nursery = (void**)end_nursery;
+			gc_callbacks.interp_mark_func (&info->client_info.info, pin_handle_stack_interior_ptrs, &ud, precise);
+		}
+
 		if (info->client_info.info.handle_stack) {
 			/*
 			  Make two passes over the handle stack.  On the imprecise pass, pin all

@@ -111,15 +111,12 @@ stack_frag_new (int size)
 }
 
 static void
-frame_stack_init (FrameStack *stack, int size, gboolean gc_root)
+frame_stack_init (FrameStack *stack, int size)
 {
 	StackFragment *frag;
 
-	stack->gc_root = gc_root;
 	frag = stack_frag_new (size);
 	stack->first = stack->last = stack->current = frag;
-	if (gc_root)
-		mono_gc_register_root ((char*)stack->current, size, MONO_GC_DESCRIPTOR_NULL, MONO_ROOT_SOURCE_STACK, NULL, NULL);
 }
 
 static StackFragment*
@@ -132,8 +129,6 @@ add_frag (FrameStack *stack, int size)
 	if (size > frag_size)
 		frag_size = size + sizeof (StackFragment);
 	new_frag = stack_frag_new (frag_size);
-	if (stack->gc_root)
-		mono_gc_register_root ((char*)new_frag, frag_size, MONO_GC_DESCRIPTOR_NULL, MONO_ROOT_SOURCE_STACK, NULL, NULL);
 	stack->last->next = new_frag;
 	stack->last = new_frag;
 	stack->current = new_frag;
@@ -173,6 +168,7 @@ frame_stack_pop (FrameStack *stack, StackFragment *frag, gpointer pos)
 	g_assert ((guint8*)pos >= (guint8*)&frag->data && (guint8*)pos <= (guint8*)frag->end);
 	stack->current = frag;
 	stack->current->pos = (guint8*)pos;
+	//memset (stack->current->pos, 0, stack->current->end - stack->current->pos);
 }
 
 static void
@@ -181,8 +177,6 @@ frame_stack_free (FrameStack *stack)
 	StackFragment *frag = stack->first;
 	while (frag) {
 		StackFragment *next = frag->next;
-		if (stack->gc_root)
-			mono_gc_deregister_root ((char*)frag);
 		g_free (frag);
 		frag = next;
 	}
@@ -240,9 +234,9 @@ alloc_stack_data (ThreadContext *ctx, InterpFrame *frame, int size)
 static void
 pop_frame (ThreadContext *context, InterpFrame *frame)
 {
-	frame_stack_pop (&context->iframe_stack, frame->iframe_frag, frame);
 	if (frame->stack)
 		frame_stack_pop (&context->data_stack, frame->data_frag, frame->stack);
+	frame_stack_pop (&context->iframe_stack, frame->iframe_frag, frame);
 }
 
 #define interp_exec_method(frame, context, error) interp_exec_method_full ((frame), (context), NULL, error)
@@ -415,8 +409,8 @@ get_context (void)
 		 * Use two stacks, one for InterpFrame structures, one for data.
 		 * This is useful because InterpFrame structures don't need to be GC tracked.
 		 */
-		frame_stack_init (&context->iframe_stack, 8192*16, FALSE);
-		frame_stack_init (&context->data_stack, 8192, TRUE);
+		frame_stack_init (&context->iframe_stack, 8192);
+		frame_stack_init (&context->data_stack, 8192);
 		set_context (context);
 	}
 	return context;
@@ -7269,6 +7263,49 @@ static void
 interp_stop_single_stepping (void)
 {
 	ss_enabled = FALSE;
+}
+
+/*
+ * interp_mark_stack:
+ *
+ *   Mark the interpreter stack frames for a thread.
+ *
+ */
+static void
+interp_mark_stack (gpointer thread_data, GcScanFunc func, gpointer gc_data, gboolean precise)
+{
+	MonoThreadInfo *info = (MonoThreadInfo*)thread_data;
+
+	if (!mono_use_interpreter)
+		return;
+	if (precise)
+		return;
+
+	/*
+	 * We explicitly mark the frames instead of registering the stack fragments as GC roots, so
+	 * we have to process less data and avoid false pinning from data which is above 'pos'.
+	 *
+	 * We can only use this in coop mode since the stack frame handling code is not async safe.
+	 */
+	g_assert (mono_threads_suspend_policy_are_safepoints_enabled (mono_threads_suspend_policy ()));
+
+	MonoThreadUnwindState *state = &info->thread_saved_state [SELF_SUSPEND_STATE_INDEX];
+	MonoJitTlsData *jit_tls = (MonoJitTlsData *)state->unwind_data [MONO_UNWIND_DATA_JIT_TLS];
+	if (!jit_tls)
+		return;
+
+	ThreadContext *context = (ThreadContext*)jit_tls->interp_context;
+	if (!context)
+		return;
+
+	StackFragment *frag;
+	for (frag = context->data_stack.first; frag; frag = frag->next) {
+		// FIXME: Scan the whole area with 1 call
+		for (gpointer *p = (gpointer*)&frag->data; p < (gpointer*)frag->pos; ++p)
+			func (p, gc_data);
+		if (frag == context->data_stack.current)
+			break;
+	}
 }
 
 #if COUNT_OPS
