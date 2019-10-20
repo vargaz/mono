@@ -185,6 +185,15 @@ typedef struct {
 	StackFragment *first, *last, *current;
 } FrameStack;
 
+/* State of the interpreter main loop */
+typedef struct {
+	stackval *sp;
+	unsigned char *vt_sp;
+	const unsigned short  *ip;
+	GSList *finally_ips;
+	gpointer clause_args;
+} InterpState;
+
 struct _InterpFrame {
 	InterpFrame *parent; /* parent */
 	InterpMethod  *imethod; /* parent */
@@ -196,6 +205,9 @@ struct _InterpFrame {
 	StackFragment *iframe_frag, *data_frag;
 	/* exception info */
 	const unsigned short  *ip;
+	/* State saved before calls */
+	/* This is valid if ip != NULL */
+	InterpState state;
 };
 
 #define frame_locals(frame) (((guchar*)((frame)->stack)) + (frame)->imethod->stack_size + (frame)->imethod->vt_stack_size)
