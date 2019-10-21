@@ -19,7 +19,7 @@
  * Memory barrier which only affects the compiler.
  * mono_memory_barrier_process_wide () should be uses to synchronize with code which uses this.
  */
-#define mono_compiler_barrier() asm volatile("": : :"memory")
+//#define mono_compiler_barrier() asm volatile("": : :"memory")
 
 #ifdef TARGET_WASM
 
@@ -34,6 +34,8 @@ static inline void mono_memory_read_barrier (void)
 static inline void mono_memory_write_barrier (void)
 {
 }
+
+#define mono_compiler_barrier() asm volatile("": : :"memory")
 
 #elif _MSC_VER
 #ifndef WIN32_LEAN_AND_MEAN
@@ -66,7 +68,11 @@ static inline void mono_memory_write_barrier (void)
 	_WriteBarrier ();
 	MemoryBarrier ();
 }
+
+#define mono_compiler_barrier() __ReadWriteBarrier ()
+
 #elif defined(USE_GCC_ATOMIC_OPS)
+
 static inline void mono_memory_barrier (void)
 {
 	__sync_synchronize ();
@@ -81,6 +87,9 @@ static inline void mono_memory_write_barrier (void)
 {
 	mono_memory_barrier ();
 }
+
+#define mono_compiler_barrier() asm volatile("": : :"memory")
+
 #else
 #error "Don't know how to do memory barriers!"
 #endif
