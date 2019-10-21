@@ -3999,10 +3999,6 @@ main_loop:
 			goto exit_frame;
 		MINT_IN_CASE(MINT_RET_VOID)
 			if (sp > frame->stack)
-				g_warning_ds ("ret.void: more values on stack: %d %s", sp - frame->stack, mono_method_full_name (frame->imethod->method, TRUE));
-			goto exit_frame;
-		MINT_IN_CASE(MINT_RET_VOID)
-			if (sp > frame->stack)
 				g_warning_ds ("ret.void: more values on stack: %d %s", sp-frame->stack, mono_method_full_name (frame->imethod->method, TRUE));
 			goto exit_frame;
 		MINT_IN_CASE(MINT_RET_VT) {
