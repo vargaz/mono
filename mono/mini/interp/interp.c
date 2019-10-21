@@ -3438,7 +3438,7 @@ method_entry (ThreadContext *context, InterpFrame *frame, gboolean *out_tracing,
 	sp = frame->state.sp; \
 	vt_sp = frame->state.vt_sp; \
 	finally_ips = frame->state.finally_ips; \
-	clause_args = frame->state.clause_args; \
+	clause_args = (FrameClauseArgs*)frame->state.clause_args;			\
 	locals = (unsigned char *)frame->stack + frame->imethod->stack_size + frame->imethod->vt_stack_size; \
 	frame->state.ip = NULL; \
 	} while (0)
