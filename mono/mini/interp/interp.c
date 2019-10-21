@@ -26,6 +26,7 @@
 #include <mono/utils/mono-math.h>
 #include <mono/utils/mono-counters.h>
 #include "mono/utils/mono-tls-inline.h"
+#include <mono/utils/mono-membar.h>
 
 #ifdef HAVE_ALLOCA_H
 #   include <alloca.h>
@@ -99,6 +100,10 @@ typedef struct {
 	InterpFrame *base_frame;
 } FrameClauseArgs;
 
+/*
+ * This code needs to synchronize with interp_mark_stack () using compiler memory barriers.
+ */
+
 static StackFragment*
 stack_frag_new (int size)
 {
@@ -117,6 +122,8 @@ frame_stack_init (FrameStack *stack, int size)
 
 	frag = stack_frag_new (size);
 	stack->first = stack->last = stack->current = frag;
+	mono_compiler_barrier ();
+	stack->inited = 1;
 }
 
 static StackFragment*
@@ -129,6 +136,7 @@ add_frag (FrameStack *stack, int size)
 	if (size > frag_size)
 		frag_size = size + sizeof (StackFragment);
 	new_frag = stack_frag_new (frag_size);
+	mono_compiler_barrier ();
 	stack->last->next = new_frag;
 	stack->last = new_frag;
 	stack->current = new_frag;
@@ -156,6 +164,8 @@ frame_stack_alloc (FrameStack *stack, int size, StackFragment **out_frag)
 		current->pos += size;
 	}
 
+	mono_compiler_barrier ();
+
 	if (out_frag)
 		*out_frag = current;
 	return res;
@@ -166,13 +176,17 @@ frame_stack_pop (FrameStack *stack, StackFragment *frag, gpointer pos)
 {
 	g_assert ((guint8*)pos >= (guint8*)&frag->data && (guint8*)pos <= (guint8*)frag->end);
 	stack->current = frag;
+	mono_compiler_barrier ();
 	stack->current->pos = (guint8*)pos;
+	mono_compiler_barrier ();
 	//memset (stack->current->pos, 0, stack->current->end - stack->current->pos);
 }
 
 static void
 frame_stack_free (FrameStack *stack)
 {
+	stack->inited = 0;
+	mono_compiler_barrier ();
 	StackFragment *frag = stack->first;
 	while (frag) {
 		StackFragment *next = frag->next;
@@ -7393,17 +7407,17 @@ interp_mark_stack (gpointer thread_data, GcScanFunc func, gpointer gc_data, gboo
 	 * We explicitly mark the frames instead of registering the stack fragments as GC roots, so
 	 * we have to process less data and avoid false pinning from data which is above 'pos'.
 	 *
-	 * We can only use this in coop mode since the stack frame handling code is not async safe.
+	 * The stack frame handling code uses compiler write barriers only, but the calling code
+	 * in sgen-mono.c already did a mono_memory_barrier_process_wide () so we can
+	 * process these data structures normally.
 	 */
-	g_assert (mono_threads_suspend_policy_are_safepoints_enabled (mono_threads_suspend_policy ()));
-
 	MonoThreadUnwindState *state = &info->thread_saved_state [SELF_SUSPEND_STATE_INDEX];
 	MonoJitTlsData *jit_tls = (MonoJitTlsData *)state->unwind_data [MONO_UNWIND_DATA_JIT_TLS];
 	if (!jit_tls)
 		return;
 
 	ThreadContext *context = (ThreadContext*)jit_tls->interp_context;
-	if (!context)
+	if (!context || !context->data_stack.inited)
 		return;
 
 	StackFragment *frag;

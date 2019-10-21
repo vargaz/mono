@@ -2291,6 +2291,10 @@ sgen_client_scan_thread_data (void *start_nursery, void *end_nursery, gboolean p
 
 	SGEN_TV_GETTIME (scan_thread_data_start);
 
+	if (gc_callbacks.interp_mark_func)
+		/* The interpreter code uses only compiler write barriers so have to synchronize with it */
+		mono_memory_barrier_process_wide ();
+
 	FOREACH_THREAD_EXCLUDE (info, MONO_THREAD_INFO_FLAGS_NO_GC) {
 		int skip_reason = 0;
 		void *aligned_stack_start;

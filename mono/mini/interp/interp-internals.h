@@ -183,6 +183,8 @@ struct _StackFragment {
 
 typedef struct {
 	StackFragment *first, *last, *current;
+	/* For GC sync */
+	int inited;
 } FrameStack;
 
 /* State of the interpreter main loop */

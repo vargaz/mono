@@ -15,6 +15,11 @@
 
 #include <glib.h>
 
+/*
+ * Memory barrier which only affects the compiler.
+ * mono_memory_barrier_process_wide () should be uses to synchronize with code which uses this.
+ */
+#define mono_compiler_barrier() asm volatile("": : :"memory")
 
 #ifdef TARGET_WASM
 
