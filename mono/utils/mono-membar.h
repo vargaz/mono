@@ -69,7 +69,7 @@ static inline void mono_memory_write_barrier (void)
 	MemoryBarrier ();
 }
 
-#define mono_compiler_barrier() __ReadWriteBarrier ()
+#define mono_compiler_barrier() _ReadWriteBarrier ()
 
 #elif defined(USE_GCC_ATOMIC_OPS)
 
