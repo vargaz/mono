@@ -7411,8 +7411,7 @@ interp_mark_stack (gpointer thread_data, GcScanFunc func, gpointer gc_data, gboo
 	 * in sgen-mono.c already did a mono_memory_barrier_process_wide () so we can
 	 * process these data structures normally.
 	 */
-	MonoThreadUnwindState *state = &info->thread_saved_state [SELF_SUSPEND_STATE_INDEX];
-	MonoJitTlsData *jit_tls = (MonoJitTlsData *)state->unwind_data [MONO_UNWIND_DATA_JIT_TLS];
+	MonoJitTlsData *jit_tls = (MonoJitTlsData *)info->tls [TLS_KEY_JIT_TLS];
 	if (!jit_tls)
 		return;
 
