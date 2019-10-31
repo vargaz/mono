@@ -3927,7 +3927,6 @@ main_loop:
 
 				MINT_IN_BREAK;
 			}
->>>>>>> Run some type of calls without recursion.
 
 			interp_exec_method (child_frame, context, error);
 			CHECK_RESUME_STATE (context);
