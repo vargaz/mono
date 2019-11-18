@@ -2323,7 +2323,11 @@ mono_marshal_get_delegate_invoke (MonoMethod *method, MonoDelegate *del)
 	sig = mono_signature_no_pinvoke (method);
 
 	if (del && !del->target && del->method && mono_method_signature_internal (del->method)->hasthis) {
-		subtype = WRAPPER_SUBTYPE_DELEGATE_INVOKE_OPEN_VIRTUAL;
+		if (!(del->method->flags & METHOD_ATTRIBUTE_VIRTUAL) && !m_class_is_valuetype (del->method->klass) && sig->param_count ==  mono_method_signature_internal (del->method)->param_count + 1) {
+			/* The first argument of the delegate is passed as this, the normal invoke code can handle this */
+		} else {
+			subtype = WRAPPER_SUBTYPE_DELEGATE_INVOKE_OPEN_VIRTUAL;
+		}
 		target_method = del->method;
 	}
 
