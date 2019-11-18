@@ -124,8 +124,8 @@ typedef enum {
 	/* Subtypes of MONO_WRAPPER_MANAGED_TO_MANAGED */
 	WRAPPER_SUBTYPE_GENERIC_ARRAY_HELPER,
 	/* Subtypes of MONO_WRAPPER_DELEGATE_INVOKE */
-	WRAPPER_SUBTYPE_DELEGATE_INVOKE_VIRTUAL,
-	WRAPPER_SUBTYPE_DELEGATE_INVOKE_BOUND,
+	WRAPPER_SUBTYPE_DELEGATE_INVOKE_OPEN_VIRTUAL,
+	WRAPPER_SUBTYPE_DELEGATE_INVOKE_CLOSED_STATIC,
 	/* Subtypes of MONO_WRAPPER_OTHER */
 	WRAPPER_SUBTYPE_GSHAREDVT_IN_SIG,
 	WRAPPER_SUBTYPE_GSHAREDVT_OUT_SIG,
@@ -329,7 +329,7 @@ typedef struct {
 	void (*emit_runtime_invoke_dynamic) (MonoMethodBuilder *mb);
 	void (*emit_delegate_begin_invoke) (MonoMethodBuilder *mb, MonoMethodSignature *sig);
 	void (*emit_delegate_end_invoke) (MonoMethodBuilder *mb, MonoMethodSignature *sig);
-	void (*emit_delegate_invoke_internal) (MonoMethodBuilder *mb, MonoMethodSignature *sig, MonoMethodSignature *invoke_sig, gboolean static_method_with_first_arg_bound, gboolean callvirt, gboolean closed_over_null, MonoMethod *method, MonoMethod *target_method, MonoClass *target_class, MonoGenericContext *ctx, MonoGenericContainer *container);
+	void (*emit_delegate_invoke_internal) (MonoMethodBuilder *mb, MonoMethodSignature *sig, MonoMethodSignature *invoke_sig, WrapperSubtype subtype, gboolean closed_over_null, MonoMethod *method, MonoMethod *target_method, MonoClass *target_class, MonoGenericContext *ctx, MonoGenericContainer *container);
 	void (*emit_synchronized_wrapper) (MonoMethodBuilder *mb, MonoMethod *method, MonoGenericContext *ctx, MonoGenericContainer *container, MonoMethod *enter_method, MonoMethod *exit_method, MonoMethod *gettypefromhandle_method);
 	void (*emit_unbox_wrapper) (MonoMethodBuilder *mb, MonoMethod *method);
 	void (*emit_array_accessor_wrapper) (MonoMethodBuilder *mb, MonoMethod *method, MonoMethodSignature *sig, MonoGenericContext *ctx);
@@ -424,7 +424,7 @@ MonoMethod *
 mono_marshal_get_delegate_invoke (MonoMethod *method, MonoDelegate *del);
 
 MonoMethod *
-mono_marshal_get_delegate_invoke_internal (MonoMethod *method, gboolean callvirt, gboolean static_method_with_first_arg_bound, MonoMethod *target_method);
+mono_marshal_get_delegate_invoke_internal (MonoMethod *method, WrapperSubtype subtype, MonoMethod *target_method);
 
 MonoMethod *
 mono_marshal_get_runtime_invoke_full (MonoMethod *method, gboolean virtual_, gboolean need_direct_wrapper);

@@ -4734,7 +4734,7 @@ add_wrappers (MonoAotCompile *acfg)
 					/* Add wrappers needed by mono_ftnptr_to_delegate () */
 					invoke = mono_get_delegate_invoke_internal (klass);
 					wrapper = mono_marshal_get_native_func_wrapper_aot (klass);
-					del_invoke = mono_marshal_get_delegate_invoke_internal (invoke, FALSE, TRUE, wrapper);
+					del_invoke = mono_marshal_get_delegate_invoke_internal (invoke, WRAPPER_SUBTYPE_DELEGATE_INVOKE_CLOSED_STATIC, wrapper);
 					add_method (acfg, wrapper);
 					add_method (acfg, del_invoke);
 				}
@@ -9257,11 +9257,11 @@ append_mangled_wrapper_subtype (GString *s, WrapperSubtype subtype)
 	case WRAPPER_SUBTYPE_GENERIC_ARRAY_HELPER:
 		label = "generic_arry_help";
 		break;
-	case WRAPPER_SUBTYPE_DELEGATE_INVOKE_VIRTUAL:
-		label = "del_inv_virt";
+	case WRAPPER_SUBTYPE_DELEGATE_INVOKE_OPEN_VIRTUAL:
+		label = "del_inv_open_virt";
 		break;
-	case WRAPPER_SUBTYPE_DELEGATE_INVOKE_BOUND:
-		label = "del_inv_bound";
+	case WRAPPER_SUBTYPE_DELEGATE_INVOKE_CLOSED_STATIC:
+		label = "del_inv_closed_static";
 		break;
 	case WRAPPER_SUBTYPE_INTERP_IN:
 		label = "interp_in";

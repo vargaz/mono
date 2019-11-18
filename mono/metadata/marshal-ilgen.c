@@ -3893,12 +3893,14 @@ emit_delegate_end_invoke_ilgen (MonoMethodBuilder *mb, MonoMethodSignature *sig)
 }
 
 static void
-emit_delegate_invoke_internal_ilgen (MonoMethodBuilder *mb, MonoMethodSignature *sig, MonoMethodSignature *invoke_sig, gboolean static_method_with_first_arg_bound, gboolean callvirt, gboolean closed_over_null, MonoMethod *method, MonoMethod *target_method, MonoClass *target_class, MonoGenericContext *ctx, MonoGenericContainer *container)
+emit_delegate_invoke_internal_ilgen (MonoMethodBuilder *mb, MonoMethodSignature *sig, MonoMethodSignature *invoke_sig, WrapperSubtype subtype, gboolean closed_over_null, MonoMethod *method, MonoMethod *target_method, MonoClass *target_class, MonoGenericContext *ctx, MonoGenericContainer *container)
 {
 	int local_i, local_len, local_delegates, local_d, local_target, local_res;
 	int pos0, pos1, pos2;
 	int i;
 	gboolean void_ret;
+	gboolean callvirt = subtype == WRAPPER_SUBTYPE_DELEGATE_INVOKE_OPEN_VIRTUAL;
+	gboolean static_method_with_first_arg_bound = subtype == WRAPPER_SUBTYPE_DELEGATE_INVOKE_CLOSED_STATIC;
 
 	MonoType *int32_type = mono_get_int32_type ();
 	MonoType *object_type = mono_get_object_type ();

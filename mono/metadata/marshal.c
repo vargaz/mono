@@ -2137,13 +2137,13 @@ mb_emit_exception_for_error_noilgen (MonoMethodBuilder *mb, const MonoError *err
 }
 
 static void
-emit_delegate_invoke_internal_noilgen (MonoMethodBuilder *mb, MonoMethodSignature *sig, MonoMethodSignature *invoke_sig, gboolean static_method_with_first_arg_bound, gboolean callvirt, gboolean closed_over_null, MonoMethod *method, MonoMethod *target_method, MonoClass *target_class, MonoGenericContext *ctx, MonoGenericContainer *container)
+emit_delegate_invoke_internal_noilgen (MonoMethodBuilder *mb, MonoMethodSignature *sig, MonoMethodSignature *invoke_sig, WrapperSubtype subtype, gboolean closed_over_null, MonoMethod *method, MonoMethod *target_method, MonoClass *target_class, MonoGenericContext *ctx, MonoGenericContainer *container)
 {
 }
 #endif
 
 MonoMethod *
-mono_marshal_get_delegate_invoke_internal (MonoMethod *method, gboolean callvirt, gboolean static_method_with_first_arg_bound, MonoMethod *target_method)
+mono_marshal_get_delegate_invoke_internal (MonoMethod *method, WrapperSubtype subtype, MonoMethod *target_method)
 {
 	MonoMethodSignature *sig, *invoke_sig;
 	MonoMethodBuilder *mb;
@@ -2159,8 +2159,8 @@ mono_marshal_get_delegate_invoke_internal (MonoMethod *method, gboolean callvirt
 	MonoGenericContainer *container = NULL;
 	MonoMethod *orig_method = method;
 	WrapperInfo *info;
-	WrapperSubtype subtype = WRAPPER_SUBTYPE_NONE;
 	gboolean found;
+	const char *name_prefix;
 
 	g_assert (method && m_class_get_parent (method->klass) == mono_defaults.multicastdelegate_class &&
 		  !strcmp (method->name, "Invoke"));
@@ -2172,8 +2172,8 @@ mono_marshal_get_delegate_invoke_internal (MonoMethod *method, gboolean callvirt
 	 * call is made to that method with the first delegate argument as this. This is 
 	 * a non-documented .NET feature.
 	 */
-	if (callvirt) {
-		subtype = WRAPPER_SUBTYPE_DELEGATE_INVOKE_VIRTUAL;
+	switch (subtype) {
+	case WRAPPER_SUBTYPE_DELEGATE_INVOKE_OPEN_VIRTUAL:
 		if (target_method->is_inflated) {
 			ERROR_DECL (error);
 			MonoType *target_type;
@@ -2188,11 +2188,9 @@ mono_marshal_get_delegate_invoke_internal (MonoMethod *method, gboolean callvirt
 		}
 
 		closed_over_null = sig->param_count == mono_method_signature_internal (target_method)->param_count;
-	}
-
-	if (static_method_with_first_arg_bound) {
-		subtype = WRAPPER_SUBTYPE_DELEGATE_INVOKE_BOUND;
-		g_assert (!callvirt);
+		name_prefix = closed_over_null ? "invoke_closed_over_null" : "invoke_open_virtual";
+		break;
+	case WRAPPER_SUBTYPE_DELEGATE_INVOKE_CLOSED_STATIC:
 		invoke_sig = mono_method_signature_internal (target_method);
 		/*
 		 * The wrapper has a different lifetime from the method to be invoked.
@@ -2201,6 +2199,11 @@ mono_marshal_get_delegate_invoke_internal (MonoMethod *method, gboolean callvirt
 		 */
 		if (method_is_dynamic (target_method))
 			invoke_sig = mono_metadata_signature_dup_full (get_method_image (target_method), invoke_sig);
+		name_prefix = "invoke_closed_static";
+		break;
+	default:
+		name_prefix = "invoke";
+		break;
 	}
 
 	/*
@@ -2227,7 +2230,7 @@ mono_marshal_get_delegate_invoke_internal (MonoMethod *method, gboolean callvirt
 		if (res)
 			return res;
 		cache_key = method->klass;
-	} else if (static_method_with_first_arg_bound) {
+	} else if (subtype == WRAPPER_SUBTYPE_DELEGATE_INVOKE_CLOSED_STATIC) {
 		cache = get_cache (&get_method_image (target_method)->delegate_bound_static_invoke_cache,
 						   (GHashFunc)mono_signature_hash, 
 						   (GCompareFunc)mono_metadata_signature_equal);
@@ -2238,7 +2241,7 @@ mono_marshal_get_delegate_invoke_internal (MonoMethod *method, gboolean callvirt
 		if (res)
 			return res;
 		cache_key = invoke_sig;
-	} else if (callvirt) {
+	} else if (subtype == WRAPPER_SUBTYPE_DELEGATE_INVOKE_OPEN_VIRTUAL) {
 		GHashTable **cache_ptr;
 
 		cache_ptr = &mono_method_get_wrapper_cache (method)->delegate_abstract_invoke_cache;
@@ -2266,27 +2269,19 @@ mono_marshal_get_delegate_invoke_internal (MonoMethod *method, gboolean callvirt
 		cache_key = sig;
 	}
 
-	if (!static_method_with_first_arg_bound) {
+	if (subtype != WRAPPER_SUBTYPE_DELEGATE_INVOKE_CLOSED_STATIC) {
 		invoke_sig = mono_metadata_signature_dup_full (get_method_image (method), sig);
 		invoke_sig->hasthis = 0;
 	}
 
-	if (static_method_with_first_arg_bound)
-		name = mono_signature_to_name (invoke_sig, "invoke_bound");
-	else if (closed_over_null)
-		name = mono_signature_to_name (invoke_sig, "invoke_closed_over_null");
-	else if (callvirt)
-		name = mono_signature_to_name (invoke_sig, "invoke_callvirt");
-	else
-		name = mono_signature_to_name (invoke_sig, "invoke");
+	name = mono_signature_to_name (invoke_sig, name_prefix);
 	if (ctx)
 		mb = mono_mb_new (method->klass, name, MONO_WRAPPER_DELEGATE_INVOKE);
 	else
 		mb = mono_mb_new (get_wrapper_target_class (get_method_image (method)), name, MONO_WRAPPER_DELEGATE_INVOKE);
 	g_free (name);
 
-	get_marshal_cb ()->emit_delegate_invoke_internal (mb, sig, invoke_sig, static_method_with_first_arg_bound, callvirt, closed_over_null, method, target_method, target_class, ctx, container);
-
+	get_marshal_cb ()->emit_delegate_invoke_internal (mb, sig, invoke_sig, subtype, closed_over_null, method, target_method, target_class, ctx, container);
 	get_marshal_cb ()->mb_skip_visibility (mb);
 
 	info = mono_wrapper_info_create (mb, subtype);
@@ -2297,7 +2292,7 @@ mono_marshal_get_delegate_invoke_internal (MonoMethod *method, gboolean callvirt
 
 		def = mono_mb_create_and_cache_full (cache, cache_key, mb, sig, sig->param_count + 16, info, NULL);
 		res = cache_generic_delegate_wrapper (cache, orig_method, def, ctx);
-	} else if (callvirt) {
+	} else if (subtype == WRAPPER_SUBTYPE_DELEGATE_INVOKE_OPEN_VIRTUAL) {
 		new_key = g_new0 (SignaturePointerPair, 1);
 		*new_key = key;
 
@@ -2321,24 +2316,23 @@ mono_marshal_get_delegate_invoke_internal (MonoMethod *method, gboolean callvirt
 MonoMethod *
 mono_marshal_get_delegate_invoke (MonoMethod *method, MonoDelegate *del)
 {
-	gboolean callvirt = FALSE;
-	gboolean static_method_with_first_arg_bound = FALSE;
 	MonoMethod *target_method = NULL;
 	MonoMethodSignature *sig;
+	WrapperSubtype subtype = WRAPPER_SUBTYPE_NONE;
 
 	sig = mono_signature_no_pinvoke (method);
 
 	if (del && !del->target && del->method && mono_method_signature_internal (del->method)->hasthis) {
-		callvirt = TRUE;
+		subtype = WRAPPER_SUBTYPE_DELEGATE_INVOKE_OPEN_VIRTUAL;
 		target_method = del->method;
 	}
 
 	if (del && del->method && mono_method_signature_internal (del->method)->param_count == sig->param_count + 1 && (del->method->flags & METHOD_ATTRIBUTE_STATIC)) {
-		static_method_with_first_arg_bound = TRUE;
+		subtype = WRAPPER_SUBTYPE_DELEGATE_INVOKE_CLOSED_STATIC;
 		target_method = del->method;
 	}
 
-	return mono_marshal_get_delegate_invoke_internal (method, callvirt, static_method_with_first_arg_bound, target_method);
+	return mono_marshal_get_delegate_invoke_internal (method, subtype, target_method);
 }
 
 typedef struct {
