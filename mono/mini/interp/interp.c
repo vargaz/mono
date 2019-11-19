@@ -247,10 +247,9 @@ alloc_stack_data (ThreadContext *ctx, InterpFrame *frame, int size)
 	StackFragment *frag;
 	gpointer res;
 
-	res = frame_stack_alloc (&ctx->data_stack, size, &frag);
+	res = frame_stack_alloc (&ctx->iframe_stack, size, &frag);
 
 	frame->stack = (stackval*)res;
-	frame->data_frag = frag;
 }
 
 static gpointer
@@ -258,7 +257,7 @@ alloc_extra_stack_data (ThreadContext *ctx, int size)
 {
 	StackFragment *frag;
 
-	return frame_stack_alloc (&ctx->data_stack, size, &frag);
+	return frame_stack_alloc (&ctx->iframe_stack, size, &frag);
 }
 
 /*
@@ -270,8 +269,6 @@ alloc_extra_stack_data (ThreadContext *ctx, int size)
 static void
 pop_frame (ThreadContext *context, InterpFrame *frame)
 {
-	if (frame->stack)
-		frame_stack_pop (&context->data_stack, frame->data_frag, frame->stack);
 	frame_stack_pop (&context->iframe_stack, frame->iframe_frag, frame);
 }
 
@@ -7417,15 +7414,15 @@ interp_mark_stack (gpointer thread_data, GcScanFunc func, gpointer gc_data, gboo
 		return;
 
 	ThreadContext *context = (ThreadContext*)jit_tls->interp_context;
-	if (!context || !context->data_stack.inited)
+	if (!context || !context->iframe_stack.inited)
 		return;
 
 	StackFragment *frag;
-	for (frag = context->data_stack.first; frag; frag = frag->next) {
+	for (frag = context->iframe_stack.first; frag; frag = frag->next) {
 		// FIXME: Scan the whole area with 1 call
 		for (gpointer *p = (gpointer*)&frag->data; p < (gpointer*)frag->pos; ++p)
 			func (p, gc_data);
-		if (frag == context->data_stack.current)
+		if (frag == context->iframe_stack.current)
 			break;
 	}
 }
