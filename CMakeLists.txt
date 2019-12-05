@@ -53,10 +53,12 @@ if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR (CMAKE_CXX_COMPILER_ID STREQUAL "C
   set (GCC 1)
 endif ()
 
+add_definitions(-g)
 add_definitions(-DHAVE_CONFIG_H)
 
 set(USE_GCC_ATOMIC_OPS 1)
-set (HAVE_CLASSIC_WINAPI_SUPPORT 1)
+set(HAVE_CLASSIC_WINAPI_SUPPORT 1)
+set(ENABLE_ILGEN 1)
 
 ######################################
 # GCC CHECKS

@@ -515,7 +515,9 @@ set (metadata_sgen_sources
 	sgen-stw.c
 	sgen-mono.c
 	sgen-mono.h
-	sgen-client-mono.h)
+	sgen-client-mono.h
+	sgen-mono-ilgen.h
+	sgen-mono-ilgen.c)
 
 addprefix (metadata_gc_dependent_real_sources ../metadata "${metadata_gc_dependent_sources}")
 addprefix (metadata_sgen_real_sources ../metadata "${metadata_sgen_sources}")

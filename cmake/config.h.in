@@ -1528,10 +1528,10 @@
 #cmakedefine TARGET_MACH 1
 
 /* byte order of target */
-#cmakedefine TARGET_BYTE_ORDER 1
+#define TARGET_BYTE_ORDER @TARGET_BYTE_ORDER@
 
 /* wordsize of target */
-#cmakedefine TARGET_SIZEOF_VOID_P 1
+#define TARGET_SIZEOF_VOID_P @TARGET_SIZEOF_VOID_P@
 
 /* size of target machine integer registers */
 #define SIZEOF_REGISTER @SIZEOF_REGISTER@
