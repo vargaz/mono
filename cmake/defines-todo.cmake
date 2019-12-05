@@ -1,4 +1,3 @@
-### Configure defines
 #option (STDC_HEADERS "Define to 1 if you have the ANSI C header files.")
 #option (MAJOR_IN_MKDEV "Define to 1 if `major', `minor', and `makedev' are declared in <mkdev.h>.")
 #option (MAJOR_IN_SYSMACROS "Define to 1 if `major', `minor', and `makedev' are declared in <sysmacros.h>.")
@@ -8,7 +7,6 @@
 #option (HAVE_STRUCT_TIMEVAL "Define to 1 if the system has the type `struct timeval'.")
 #option (HAVE_STRUCT_STAT_ST_ATIM "Define to 1 if `st_atim' is a member of `struct stat'.")
 #option (HAVE_STRUCT_STAT_ST_ATIMESPEC "Define to 1 if `st_atimespec' is a member of `struct stat'.")
-#option (HAVE_STRUCT_KINFO_PROC_KP_PROC "Define to 1 if `kp_proc' is a member of `struct kinfo_proc'.")
 #option (HAVE_LIBICONV "Define to 1 if you have the `iconv' library (-liconv).")
 #option (HAVE_USR_INCLUDE_MALLOC_H "Define to 1 if you have /usr/include/malloc.h.")
 
@@ -18,7 +16,6 @@
 #option (PACKAGE_STRING "Define to the full name and version of this package.")
 #option (PACKAGE_BUGREPORT "Define to the address where bug reports for this package should be sent.")
 #option (PACKAGE_URL "Define to the home page for this package.")
-#option (MONO_CORLIB_VERSION "Version of the corlib-runtime interface")
 
 #option (HOST_NO_SYMLINKS "This platform does not support symlinks")
 #option (PTHREAD_POINTER_ID "pthread is a pointer")
@@ -75,8 +72,6 @@
 #option (HAVE_GETADDRINFO "Have getaddrinfo")
 #option (HAVE_GETHOSTBYNAME2 "Have gethostbyname2")
 #option (HAVE_GETHOSTBYNAME "Have gethostbyname")
-#option (HAVE_GETPROTOBYNAME "Have getprotobyname")
-#option (HAVE_GETPROTOBYNAME_R "Have getprotobyname_r")
 #option (HAVE_GETNAMEINFO "Have getnameinfo")
 #option (HAVE_INET_NTOP "Have inet_ntop")
 #option (HAVE_WORKING_SIGALTSTACK "Have a working sigaltstack")
@@ -151,9 +146,6 @@
 #option (TARGET_IOS "The JIT/AOT targets iOS")
 #option (TARGET_OSX "The JIT/AOT targets OSX")
 #option (TARGET_MACH "The JIT/AOT targets Apple platforms")
-#option (TARGET_BYTE_ORDER "byte order of target")
-#option (TARGET_SIZEOF_VOID_P "wordsize of target")
-#option (SIZEOF_REGISTER "size of target machine integer registers")
 #option (HAVE_VISIBILITY_HIDDEN "Support for the visibility (hidden) attribute")
 #option (HAVE_MOVING_COLLECTOR "Moving collector")
 #option (HAVE_CONC_GC_AS_DEFAULT "Defaults to concurrent GC")

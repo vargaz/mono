@@ -3,7 +3,12 @@
 #
 
 include(CheckTypeSize)
+include(CheckStructHasMember)
 include(TestBigEndian)
+
+if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
+  set(DARWIN 1)
+endif()
 
 check_include_file ("sys/mkdev.h" HAVE_SYS_MKDEV_H)
 check_include_file ("sys/types.h" HAVE_SYS_TYPES_H)
@@ -73,7 +78,13 @@ check_include_file ("CommonCrypto/CommonDigest.h" HAVE_COMMONCRYPTO_COMMONDIGEST
 check_include_file ("curses.h" HAVE_CURSES_H)
 check_include_file ("term.h" HAVE_TERM_H)
 check_include_file ("termios.h" HAVE_TERMIOS_H)
-check_include_file ("sys/random.h" HAVE_SYS_RANDOM_H)
+check_include_file ("dlfcn.h" HAVE_DLFCN_H)
+
+if (NOT DARWIN)
+  check_include_file ("sys/random.h" HAVE_SYS_RANDOM_H)
+  check_function_exists ("getentropy" HAVE_GETENTROPY)
+endif()
+
 check_include_file ("sys/sysctl.h" HAVE_SYS_SYSCTL_H)
 check_include_file ("getopt.h" HAVE_GETOPT_H)
 check_include_file ("sys/select.h" HAVE_SYS_SELECT_H)
@@ -149,7 +160,6 @@ check_function_exists ("waitpid" HAVE_WAITPID)
 check_function_exists ("localtime_r" HAVE_LOCALTIME_R)
 check_function_exists ("mkdtemp" HAVE_MKDTEMP)
 check_function_exists ("getrandom" HAVE_GETRANDOM)
-check_function_exists ("getentropy" HAVE_GETENTROPY)
 check_function_exists ("execvp" HAVE_EXECVP)
 check_function_exists ("strlcpy" HAVE_STRLCPY)
 check_function_exists ("stpcpy" HAVE_STPCPY)
@@ -158,12 +168,18 @@ check_function_exists ("rewinddir" HAVE_REWINDDIR)
 check_function_exists ("vasprintf" HAVE_VASPRINTF)
 check_function_exists ("strndup" HAVE_STRNDUP)
 check_function_exists ("getpwuid_r" HAVE_GETPWUID_R)
+check_function_exists ("getprotobyname" HAVE_GETPROTOBYNAME)
+check_function_exists ("getprotobyname_r" HAVE_GETPROTOBYNAME_R)
 
-TEST_BIG_ENDIAN (IS_BIG_ENDIAN)
+check_struct_has_member("struct kinfo_proc" kp_proc "sys/types.h;sys/param.h;sys/sysctl.h;sys/proc.h" HAVE_STRUCT_KINFO_PROC_KP_PROC)
 
 check_type_size("void*" SIZEOF_VOID_P)
 check_type_size("long" SIZEOF_LONG)
 check_type_size("long long" SIZEOF_LONG_LONG)
+
+
+TEST_BIG_ENDIAN (IS_BIG_ENDIAN)
+
 
 # FIXME:
 set(TARGET_SIZEOF_VOID_P "${SIZEOF_VOID_P}")

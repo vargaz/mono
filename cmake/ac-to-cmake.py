@@ -53,10 +53,13 @@ import tmp
 tmp.defs["VERSION"] = """/* Version number of package */
 #undef VERSION"""
 
+tmp.defs["HAVE_DLFCN_H"] = """/* Define to 1 if you have the <dlfcn.h> header file. */
+#undef HAVE_DLFCN_H"""
+
 if args.autoheader != None:
     with open (args.autoheader, 'w') as f:
         for define in tmp.defs.keys ():
-            if define == "MONO_CORLIB_VERSION" or define == "VERSION" or define == "DISABLED_FEATURES" or define.startswith ("SIZEOF_"):
+            if define == "MONO_CORLIB_VERSION" or define == "VERSION" or define == "MONO_ARCHITECTURE" or define == "DISABLED_FEATURES" or define.startswith ("SIZEOF_"):
                 f.write (tmp.defs [define].replace ("#undef " + define, "#define " + define + " @" + define + "@"))
             elif False and define.startswith ("ENABLE_"):
                 f.write (tmp.defs [define].replace ('#undef', '#cmakedefine01'))

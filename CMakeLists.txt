@@ -101,6 +101,16 @@ else()
 endif()
 
 ######################################
+# HOST ARCH CHECKS
+######################################
+
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  set(HOST_AMD64 1)
+else()
+  message(FATAL ERROR "FIXME")
+endif()
+
+######################################
 # TARGET ARCH CHECKS
 ######################################
 # FIXME:
@@ -108,7 +118,7 @@ set(TARGET_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
 
 if(TARGET_ARCH STREQUAL "x86_64")
   set(TARGET_AMD64 1)
-  set(MONO_ARCHITECTURE amd64)
+  set(MONO_ARCHITECTURE "\"amd64\"")
 else()
   message(FATAL ERROR "FIXME")
 endif()
