@@ -53,7 +53,9 @@ import tmp
 if args.autoheader != None:
     with open (args.autoheader, 'w') as f:
         for define in tmp.defs.keys ():
-            if define.startswith ("ENABLE_"):
+            if define == "MONO_CORLIB_VERSION":
+                f.write (tmp.defs [define].replace ("#undef " + define, "#define " + define + " \"@" + define + "@\""))
+            elif False and define.startswith ("ENABLE_"):
                 f.write (tmp.defs [define].replace ('#undef', '#cmakedefine01'))
             else:
                 f.write (tmp.defs [define].replace ('#undef ' + define, '#cmakedefine ' + define + ' 1'))

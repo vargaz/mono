@@ -2,6 +2,7 @@
 # Configure checks
 #
 
+include(CheckTypeSize)
 include(TestBigEndian)
 
 check_include_file ("sys/mkdev.h" HAVE_SYS_MKDEV_H)
@@ -157,3 +158,19 @@ check_function_exists ("rewinddir" HAVE_REWINDDIR)
 check_function_exists ("vasprintf" HAVE_VASPRINTF)
 check_function_exists ("strndup" HAVE_STRNDUP)
 check_function_exists ("getpwuid_r" HAVE_GETPWUID_R)
+
+TEST_BIG_ENDIAN (IS_BIG_ENDIAN)
+
+check_type_size("void*" SIZEOF_VOID_P)
+check_type_size("long" SIZEOF_LONG)
+check_type_size("long long" SIZEOF_LONG_LONG)
+
+# FIXME:
+set(TARGET_SIZEOF_VOID_P "${SIZEOF_VOID_P}")
+set(SIZEOF_REGISTER "{$SIZEOF_VOID_P}")
+
+if (IS_BIG_ENDIAN)
+  set(TARGET_BYTE_ORDER G_BIG_ENDIAN)
+else()
+  set(TARGET_BYTE_ORDER G_LITTLE_ENDIAN)
+endif()
