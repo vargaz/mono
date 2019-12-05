@@ -27,7 +27,27 @@ include(options)
 # Header/function checks
 include(configure)
 
-set(MONO_CORLIB_VERSION "97b07b51-46d8-4084-b48e-77aa5c192654")
+set(MONO_CORLIB_VERSION "\"97b07b51-46d8-4084-b48e-77aa5c192654\"")
+
+set(ENABLE_NETCORE 1)
+if (ENABLE_NETCORE)
+  set(DISABLE_REMOTING 1)
+  set(DISABLE_REFLECTION_EMIT_SAVE 1)
+  set(DISABLE_APPDOMAINS 1)
+  set(DISABLE_CLEANUP 1)
+  set(DISABLE_ASSEMBLY_REMAPPING 1)
+  set(DISABLE_SECURITY 1)
+  set(DISABLE_MDB 1)
+  set(DISABLE_COM 1)
+  set(DISABLE_GAC 1)
+  set(DISABLE_PERFCOUNTERS 1)
+  set(DISABLE_ATTACH 1)
+  set(DISABLE_DLLMAP 1)
+endif()
+
+#FIXME:
+set(VERSION "\"\"")
+set(DISABLED_FEATURES "\"\"")
 
 if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR (CMAKE_CXX_COMPILER_ID STREQUAL "Clang") OR (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang"))
   set (GCC 1)
@@ -56,7 +76,7 @@ if(GCC)
 endif()
 
 ######################################
-# HOST CHECKS
+# HOST OS CHECKS
 ######################################
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
@@ -67,7 +87,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 endif()
 
 ######################################
-# TARGET CHECKS
+# TARGET OS CHECKS
 ######################################
 
 # FIXME:
@@ -76,6 +96,21 @@ set(TARGET_SYSTEM_NAME "${CMAKE_SYSTEM_NAME}")
 if(TARGET_SYSTEM_NAME STREQUAL "Darwin")
   set(TARGET_MACH 1)
   set(TARGET_OSX 1)
+else()
+  message(FATAL ERROR "FIXME")
+endif()
+
+######################################
+# TARGET ARCH CHECKS
+######################################
+# FIXME:
+set(TARGET_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
+
+if(TARGET_ARCH STREQUAL "x86_64")
+  set(TARGET_AMD64 1)
+  set(MONO_ARCHITECTURE amd64)
+else()
+  message(FATAL ERROR "FIXME")
 endif()
 
 ######################################
@@ -93,7 +128,6 @@ if (GCC)
   endif ()
 endif ()
 
-TEST_BIG_ENDIAN (IS_BIG_ENDIAN)
 if (IS_BIG_ENDIAN)
   set (ORDER G_BIG_ENDIAN)
 else ()

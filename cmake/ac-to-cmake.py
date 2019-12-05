@@ -50,11 +50,14 @@ with open ('tmp.py', 'w') as f:
 # Process it
 import tmp
 
+tmp.defs["VERSION"] = """/* Version number of package */
+#undef VERSION"""
+
 if args.autoheader != None:
     with open (args.autoheader, 'w') as f:
         for define in tmp.defs.keys ():
-            if define == "MONO_CORLIB_VERSION":
-                f.write (tmp.defs [define].replace ("#undef " + define, "#define " + define + " \"@" + define + "@\""))
+            if define == "MONO_CORLIB_VERSION" or define == "VERSION" or define == "DISABLED_FEATURES" or define.startswith ("SIZEOF_"):
+                f.write (tmp.defs [define].replace ("#undef " + define, "#define " + define + " @" + define + "@"))
             elif False and define.startswith ("ENABLE_"):
                 f.write (tmp.defs [define].replace ('#undef', '#cmakedefine01'))
             else:
