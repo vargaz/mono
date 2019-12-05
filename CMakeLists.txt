@@ -56,6 +56,7 @@ endif ()
 add_definitions(-DHAVE_CONFIG_H)
 
 set(USE_GCC_ATOMIC_OPS 1)
+set (HAVE_CLASSIC_WINAPI_SUPPORT 1)
 
 ######################################
 # GCC CHECKS

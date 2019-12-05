@@ -170,6 +170,7 @@ check_function_exists ("strndup" HAVE_STRNDUP)
 check_function_exists ("getpwuid_r" HAVE_GETPWUID_R)
 check_function_exists ("getprotobyname" HAVE_GETPROTOBYNAME)
 check_function_exists ("getprotobyname_r" HAVE_GETPROTOBYNAME_R)
+check_function_exists ("getaddrinfo" HAVE_GETADDRINFO)
 
 check_struct_has_member("struct kinfo_proc" kp_proc "sys/types.h;sys/param.h;sys/sysctl.h;sys/proc.h" HAVE_STRUCT_KINFO_PROC_KP_PROC)
 
