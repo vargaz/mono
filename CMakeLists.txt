@@ -1,0 +1,126 @@
+cmake_minimum_required (VERSION 3.10)
+
+project (mono)
+
+include(GNUInstallDirs)
+include(CheckIncludeFile)
+include(CheckFunctionExists)
+
+set(CMAKE_MODULE_PATH
+  ${CMAKE_MODULE_PATH}
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
+  )
+
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+  set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
+endif()
+
+function(append value)
+  foreach(variable ${ARGN})
+    set(${variable} "${${variable}} ${value}" PARENT_SCOPE)
+  endforeach(variable)
+endfunction()
+
+# User options
+include(options)
+# Header/function checks
+include(configure)
+
+set(MONO_CORLIB_VERSION "97b07b51-46d8-4084-b48e-77aa5c192654")
+
+if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR (CMAKE_CXX_COMPILER_ID STREQUAL "Clang") OR (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang"))
+  set (GCC 1)
+endif ()
+
+add_definitions(-DHAVE_CONFIG_H)
+
+set(USE_GCC_ATOMIC_OPS 1)
+
+######################################
+# GCC CHECKS
+######################################
+if(GCC)
+  # We require C99 with some GNU extensions, e.g. `linux` macro
+  add_definitions(-std=gnu99)
+  # The runtime code does not respect ANSI C strict aliasing rules
+  append("-fno-strict-aliasing" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+  # We rely on signed overflow to behave
+  append("-fwrapv" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+
+  set(WARNINGS "-Wall -Wunused -Wmissing-declarations -Wpointer-arith -Wno-cast-qual -Wwrite-strings -Wno-switch -Wno-switch-enum -Wno-unused-value -Wno-attributes -Qunused-arguments -Wno-unused-function -Wno-tautological-compare -Wno-parentheses-equality -Wno-self-assign -Wno-return-stack-address -Wno-constant-logical-operand -Wno-zero-length-array -Wmissing-prototypes -Wstrict-prototypes -Wnested-externs -Wno-format-zero-length")
+
+  set(WERROR "-Werror=incompatible-pointer-types -Werror=return-type -Werror-implicit-function-declaration")
+
+  append("${WARNINGS} ${WERROR}" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
+endif()
+
+######################################
+# HOST CHECKS
+######################################
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+  add_definitions(-D_THREAD_SAFE)
+  set(HOST_DARWIN 1)
+  set(PTHREAD_POINTER_ID 1)
+  set(USE_MACH_SEMA 1)
+endif()
+
+######################################
+# TARGET CHECKS
+######################################
+
+# FIXME:
+set(TARGET_SYSTEM_NAME "${CMAKE_SYSTEM_NAME}")
+
+if(TARGET_SYSTEM_NAME STREQUAL "Darwin")
+  set(TARGET_MACH 1)
+  set(TARGET_OSX 1)
+endif()
+
+######################################
+# EGLIB CHECKS
+######################################
+
+set (GNUC_PRETTY)
+set (GNUC_UNUSED)
+set (BREAKPOINT "G_STMT_START { raise (SIGTRAP); } G_STMT_END")
+if (GCC)
+  set (GNUC_UNUSED "__attribute__((__unused__))")
+  set (GNUC_NORETURN "__attribute__((__noreturn__))")
+  if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86|x86_64")
+	set (BREAKPOINT "G_STMT_START { __asm__ (\"int \$03\"); } G_STMT_END")
+  endif ()
+endif ()
+
+TEST_BIG_ENDIAN (IS_BIG_ENDIAN)
+if (IS_BIG_ENDIAN)
+  set (ORDER G_BIG_ENDIAN)
+else ()
+  set (ORDER G_LITTLE_ENDIAN)
+endif ()
+
+if (WIN32)
+  # FIXME:
+  message (FATAL_ERROR "FIXME")
+else ()
+  set(PATHSEP "/")
+  set(SEARCHSEP ":")
+  set(OS "UNIX")
+  set(PIDTYPE "int")
+endif ()
+
+# FIXME:
+set(GSIZE_FORMAT "\"lu\"")
+
+set(GSIZE "size_t")
+set(GSSIZE "ptrdiff_t")
+
+#
+# END OF EGLIB CHECKS
+#
+
+add_subdirectory (mono)
+
+configure_file (cmake/config.h.in config.h)
+configure_file (mono/eglib/eglib-config.h.cmake.in mono/eglib/eglib-config.h)
