@@ -71,6 +71,7 @@ set(HAVE_CLASSIC_WINAPI_SUPPORT 1)
 set(ENABLE_ILGEN 1)
 set(HAVE_MOVING_COLLECTOR 1)
 set(HAVE_CONC_GC_AS_DEFAULT 1)
+set(MONO_INSIDE_RUNTIME 1)
 
 ######################################
 # GCC CHECKS

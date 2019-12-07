@@ -79,6 +79,7 @@ check_include_file ("curses.h" HAVE_CURSES_H)
 check_include_file ("term.h" HAVE_TERM_H)
 check_include_file ("termios.h" HAVE_TERMIOS_H)
 check_include_file ("dlfcn.h" HAVE_DLFCN_H)
+check_include_file ("/usr/include/malloc.h" HAVE_USR_INCLUDE_MALLOC_H)
 
 if (NOT DARWIN)
   check_include_file ("sys/random.h" HAVE_SYS_RANDOM_H)
