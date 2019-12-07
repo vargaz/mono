@@ -57,8 +57,14 @@ if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR (CMAKE_CXX_COMPILER_ID STREQUAL "C
 endif ()
 
 add_definitions(-g)
-add_definitions(-fPIC)
 add_definitions(-DHAVE_CONFIG_H)
+add_definitions(-D_THREAD_SAFE)
+
+if (GCC)
+  add_definitions(-fPIC)
+  add_definitions(-DMONO_DLL_EXPORT)
+  add_definitions(-fvisibility=hidden)
+endif()
 
 set(USE_GCC_ATOMIC_OPS 1)
 set(HAVE_CLASSIC_WINAPI_SUPPORT 1)
