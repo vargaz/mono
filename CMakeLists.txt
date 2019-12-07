@@ -57,6 +57,7 @@ if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR (CMAKE_CXX_COMPILER_ID STREQUAL "C
 endif ()
 
 add_definitions(-g)
+add_definitions(-fPIC)
 add_definitions(-DHAVE_CONFIG_H)
 
 set(USE_GCC_ATOMIC_OPS 1)
