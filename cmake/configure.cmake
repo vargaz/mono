@@ -105,7 +105,17 @@ check_function_exists (pthread_getname_np
   getpwuid_r
   getprotobyname
   getprotobyname_r
-  getaddrinfo)
+  getaddrinfo
+  mach_absolute_time
+  gethrtime
+  read_real_time
+  gethostbyname
+  gethostbyname2
+  getnameinfo
+  getifaddrs
+  if_nametoindex
+  access
+  inet_ntop)
 
 if (NOT DARWIN)
   ac_check_headers (sys/random.h)
