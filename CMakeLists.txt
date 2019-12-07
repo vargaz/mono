@@ -59,7 +59,6 @@ endif ()
 add_definitions(-g)
 add_definitions(-DHAVE_CONFIG_H)
 add_definitions(-D_THREAD_SAFE)
-add_definitions(-D_THREAD_SAFE)
 
 if (GCC)
   add_definitions(-fPIC)
