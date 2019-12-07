@@ -753,7 +753,7 @@ set (llvm_runtime_sources
 	llvm-runtime.cpp)
 endif()
 
-set (mini_sources "${CMAKE_CURRENT_BINARY_DIR}/buildver-sgen.h;${mini_common_sources};${arch_sources};${os_sources};${interp_sources};${llvm_sources};${debugger_sources};${llvm_runtime_sources}")
+set (mini_sources "${CMAKE_CURRENT_BINARY_DIR}/buildver-sgen.h;main-core.c;${mini_common_sources};${arch_sources};${os_sources};${interp_sources};${llvm_sources};${debugger_sources};${llvm_runtime_sources}")
 
 add_library(monosgen-objects OBJECT "${eglib_sources};${metadata_sources};${utils_sources};${sgen_sources};${mini_sources}")
 add_library (monosgen-static STATIC $<TARGET_OBJECTS:monosgen-objects>)

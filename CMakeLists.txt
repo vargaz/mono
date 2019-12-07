@@ -59,6 +59,7 @@ endif ()
 add_definitions(-g)
 add_definitions(-DHAVE_CONFIG_H)
 add_definitions(-D_THREAD_SAFE)
+add_definitions(-D_THREAD_SAFE)
 
 if (GCC)
   add_definitions(-fPIC)
@@ -69,6 +70,8 @@ endif()
 set(USE_GCC_ATOMIC_OPS 1)
 set(HAVE_CLASSIC_WINAPI_SUPPORT 1)
 set(ENABLE_ILGEN 1)
+set(HAVE_MOVING_COLLECTOR 1)
+set(HAVE_CONC_GC_AS_DEFAULT 1)
 
 ######################################
 # GCC CHECKS
