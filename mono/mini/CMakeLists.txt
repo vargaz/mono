@@ -725,7 +725,6 @@ set (interp_sources
 	interp/interp-internals.h
 	interp/interp.c
 	interp/mintops.h
-	interp/mintops.def
 	interp/mintops.c
 	interp/transform.c)
 else ()
@@ -756,7 +755,12 @@ endif()
 
 set (mini_sources "${CMAKE_CURRENT_BINARY_DIR}/buildver-sgen.h;${mini_common_sources};${arch_sources};${os_sources};${interp_sources};${llvm_sources};${debugger_sources};${llvm_runtime_sources}")
 
-add_library (monosgen "${eglib_sources};${metadata_sources};${utils_sources};${sgen_sources};${mini_sources}")
+add_library(monosgen-objects OBJECT "${eglib_sources};${metadata_sources};${utils_sources};${sgen_sources};${mini_sources}")
+add_library (monosgen-static STATIC $<TARGET_OBJECTS:monosgen-objects>)
+add_library (monosgen SHARED $<TARGET_OBJECTS:monosgen-objects>)
+
+set_target_properties(monosgen PROPERTIES OUTPUT_NAME monosgen-2.0)
+set_target_properties(monosgen PROPERTIES LIBRARY_OUTPUT_DIRECTORY .libs)
 
 # FIXME: Use the previous format
 string(TIMESTAMP BUILD_DATE)
@@ -780,5 +784,5 @@ add_custom_command (
 )
 
 add_executable (mono-sgen "main-sgen.c")
-target_link_libraries (mono-sgen monosgen "-framework CoreFoundation" "-framework Foundation" "iconv" ${LLVM_LIBS})
-
+target_link_libraries (mono-sgen monosgen-static "-framework CoreFoundation" "-framework Foundation" "iconv" ${LLVM_LIBS})
+target_link_libraries (monosgen "-framework CoreFoundation" "-framework Foundation" "iconv" ${LLVM_LIBS})

@@ -1,4 +1,3 @@
-#option (STDC_HEADERS "Define to 1 if you have the ANSI C header files.")
 #option (MAJOR_IN_MKDEV "Define to 1 if `major', `minor', and `makedev' are declared in <mkdev.h>.")
 #option (MAJOR_IN_SYSMACROS "Define to 1 if `major', `minor', and `makedev' are declared in <sysmacros.h>.")
 #option (STRERROR_R_CHAR_P "Define to 1 if strerror_r returns char *.")

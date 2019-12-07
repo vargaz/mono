@@ -27,7 +27,10 @@ include(options)
 # Header/function checks
 include(configure)
 
-set(MONO_CORLIB_VERSION "\"97b07b51-46d8-4084-b48e-77aa5c192654\"")
+# FIXME:
+set(VERSION "")
+set(MONO_CORLIB_VERSION_BASE "97b07b51-46d8-4084-b48e-77aa5c192654")
+set(MONO_CORLIB_VERSION "\"${MONO_CORLIB_VERSION_BASE}\"")
 
 set(ENABLE_NETCORE 1)
 if (ENABLE_NETCORE)
@@ -87,6 +90,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
   set(HOST_DARWIN 1)
   set(PTHREAD_POINTER_ID 1)
   set(USE_MACH_SEMA 1)
+else()
+  message(FATAL ERROR "")
 endif()
 
 ######################################
@@ -99,8 +104,11 @@ set(TARGET_SYSTEM_NAME "${CMAKE_SYSTEM_NAME}")
 if(TARGET_SYSTEM_NAME STREQUAL "Darwin")
   set(TARGET_MACH 1)
   set(TARGET_OSX 1)
+  set(RID_PREFIX "osx")
+  set(CORETARGETS "-p:TargetsUnix=true -p:TargetsOSX=true")
+  set(NETCORE_HOST_PLATFORM "macos")
 else()
-  message(FATAL ERROR "FIXME")
+  message(FATAL ERROR "")
 endif()
 
 ######################################
@@ -110,7 +118,7 @@ endif()
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
   set(HOST_AMD64 1)
 else()
-  message(FATAL ERROR "FIXME")
+  message(FATAL ERROR "")
 endif()
 
 ######################################
@@ -122,8 +130,10 @@ set(TARGET_ARCH "${CMAKE_SYSTEM_PROCESSOR}")
 if(TARGET_ARCH STREQUAL "x86_64")
   set(TARGET_AMD64 1)
   set(MONO_ARCHITECTURE "\"amd64\"")
+  set(RID_SUFFIX "x64")
+  set(COREARCH "x64")
 else()
-  message(FATAL ERROR "FIXME")
+  message(FATAL ERROR "")
 endif()
 
 ######################################
@@ -167,7 +177,10 @@ set(GSSIZE "ptrdiff_t")
 # END OF EGLIB CHECKS
 #
 
+set (RID "${RID_PREFIX}-${RID_SUFFIX}")
+
 add_subdirectory (mono)
 
 configure_file (cmake/config.h.in config.h)
 configure_file (mono/eglib/eglib-config.h.cmake.in mono/eglib/eglib-config.h)
+configure_file (cmake/netcore-config.make.in netcore/config.make)
