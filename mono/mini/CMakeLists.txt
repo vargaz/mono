@@ -88,8 +88,8 @@ set (utils_common_sources
 	mono-logger.c
 	mono-logger-internals.h
 	mono-codeman.c
-	dlmalloc.h      
-	dlmalloc.c      
+	dlmalloc.h
+	dlmalloc.c
 	mono-counters.c
 	mono-compiler.h
 	mono-complex.h
@@ -112,14 +112,14 @@ set (utils_common_sources
 	mono-state.c
 	mono-internal-hash.c
 	mono-internal-hash.h
-	mono-io-portability.c 
+	mono-io-portability.c
 	mono-io-portability.h
 	monobitset.c
 	mono-filemap.c
-	mono-math.c  
-	mono-mmap.c  
-	mono-mmap-windows.c  
-	mono-mmap.h  
+	mono-math.c
+	mono-mmap.c
+	mono-mmap-windows.c
+	mono-mmap.h
 	mono-mmap-internals.h
 	mono-mmap-windows-internals.h
 	mono-os-mutex.h
@@ -139,8 +139,8 @@ set (utils_common_sources
 	mono-publib.c
 	mono-jemalloc.c
 	mono-string.h
-	mono-time.c  
-	mono-time.h  
+	mono-time.c
+	mono-time.h
 	strenc.h
 	strenc.c
 	mono-uri.c
@@ -149,16 +149,16 @@ set (utils_common_sources
 	mono-os-semaphore.h
 	mono-coop-semaphore.h
 	mono-sigcontext.h
-	mono-stdlib.c 
-	mono-property-hash.h 
-	mono-property-hash.c 
-	mono-value-hash.h 
-	mono-value-hash.c 
-	freebsd-elf_common.h 
+	mono-stdlib.c
+	mono-property-hash.h
+	mono-property-hash.c
+	mono-value-hash.h
+	mono-value-hash.c
+	freebsd-elf_common.h
 	freebsd-elf32.h
 	freebsd-elf64.h
-	freebsd-dwarf.h 
-	dtrace.h	
+	freebsd-dwarf.h
+	dtrace.h
 	gc_wrapper.h
 	mono-error.c
 	mono-error-internals.h
@@ -175,7 +175,7 @@ set (utils_common_sources
 	mono-uri.h
 	mono-stdlib.h
 	valgrind.h
-	mach-support.h 
+	mach-support.h
 	memcheck.h
 	mono-context.c
 	mono-context.h
@@ -325,7 +325,7 @@ set(metadata_common_sources
 	attach.h
 	attach.c
 	cil-coff.h
-	class.c	
+	class.c
 	class-getters.h
 	class-init.h
 	class-init.c
@@ -336,10 +336,10 @@ set(metadata_common_sources
 	cominterop.c
 	cominterop.h
 	console-io.h
-	coree.c 
-	coree.h 
+	coree.c
+	coree.h
 	coree-internals.h
-	culture-info.h  
+	culture-info.h
 	culture-info-tables.h
 	debug-helpers.c
 	debug-mono-symfile.h
@@ -358,11 +358,11 @@ set(metadata_common_sources
 	filewatcher.c
 	filewatcher.h
 	gc-internals.h
-	icall.c	
+	icall.c
 	icall-internals.h
 	icall-def.h
 	icall-table.h
-	image.c	
+	image.c
 	image-internals.h
 	jit-info.c
 	loader.c
@@ -379,9 +379,9 @@ set(metadata_common_sources
 	metadata.c
 	metadata-verify.c
 	metadata-internals.h
-	method-builder.h 
-	method-builder-internals.h 
-	method-builder.c 
+	method-builder.h
+	method-builder-internals.h
+	method-builder.c
 	mono-basic-block.c
 	mono-basic-block.h
 	mono-config.c
@@ -420,8 +420,8 @@ set(metadata_common_sources
 	w32process-internals.h
 	profiler.c
 	profiler-private.h
-	rand.h	
-	rand.c	
+	rand.h
+	rand.c
 	remoting.h
 	remoting.c
 	runtime.c
@@ -431,11 +431,11 @@ set(metadata_common_sources
 	security-core-clr.h
 	security-manager.c
 	security-manager.h
-	string-icalls.c 
-	string-icalls.h 
+	string-icalls.c
+	string-icalls.h
 	sysmath.h
 	sysmath.c
-	tabledefs.h 
+	tabledefs.h
 	threads.c
 	threads-types.h
 	threadpool.c
@@ -601,7 +601,7 @@ set_source_files_properties (${sgen_sources} PROPERTIES COMPILE_DEFINITIONS "HAV
 #
 
 set (mini_common_sources
-	mini.c	
+	mini.c
 	mini-runtime.c
 	seq-points.c
 	seq-points.h
@@ -611,22 +611,22 @@ set (mini_common_sources
 	cfgdump.c
 	calls.c
 	decompose.c
-	mini.h	
+	mini.h
 	version.h
 	optflags-def.h
-	jit-icalls.h 
-	jit-icalls.c 
-	trace.c	
-	trace.h	
+	jit-icalls.h
+	jit-icalls.c
+	trace.c
+	trace.h
 	patch-info.h
 	mini-ops.h
 	mini-arch.h
 	dominators.c
-	cfold.c	
+	cfold.c
 	regalloc.h
 	helpers.c
 	liveness.c
-	ssa.c	
+	ssa.c
 	abcremoval.c
 	abcremoval.h
 	local-propagation.c
@@ -638,10 +638,10 @@ set (mini_common_sources
 	aot-runtime.c
 	aot-runtime-wasm.c
 	wasm_m2n_invoke.g.h
-	graph.c	
+	graph.c
 	mini-codegen.c
 	mini-exceptions.c
-	mini-trampolines.c  
+	mini-trampolines.c
 	branch-opts.c
 	mini-generic-sharing.c
 	simd-methods.h
@@ -657,8 +657,8 @@ set (mini_common_sources
 	dwarfwriter.c
 	mini-gc.h
 	mini-gc.c
-	xdebug.c	
-	mini-llvm.h	
+	xdebug.c
+	mini-llvm.h
 	mini-llvm-cpp.h
 	llvm-jit.h
 	alias-analysis.c
@@ -666,7 +666,7 @@ set (mini_common_sources
 	arch-stubs.c
 	llvm-runtime.h
 	type-checking.c
-	lldb.h	
+	lldb.h
 	lldb.c
 	memory-access.c
 	intrinsics.c
@@ -682,12 +682,12 @@ set (mini_common_sources
 set (debugger_sources
   debugger-engine.h
   debugger-engine.c
-  debugger-agent.h 
+  debugger-agent.h
   debugger-agent.c
   debugger-agent-stubs.c
   debugger-state-machine.h
   debugger-state-machine.c)
-  
+
 set (amd64_sources
 	mini-amd64.c
 	mini-amd64.h

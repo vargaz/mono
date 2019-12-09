@@ -41,7 +41,7 @@ if proc.returncode != 0:
     print (errs)
     sys.exit (1)
 
-with open ('tmp.py', 'w') as f: 
+with open ('tmp.py', 'w') as f:
     f.write ('defs = {}\n')
     f.write ('headers = {}\n')
     f.write ('funcs = {}\n')
