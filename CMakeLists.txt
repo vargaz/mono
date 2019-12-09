@@ -5,6 +5,7 @@ project (mono)
 include(GNUInstallDirs)
 include(CheckIncludeFile)
 include(CheckFunctionExists)
+include(TestBigEndian)
 
 set(CMAKE_MODULE_PATH
   ${CMAKE_MODULE_PATH}
@@ -186,6 +187,18 @@ set(GSSIZE "ptrdiff_t")
 #
 # END OF EGLIB CHECKS
 #
+
+TEST_BIG_ENDIAN (IS_BIG_ENDIAN)
+
+# FIXME:
+set(TARGET_SIZEOF_VOID_P "${SIZEOF_VOID_P}")
+set(SIZEOF_REGISTER "${SIZEOF_VOID_P}")
+
+if (IS_BIG_ENDIAN)
+  set(TARGET_BYTE_ORDER G_BIG_ENDIAN)
+else()
+  set(TARGET_BYTE_ORDER G_LITTLE_ENDIAN)
+endif()
 
 set (RID "${RID_PREFIX}-${RID_SUFFIX}")
 

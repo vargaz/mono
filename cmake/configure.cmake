@@ -5,7 +5,6 @@
 include(CheckTypeSize)
 include(CheckStructHasMember)
 include(CheckSymbolExists)
-include(TestBigEndian)
 
 if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
   set(DARWIN 1)
@@ -100,15 +99,3 @@ check_type_size("void*" SIZEOF_VOID_P)
 check_type_size("long" SIZEOF_LONG)
 check_type_size("long long" SIZEOF_LONG_LONG)
 check_type_size("size_t" SIZEOF_SIZE_T)
-
-TEST_BIG_ENDIAN (IS_BIG_ENDIAN)
-
-# FIXME:
-set(TARGET_SIZEOF_VOID_P "${SIZEOF_VOID_P}")
-set(SIZEOF_REGISTER "${SIZEOF_VOID_P}")
-
-if (IS_BIG_ENDIAN)
-  set(TARGET_BYTE_ORDER G_BIG_ENDIAN)
-else()
-  set(TARGET_BYTE_ORDER G_LITTLE_ENDIAN)
-endif()
