@@ -50,14 +50,14 @@ endfunction()
 ac_check_headers (
   sys/mkdev.h sys/types.h sys/stat.h sys/filio.h sys/sockio.h sys/utime.h sys/un.h sys/syscall.h sys/uio.h sys/param.h sys/sysctl.h
   sys/prctl.h sys/socket.h sys/utsname.h sys/select.h sys/inotify.h sys/user.h sys/poll.h sys/wait.h sts/auxv.h sys/resource.h
-  sys/event.h sys/ioctl.h sys/errno.h sys/sendfile.h sys/statvfs.h sys/statfs.h sys/mman.h sys/mount.h sys/time.h
+  sys/event.h sys/ioctl.h sys/errno.h sys/sendfile.h sys/statvfs.h sys/statfs.h sys/mman.h sys/mount.h sys/time.h sys/random.h
   memory.h strings.h stdint.h unistd.h netdb.h utime.h semaphore.h libproc.h alloca.h ucontext.h pwd.h
   gnu/lib-names.h netinet/tcp.h netinet/in.h link.h arpa/inet.h unwind.h poll.h grp.h wchar.h linux/magic.h
   android/legacy_signal_inlines.h android/ndk-version.h execinfo.h pthread.h pthread_np.h net/if.h dirent.h
   CommonCrypto/CommonDigest.h curses.h term.h termios.h dlfcn.h getopt.h pwd.h iconv.h alloca.h
   /usr/include/malloc.h)
 
-check_function_exists (
+ac_check_funcs (
   sigaction kill clock_nanosleep getgrgid_r getgrnam_r getresuid setresuid kqueue backtrace_symbols mkstemp mmap
   madvise getrusage getpriority setpriority dladdr sysconf getrlimit prctl nl_langinfo
   sched_getaffinity sched_setaffinity getpwnam_r getpwuid_r readlink chmod lstat getdtablesize ftruncate msync
@@ -71,7 +71,6 @@ check_function_exists (
   access inet_ntop Qp2getifaddrs)
 
 if (NOT DARWIN)
-  ac_check_headers (sys/random.h)
   ac_check_funcs (getentropy)
 endif()
 
