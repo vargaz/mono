@@ -5,9 +5,6 @@
 #option (MAJOR_IN_MKDEV "Define to 1 if `major', `minor', and `makedev' are declared in <mkdev.h>.")
 #option (MAJOR_IN_SYSMACROS "Define to 1 if `major', `minor', and `makedev' are declared in <sysmacros.h>.")
 #option (STRERROR_R_CHAR_P "Define to 1 if strerror_r returns char *.")
-#option (HAVE_DECL_PTHREAD_MUTEXATTR_SETPROTOCOL "Define to 1 if you have the declaration of `pthread_mutexattr_setprotocol', and to 0 if you don't.")
-#option (HAVE_STRUCT_SOCKADDR_IN6 "Define to 1 if the system has the type `struct sockaddr_in6'.")
-#option (HAVE_STRUCT_TIMEVAL "Define to 1 if the system has the type `struct timeval'.")
 #option (HAVE_STRUCT_STAT_ST_ATIM "Define to 1 if `st_atim' is a member of `struct stat'.")
 #option (HAVE_STRUCT_STAT_ST_ATIMESPEC "Define to 1 if `st_atimespec' is a member of `struct stat'.")
 #option (HAVE_LIBICONV "Define to 1 if you have the `iconv' library (-liconv).")
@@ -28,9 +25,6 @@
 #option (HAVE_EPOLL "epoll_create1")
 #option (USE_KQUEUE_FOR_THREADPOOL "Use kqueue for the threadpool")
 #option (HAVE_SIOCGIFCONF "Can get interface list")
-#option (HAVE_SOCKADDR_IN_SIN_LEN "sockaddr_in has sin_len")
-#option (HAVE_SOCKADDR_IN6_SIN_LEN "sockaddr_in6 has sin6_len")
-
 
 #option (PACKAGE_NAME "Define to the full name of this package.")
 #option (PACKAGE_TARNAME "Define to the one symbol short name of this package.")
@@ -68,7 +62,6 @@
 #option (PRIORITY_REQUIRES_INT_WHO "getpriority with int who")
 #option (KEVENT_REQUIRES_INT_PARAMS "kevent with int parameters")
 #option (ENABLE_GSS "ENABLE_GSS")
-#option (HAVE_SOCKLEN_T "Have socklen_t")
 #option (NAME_DEV_RANDOM "Name of /dev/random")
 #option (MONO_BIG_ARRAYS "Enable the allocation and indexing of arrays greater than Int32.MaxValue")
 #option (ENABLE_DTRACE "Enable DTrace probes")
