@@ -249,13 +249,14 @@ endif
 .PHONY: runtime-netcore
 # Installs into out/wasm-runtime-netcore
 # Use rsync to avoid rebuilds
+# FIXME: Only the 'out' directory contains all files in the usual structure
 runtime-netcore:
 	cd $(DOTNET_REPO_PATH) && EMSDK_PATH=$(EMSCRIPTEN_SDK_DIR) ./build.sh --subset mono -c release -arch wasm -os WebAssembly
 	cd $(DOTNET_REPO_PATH) && EMSDK_PATH=$(EMSCRIPTEN_SDK_DIR) ./build.sh --subset Libs.Native -c release -arch wasm -os WebAssembly
-	cd $(DOTNET_REPO_PATH)/artifacts/obj/mono/WebAssembly.wasm.Release && source $(EMSCRIPTEN_SDK_DIR)/emsdk_env.sh && make install
-	$(RSYNC) $(DOTNET_REPO_PATH)/artifacts/bin/mono/WebAssembly.wasm.Release/{System.Private.CoreLib.dll,System.Private.CoreLib.pdb} $(TOP)/sdks/out/wasm-runtime-netcore-release
-	$(RSYNC) -r $(DOTNET_REPO_PATH)/artifacts/obj/mono/WebAssembly.wasm.Release/out/* $(TOP)/sdks/out/wasm-runtime-netcore-release
-	$(RSYNC) $(DOTNET_REPO_PATH)/artifacts/obj/native/netcoreapp5.0-WebAssembly-Release-wasm/{System.Native/libSystem.Native.a,System.IO.Compression.Native/libSystem.IO.Compression.Native.a} $(TOP)/sdks/out/wasm-runtime-netcore-release/lib/
+	mkdir -p $(TOP)/sdks/out/wasm-runtime-netcore-release
+	$(RSYNC) $(DOTNET_REPO_PATH)/artifacts/bin/mono/WebAssembly.wasm.Release/{System.Private.CoreLib.dll,System.Private.CoreLib.pdb} $(TOP)/sdks/out/wasm-runtime-netcore-release/
+	$(RSYNC) -r $(DOTNET_REPO_PATH)/artifacts/obj/mono/WebAssembly.wasm.Release/out/* $(TOP)/sdks/out/wasm-runtime-netcore-release/
+	$(RSYNC) $(DOTNET_REPO_PATH)/artifacts/bin/native/netcoreapp5.0-WebAssembly-Release-wasm/{libSystem.Native.a,libSystem.IO.Compression.Native.a} $(TOP)/sdks/out/wasm-runtime-netcore-release/lib/
 	touch .stamp-runtime-netcore
 
 # The no-op build of this takes around 10s so use a .stamp gate
