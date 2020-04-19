@@ -167,9 +167,9 @@ EMCC_THREADS_FLAGS=-s ALLOW_MEMORY_GROWTH=0 -s USE_PTHREADS=1 -s TOTAL_MEMORY=53
 MONO_LIBS = $(TOP)/sdks/out/wasm-runtime-release/lib/{libmono-ee-interp.a,libmono-native.a,libmonosgen-2.0.a,libmono-ilgen.a,libmono-icall-table.a}
 MONO_DEPS = .stamp-runtime
 
-MONO_NETCORE_LIBS = $(TOP)/sdks/out/wasm-runtime-netcore-release/lib/{libmono-ee-interp.a,libmonosgen-2.0.a,libmono-ilgen.a,libmono-icall-table.a,libSystem.Native.a}
-MONO_NETCORE_DEPS=.stamp-runtime-netcore src/pinvoke-tables-default-netcore.h
-NETCORE_CFLAGS=-DENABLE_NETCORE
+MONO_NETCORE_LIBS = $(TOP)/sdks/out/wasm-runtime-netcore-release/lib/{libmono-ee-interp.a,libmonosgen-2.0.a,libmono-ilgen.a,libmono-icall-table.a,libSystem.Native.a,libSystem.Globalization.Native.a} $(WASM_ICU_PATH)/lib/{libicuuc.a,libicui18n.a}
+MONO_NETCORE_DEPS=.stamp-runtime-netcore src/pinvoke-tables-default-netcore.h src/icu-data-gen.c
+NETCORE_CFLAGS=-DENABLE_NETCORE -s INITIAL_MEMORY=34340864
 
 # $(1) - name
 # $(2) - runtime dir
@@ -181,8 +181,8 @@ define InterpBuildTemplate
 builds/$(1)/:
 	mkdir -p $$@
 
-builds/$(1)/dotnet.js: builds/$(1)/driver.o builds/$(1)/corebindings.o builds/$(1)/zlib-helper.o src/library_mono.js src/binding_support.js src/dotnet_support.js $(5) | builds/$(1)/ emsdk_env.sh
-	$(EMCC) $(EMCC_FLAGS) $(3) --js-library src/library_mono.js --js-library src/binding_support.js --js-library src/dotnet_support.js builds/$(1)/driver.o builds/$(1)/corebindings.o builds/$(1)/zlib-helper.o $(4) -o builds/$(1)/dotnet.js
+builds/$(1)/dotnet.js: builds/$(1)/driver.o builds/$(1)/corebindings.o builds/$(1)/zlib-helper.o builds/$(1)/icu-data.o src/library_mono.js src/binding_support.js src/dotnet_support.js $(5) | builds/$(1)/ emsdk_env.sh
+	$(EMCC) $(EMCC_FLAGS) $(3) --js-library src/library_mono.js --js-library src/binding_support.js --js-library src/dotnet_support.js builds/$(1)/driver.o builds/$(1)/corebindings.o builds/$(1)/zlib-helper.o builds/$(1)/icu-data.o $(4) -o builds/$(1)/dotnet.js
 
 builds/$(1)/driver.o: src/driver.c src/corebindings.c src/pinvoke-tables-default.h $(5) | builds/$(1)/ emsdk_env.sh
 	$(EMCC) $(EMCC_FLAGS) $(3) -Oz -DCORE_BINDINGS -I$(WASM_RUNTIME_DIR)/include/mono-2.0 src/driver.c -c -o $$@
@@ -192,6 +192,10 @@ builds/$(1)/corebindings.o: src/corebindings.c | builds/$(1)/ emsdk_env.sh
 
 builds/$(1)/zlib-helper.o: src/zlib-helper.c | builds/$(1)/ emsdk_env.sh
 	$(EMCC) $(3) -Oz -I$(WASM_RUNTIME_DIR)/include/mono-2.0 -s USE_ZLIB=1 src/zlib-helper.c -c -o $$@
+
+# FIXME: This is very slow
+builds/$(1)/icu-data.o: src/icu-data.c | builds/$(1)/ emsdk_env.sh
+	$(EMCC) $(3) src/icu-data.c -c -o $$@
 
 build-native: builds/$(1)/dotnet.js
 
@@ -255,7 +259,7 @@ runtime-netcore:
 	cd $(DOTNET_REPO_PATH) && EMSDK_PATH=$(EMSCRIPTEN_SDK_DIR) ./build.sh --subset Libs.Native -c release -arch wasm -os WebAssembly
 	$(RSYNC) $(DOTNET_REPO_PATH)/artifacts/bin/mono/WebAssembly.wasm.Release/{System.Private.CoreLib.dll,System.Private.CoreLib.pdb} $(TOP)/sdks/out/wasm-runtime-netcore-release
 	$(RSYNC) -r $(DOTNET_REPO_PATH)/artifacts/obj/mono/WebAssembly.wasm.Release/out/* $(TOP)/sdks/out/wasm-runtime-netcore-release
-	$(RSYNC) $(DOTNET_REPO_PATH)/artifacts/obj/native/netcoreapp5.0-WebAssembly-Release-wasm/{System.Native/libSystem.Native.a,System.IO.Compression.Native/libSystem.IO.Compression.Native.a} $(TOP)/sdks/out/wasm-runtime-netcore-release/lib/
+	$(RSYNC) $(DOTNET_REPO_PATH)/artifacts/bin/native/netcoreapp5.0-WebAssembly-Release-wasm/{libSystem.Native.a,libSystem.IO.Compression.Native.a,libSystem.Globalization.Native.a} $(TOP)/sdks/out/wasm-runtime-netcore-release/lib/
 	touch .stamp-runtime-netcore
 
 # The no-op build of this takes around 10s so use a .stamp gate
@@ -266,13 +270,19 @@ cross-netcore:
 	$(MAKE) -C ../builds package-wasm-cross-netcore
 
 src/pinvoke-tables-default-netcore.h:
-	mono ../../mcs/class/lib/wasm_tools/wasm-tuner.exe --gen-pinvoke-table libSystem.Native $(TOP)/sdks/out/wasm-runtime-netcore-release/System.Private.CoreLib.dll $(NETCOREAPP_DIR)/{System.Console.dll,System.IO.FileSystem.dll,System.Runtime.InteropServices.RuntimeInformation.dll,System.IO.MemoryMappedFiles.dll,System.IO.Compression.dll} > $@
+	mono ../../mcs/class/lib/wasm_tools/wasm-tuner.exe --gen-pinvoke-table libSystem.Native,libSystem.Globalization.Native $(TOP)/sdks/out/wasm-runtime-netcore-release/System.Private.CoreLib.dll $(NETCOREAPP_DIR)/{System.Console.dll,System.IO.FileSystem.dll,System.Runtime.InteropServices.RuntimeInformation.dll,System.IO.MemoryMappedFiles.dll,System.IO.Compression.dll} > $@
+
+# The tmp file is used by xxd to name the C symbol
+src/icu-data-gen.c:
+	cp $(WASM_ICU_PREFIX)/share/icu/67.1/icudt67l.dat icudt67.dat
+	xxd -i icudt67.dat $@
+	rm icudt67.dat
 
 samples/hello/bin/Debug/netcoreapp5.0/hello.dll: samples/hello/Program.cs
 	../../.dotnet/dotnet build samples/hello -f netcoreapp5.0 $(MSBUILD_QUIET_ARGS)
 
 build-interp-netcore-hello: packager.exe samples/hello/bin/Debug/netcoreapp5.0/hello.dll $(NETCOREAPP_DIR)
-	$(PACKAGER) --debugrt --emscripten-sdkdir=$(EMSCRIPTEN_SDK_DIR) --mono-sdkdir=$(TOP)/sdks/out -appdir=bin/interp-netcore-hello --nobinding --builddir=obj/interp-netcore-hello --framework=netcoreapp5.0 --netcore-sdkdir=$(NETCOREAPP_DIR) --template=runtime-tests.js --linker samples/hello/bin/Debug/netcoreapp5.0/hello.dll
+	$(PACKAGER) --debugrt --emscripten-sdkdir=$(EMSCRIPTEN_SDK_DIR) --mono-sdkdir=$(TOP)/sdks/out -appdir=bin/interp-netcore-hello --nobinding --builddir=obj/interp-netcore-hello --framework=netcoreapp5.0 --netcore-sdkdir=$(NETCOREAPP_DIR) --template=runtime-tests.js samples/hello/bin/Debug/netcoreapp5.0/hello.dll
 	ninja -v -C obj/interp-netcore-hello
 
 bin/interp-netcore-hello/dotnet.js: build-interp-netcore-hello
@@ -575,7 +585,7 @@ run-aot-hello-profiled: build-aot-hello-profiled
 	(cd bin/aot-hello-profiled && $(SM) runtime.js --run hello.exe)
 
 build-interp-hello: packager.exe hello.exe
-	$(PACKAGER) --emscripten-sdkdir=$(EMSCRIPTEN_SDK_DIR) --mono-sdkdir=$(TOP)/sdks/out -appdir=bin/interp-hello --nobinding --builddir=obj/interp-hello --template=runtime-tests.js hello.exe
+	$(PACKAGER) --emscripten-sdkdir=$(EMSCRIPTEN_SDK_DIR) --mono-sdkdir=$(TOP)/sdks/out -appdir=bin/interp-hello --linker --nobinding --builddir=obj/interp-hello --template=runtime-tests.js hello.exe
 	ninja -v -C obj/interp-hello
 
 run-interp-hello: build-interp-hello

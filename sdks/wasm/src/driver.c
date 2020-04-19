@@ -178,8 +178,8 @@ wasm_dl_load (const char *name, int flags, char **err, void *user_data)
 	}
 
 #ifdef ENABLE_NETCORE
-	if (!strcmp (name, "System.Globalization.Native"))
-		return sysglobal_native_handle;
+	if (!strcmp (name, "libSystem.Globalization.Native"))
+		return &sysglobal_native_handle;
 #endif
 
 #if WASM_SUPPORTS_DLOPEN
@@ -204,8 +204,10 @@ static void*
 wasm_dl_symbol (void *handle, const char *name, char **err, void *user_data)
 {
 #ifdef ENABLE_NETCORE
-	if (handle == sysglobal_native_handle)
+	if (handle == &sysglobal_native_handle) {
+		printf ("%s\n", name);
 		assert (0);
+	}
 #endif
 
 #if WASM_SUPPORTS_DLOPEN
@@ -332,7 +334,7 @@ mono_wasm_load_runtime (const char *managed_path, int enable_debugging)
 	monoeg_g_setenv ("MONO_LOG_LEVEL", "debug", 0);
 	monoeg_g_setenv ("MONO_LOG_MASK", "gc", 0);
 #ifdef ENABLE_NETCORE
-	monoeg_g_setenv ("DOTNET_SYSTEM_GLOBALIZATION_INVARIANT", "1", 0);
+	//monoeg_g_setenv ("DOTNET_SYSTEM_GLOBALIZATION_INVARIANT", "1", 0);
 #endif
 
 	mini_parse_debug_option ("top-runtime-invoke-unhandled");
