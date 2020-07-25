@@ -499,6 +499,12 @@ mono_sigctx_to_monoctx (void *sigctx, MonoContext *mctx)
 	memcpy (mctx->regs, UCONTEXT_GREGS (sigctx), sizeof (host_mgreg_t) * 31);
 	mctx->pc = UCONTEXT_REG_PC (sigctx);
 	mctx->regs [ARMREG_SP] = UCONTEXT_REG_SP (sigctx);
+#ifdef UCONTEXT_REG_LR
+	mctx->regs [ARMREG_LR] = UCONTEXT_REG_LR (sigctx);
+#endif
+#if defined(TARGET_OSX) && __has_feature(ptrauth_intrinsics)
+	mctx->regs [ARMREG_FP] = (host_mgreg_t)ptrauth_strip ((void*)mctx->regs [ARMREG_FP], ptrauth_key_frame_pointer);
+#endif
 #ifdef __linux__
 	struct fpsimd_context *fpctx = (struct fpsimd_context*)&((ucontext_t*)sigctx)->uc_mcontext.__reserved;
 	int i;
@@ -517,9 +523,15 @@ mono_monoctx_to_sigctx (MonoContext *mctx, void *sigctx)
 #ifdef MONO_CROSS_COMPILE
 	g_assert_not_reached ();
 #else
+#if defined(TARGET_OSX) && __has_feature(ptrauth_intrinsics)
 	memcpy (UCONTEXT_GREGS (sigctx), mctx->regs, sizeof (host_mgreg_t) * 31);
-	UCONTEXT_REG_PC (sigctx) = mctx->pc;
-	UCONTEXT_REG_SP (sigctx) = mctx->regs [ARMREG_SP];
+	UCONTEXT_REG_SET_PC (sigctx, (gpointer)mctx->pc);
+	UCONTEXT_REG_SET_SP (sigctx, mctx->regs [ARMREG_SP]);
+#else
+	memcpy (UCONTEXT_GREGS (sigctx), mctx->regs, sizeof (host_mgreg_t) * 31);
+	UCONTEXT_REG_SET_PC (sigctx, mctx->pc);
+	UCONTEXT_REG_SET_SP (sigctx, mctx->regs [ARMREG_SP]);
+#endif
 #endif
 }
 

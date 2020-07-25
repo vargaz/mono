@@ -5475,6 +5475,7 @@ mono_jit_info_match (MonoJitInfo *ji, gpointer ip)
 {
 	if (!ji)
 		return FALSE;
+	// FIXME: arm64e
 	return ji->code_start <= ip && (char*)ip < (char*)ji->code_start + ji->code_size;
 }
 

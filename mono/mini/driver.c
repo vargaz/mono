@@ -550,6 +550,7 @@ mini_regression_step (MonoImage *image, int verbose, int *total_run, int *total,
 #endif
 
 			if (func) {
+				func = MINI_ADDR_TO_FTNPTR (func);
 				if (do_regression_retries) {
 					++local_skip_index;
 

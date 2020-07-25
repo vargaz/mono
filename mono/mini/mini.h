@@ -14,6 +14,11 @@
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
+
+#ifdef MONO_ARCH_ENABLE_PTRAUTH
+#include <ptrauth.h>
+#endif
+
 #include <mono/utils/mono-forward-internal.h>
 #include <mono/metadata/loader.h>
 #include <mono/metadata/mempool.h>
@@ -3016,5 +3021,27 @@ mono_arch_load_function (MonoJitICallId jit_icall_id);
 
 MonoGenericContext
 mono_get_generic_context_from_stack_frame (MonoJitInfo *ji, gpointer generic_info);
+
+/*
+ * Authenticated pointer support for arm64e.
+ *   Pointers are in their authenticated form in most parts of the runtime code,
+ * except the parts which needs their numerical value i.e. codegen, jit info
+ * table, EH, etc.
+ * FIXME:
+ * - use returns in trampolines as well
+ * - clean up ifdefs
+ */
+#if defined(MONO_ARCH_ENABLE_PTRAUTH)
+/*
+ * Convert a raw pointer to a function to a C function pointer.
+ */
+#define MINI_ADDR_TO_FTNPTR(addr) ptrauth_sign_unauthenticated ((addr), ptrauth_key_function_pointer, NULL)
+
+#define MINI_FTNPTR_TO_ADDR(addr) ptrauth_strip ((addr), ptrauth_key_function_pointer)
+#else
+#define MINI_ADDR_TO_FTNPTR(addr) (addr)
+#define MINI_FTNPTR_TO_ADDR(addr) (addr)
+#endif
+
 
 #endif /* __MONO_MINI_H__ */

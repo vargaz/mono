@@ -181,6 +181,10 @@ typedef struct {
 #define MONO_ARCH_FORCE_FLOAT32 1
 #endif
 
+#if defined(TARGET_OSX) && __has_feature(ptrauth_intrinsics)
+#define MONO_ARCH_ENABLE_PTRAUTH 1
+#endif
+
 // Does the ABI have a volatile non-parameter register, so tailcall
 // can pass context to generics or interfaces?
 #define MONO_ARCH_HAVE_VOLATILE_NON_PARAM_REGISTER 1
@@ -283,6 +287,10 @@ guint8* mono_arm_emit_load_regarray (guint8 *code, guint64 regs, int basereg, in
 
 /* MonoJumpInfo **ji */
 guint8* mono_arm_emit_aotconst (gpointer ji, guint8 *code, guint8 *code_start, int dreg, guint32 patch_type, gconstpointer data);
+
+guint8* mono_arm_emit_brx (guint8 *code, int reg);
+
+guint8* mono_arm_emit_blrx (guint8 *code, int reg);
 
 void mono_arm_patch (guint8 *code, guint8 *target, int relocation);
 

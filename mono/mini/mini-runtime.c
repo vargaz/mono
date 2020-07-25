@@ -2491,6 +2491,8 @@ mono_jit_compile_method_with_opt (MonoMethod *method, guint32 opt, gboolean jit_
 	WrapperInfo *winfo = NULL;
 	gboolean use_interp = FALSE;
 
+	//printf ("C: %s\n", mono_method_get_full_name (method));
+
 	error_init (error);
 
 	if (mono_ee_features.force_use_interpreter && !jit_only)
@@ -2563,7 +2565,9 @@ lookup_start:
 			if (!mono_runtime_class_init_full (vtable, error))
 				return NULL;
 			MONO_PROFILER_RAISE (jit_done, (method, info));
-			return mono_create_ftnptr (target_domain, info->code_start);
+
+			code = MINI_ADDR_TO_FTNPTR (info->code_start);
+			return mono_create_ftnptr (target_domain, code);
 		}
 	}
 
@@ -2866,7 +2870,7 @@ mono_jit_find_compiled_method_with_jit_info (MonoDomain *domain, MonoMethod *met
 			mono_atomic_inc_i32 (&mono_jit_stats.methods_lookups);
 			if (ji)
 				*ji = info;
-			return info->code_start;
+			return MINI_ADDR_TO_FTNPTR (info->code_start);
 		}
 	}
 
@@ -3390,6 +3394,7 @@ mono_jit_runtime_invoke (MonoMethod *method, void *obj, void **params, MonoObjec
 		if (!is_ok (error))
 			return NULL;
 	} else {
+		//runtime_invoke = (MonoObject *(*)(MonoObject *, void **, MonoObject **, void *))MINI_ADDR_TO_FTNPTR (info->runtime_invoke);
 		runtime_invoke = (MonoObject *(*)(MonoObject *, void **, MonoObject **, void *))info->runtime_invoke;
 
 		result = runtime_invoke ((MonoObject *)obj, params, exc, info->compiled_method);
@@ -3541,8 +3546,10 @@ MONO_SIG_HANDLER_FUNC (, mono_sigsegv_signal_handler)
 	}
 #endif
 
-	if (domain)
-		ji = mono_jit_info_table_find_internal (domain, mono_arch_ip_from_context (ctx), TRUE, TRUE);
+	if (domain) {
+		gpointer ip = MINI_FTNPTR_TO_ADDR (mono_arch_ip_from_context (ctx));
+		ji = mono_jit_info_table_find_internal (domain, ip, TRUE, TRUE);
+	}
 
 #ifdef MONO_ARCH_SIGSEGV_ON_ALTSTACK
 	if (mono_handle_soft_stack_ovf (jit_tls, ji, ctx, info, (guint8*)info->si_addr))
@@ -3758,12 +3765,13 @@ mini_init_delegate (MonoDelegateHandle delegate, MonoObjectHandle target, gpoint
 
 	if (!method) {
 		MonoJitInfo *ji;
+		gpointer lookup_addr = MINI_FTNPTR_TO_ADDR (addr);
 
 		g_assert (addr);
-		ji = mono_jit_info_table_find_internal (domain, mono_get_addr_from_ftnptr (addr), TRUE, TRUE);
+		ji = mono_jit_info_table_find_internal (domain, mono_get_addr_from_ftnptr (lookup_addr), TRUE, TRUE);
 		/* Shared code */
 		if (!ji && domain != mono_get_root_domain ())
-			ji = mono_jit_info_table_find_internal (mono_get_root_domain (), mono_get_addr_from_ftnptr (addr), TRUE, TRUE);
+			ji = mono_jit_info_table_find_internal (mono_get_root_domain (), mono_get_addr_from_ftnptr (lookup_addr), TRUE, TRUE);
 		if (ji) {
 			if (ji->is_trampoline) {
 				/* Could be an unbox trampoline etc. */
