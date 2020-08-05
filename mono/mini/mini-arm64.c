@@ -4554,7 +4554,7 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			code = mono_arm_emit_load_regarray (code, 0x1ff, ARMREG_LR, MONO_STRUCT_OFFSET (DynCallArgs, regs));
 
 			/* Make the call */
-			arm_blrx (code, ARMREG_IP1);
+			code = mono_arm_emit_blrx (code, ARMREG_IP1);
 
 			/* Save result */
 			code = emit_ldrx (code, ARMREG_LR, var->inst_basereg, var->inst_offset);

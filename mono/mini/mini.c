@@ -2725,7 +2725,7 @@ create_jit_info (MonoCompile *cfg, MonoMethod *method_to_compile)
 			ei->handler_start = MINI_ADDR_TO_FTNPTR (ei->handler_start);
 			if (ei->flags == MONO_EXCEPTION_CLAUSE_FILTER)
 				ei->data.filter = MINI_ADDR_TO_FTNPTR (ei->data.filter);
-			else if (ec->flags == MONO_EXCEPTION_CLAUSE_FINALLY)
+			else if (ei->flags == MONO_EXCEPTION_CLAUSE_FINALLY)
 				ei->data.handler_end = MINI_ADDR_TO_FTNPTR (ei->data.handler_end);
 		}
 	}
