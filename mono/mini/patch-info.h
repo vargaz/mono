@@ -82,3 +82,9 @@ PATCH_INFO(SPECIFIC_TRAMPOLINES_GOT_SLOTS_BASE, "specific_trampolines_got_slots_
  */
 PATCH_INFO(R8_GOT, "r8_got")
 PATCH_INFO(R4_GOT, "r4_got")
+
+/*
+ * Like LDSTR, but the string data is stored in the aot image.
+ * data.target points to a string using the metadata encoding.
+ */
+PATCH_INFO(AOT_LDSTR, "aot_ldstr")

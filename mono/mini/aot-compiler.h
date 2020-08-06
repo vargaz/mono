@@ -23,6 +23,7 @@ char*    mono_aot_get_plt_symbol            (MonoJumpInfoType type, gconstpointe
 char*    mono_aot_get_direct_call_symbol    (MonoJumpInfoType type, gconstpointer data);
 int      mono_aot_get_method_index          (MonoMethod *method);
 MonoJumpInfo* mono_aot_patch_info_dup       (MonoJumpInfo* ji);
+guint32  mono_aot_add_ldstr                 (MonoImage *image, guint32 idx);
 gboolean mono_aot_can_specialize (MonoMethod *method);
 gboolean mono_aot_can_enter_interp (MonoMethod *method);
 

@@ -6634,6 +6634,11 @@ encode_patch (MonoAotCompile *acfg, MonoJumpInfo *patch_info, guint8 *buf, guint
 		encode_value (patch_info->data.token->token - MONO_TOKEN_STRING, p, &p);
 		break;
 	}
+	case MONO_PATCH_INFO_AOT_LDSTR: {
+		guint32 offset = GPOINTER_TO_UINT (patch_info->data.target);
+		encode_value (offset, p, &p);
+		break;
+	}
 	case MONO_PATCH_INFO_RVA:
 	case MONO_PATCH_INFO_DECLSEC:
 	case MONO_PATCH_INFO_LDTOKEN:
@@ -9891,6 +9896,19 @@ mono_aot_patch_info_dup (MonoJumpInfo* ji)
 	mono_acfg_unlock (llvm_acfg);
 
 	return res;
+}
+
+guint32
+mono_aot_add_ldstr (MonoImage *image, guint32 idx)
+{
+	MonoAotCompile *acfg = current_acfg;
+	const char *s, *p;
+
+	// FIXME: Filter duplicates
+	// FIXME: Encode using utf8
+	s = p = mono_metadata_user_string (image, idx);
+	int len = mono_metadata_decode_blob_size (p, &p) / sizeof (gunichar2);
+	return add_to_blob (acfg, (const guint8*)s, (guint8*)p + (len * 2) - (guint8*)s);
 }
 
 static int

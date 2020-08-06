@@ -1239,6 +1239,7 @@ mono_patch_info_hash (gconstpointer data)
 	case MONO_PATCH_INFO_SIGNATURE:
 	case MONO_PATCH_INFO_METHOD_CODE_SLOT:
 	case MONO_PATCH_INFO_AOT_JIT_INFO:
+	case MONO_PATCH_INFO_AOT_LDSTR:
 		return hash | (gssize)ji->data.target;
 	case MONO_PATCH_INFO_GSHAREDVT_CALL:
 		return hash | (gssize)ji->data.gsharedvt->method;
@@ -1674,6 +1675,23 @@ mono_resolve_patch_target (MonoMethod *method, MonoDomain *domain, guint8 *code,
 
 		break;
 	}
+	case MONO_PATCH_INFO_AOT_LDSTR: {
+		const char *sig = (const char*)patch_info->data.target;
+		gsize len = mono_metadata_decode_blob_size (sig, &sig) / sizeof (gunichar2);
+		MonoString *s = mono_string_new_utf16_checked (domain, (gunichar2*)sig, len, error);
+		mono_error_assert_ok (error);
+
+		/* Intern */
+		HANDLE_FUNCTION_ENTER ();
+		MonoStringHandle s_h = MONO_HANDLE_NEW (MonoString, s);
+		s_h = mono_string_intern_checked (s_h, error);
+		mono_error_assert_ok (error);
+		s = MONO_HANDLE_RAW (s_h);
+		HANDLE_FUNCTION_RETURN ();
+		target = s;
+		break;
+	}
+
 	case MONO_PATCH_INFO_GSHAREDVT_IN_WRAPPER:
 		target = mini_get_gsharedvt_wrapper (TRUE, NULL, patch_info->data.sig, NULL, -1, FALSE);
 		break;

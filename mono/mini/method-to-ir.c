@@ -8622,10 +8622,21 @@ calli_end:
 							EMIT_NEW_ICONST (cfg, iargs [1], mono_metadata_token_index (n));
 							*sp = mono_emit_jit_icall (cfg, mono_helper_ldstr, iargs);
 						}
-					} 
-					else
-					if (cfg->compile_aot) {
+					} else if (FALSE && cfg->compile_aot) {
 						NEW_LDSTRCONST (cfg, ins, image, n);
+						*sp = ins;
+						MONO_ADD_INS (cfg->cbb, ins);
+					} else if (cfg->compile_aot) {
+						// FIXME: Make it optional
+						guint32 idx = mono_metadata_token_index (n);
+						guint32 aot_idx = mono_aot_add_ldstr (image, idx);
+						/*
+						 * data.target is supposed to point to the string,
+						 * but this is only read by the aot compiler, so its ok.
+						 */
+						NEW_AOTCONST (cfg, ins, MONO_PATCH_INFO_AOT_LDSTR, GUINT_TO_POINTER (aot_idx));
+						ins->type = STACK_OBJ;
+						ins->klass = mono_defaults.string_class;
 						*sp = ins;
 						MONO_ADD_INS (cfg->cbb, ins);
 					} 
